@@ -8,6 +8,8 @@ import pinoHttp from "pino-http";
 import prisma from "./config/prisma.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 
+import clientesRoutes from "./modules/clientes/clientes.routes.js";
+
 const app = express();
 
 // ======================================================
@@ -89,7 +91,20 @@ app.get("/api/health/database", async (req, res, next) => {
   }
 });
 
+// ======================================================
+// ROTA DO AUTENTICADOR
+// ======================================================
+
 app.use("/api/auth", authRoutes);
+
+// ======================================================
+// ROTA DE CLIENTES
+// ======================================================
+
+app.use(
+  "/api/clientes",
+  clientesRoutes
+);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA
