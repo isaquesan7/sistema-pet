@@ -33,3 +33,44 @@ export async function login(req, res, next) {
     next(error);
   }
 }
+
+export async function me(req, res) {
+  return res.status(200).json({
+    success: true,
+
+    usuario: {
+      id: req.usuario.id,
+      nome: req.usuario.nome,
+      email: req.usuario.email,
+    },
+  });
+}
+
+
+export async function contexto(req, res) {
+  return res.status(200).json({
+    success: true,
+
+    usuario: {
+      id: req.usuario.id,
+      nome: req.usuario.nome,
+      email: req.usuario.email,
+    },
+
+    empresa: {
+      id: req.empresa.id,
+      nomeFantasia: req.empresa.nomeFantasia,
+      razaoSocial: req.empresa.razaoSocial,
+      tipo: req.empresa.tipo,
+    },
+
+    cargo: req.vinculoEmpresa.cargo
+      ? {
+          id: req.vinculoEmpresa.cargo.id,
+          nome: req.vinculoEmpresa.cargo.nome,
+        }
+      : null,
+
+    permissoes: req.permissoes,
+  });
+}
