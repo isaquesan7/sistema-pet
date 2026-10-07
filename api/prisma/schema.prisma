@@ -195,6 +195,8 @@ model Usuario {
 
   movimentacoesCaixa MovimentacaoCaixa[]
 
+  sessoes SessaoUsuario[]
+
   @@map("usuarios")
 }
 
@@ -996,4 +998,32 @@ model MovimentacaoCaixa {
   @@index([createdAt])
   @@index([referenciaTipo, referenciaId])
   @@map("movimentacoes_caixa")
+}
+
+// ======================================================
+// SESSÕES DE AUTENTICAÇÃO
+// ======================================================
+
+model SessaoUsuario {
+  id String @id @default(cuid())
+
+  usuarioId String
+
+  refreshTokenHash String
+
+  userAgent String?
+  ip        String?
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("sessoes_usuario")
 }

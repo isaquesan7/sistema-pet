@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 
 import prisma from "./config/prisma.js";
+import authRoutes from "./modules/auth/auth.routes.js";
 
 const app = express();
 
@@ -87,6 +88,8 @@ app.get("/api/health/database", async (req, res, next) => {
     next(error);
   }
 });
+
+app.use("/api/auth", authRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA
