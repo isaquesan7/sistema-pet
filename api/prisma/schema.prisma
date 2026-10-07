@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,378 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+
+// ======================================================
+// ENUMS
+// ======================================================
+
+enum TipoEmpresa {
+  LOJA_CONSULTORIO
+  BANHO_TOSA
+}
+
+enum StatusUsuario {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+}
+
+enum StatusContaCliente {
+  PENDENTE
+  ATIVA
+  BLOQUEADA
+  INATIVA
+}
+
+enum SexoPet {
+  MACHO
+  FEMEA
+  NAO_INFORMADO
+}
+
+
+// ======================================================
+// EMPRESAS / CNPJS
+// ======================================================
+
+model Empresa {
+  id                 String      @id @default(cuid())
+
+  tipo               TipoEmpresa
+
+  razaoSocial        String
+  nomeFantasia       String
+  cnpj               String      @unique
+
+  inscricaoEstadual  String?
+  inscricaoMunicipal String?
+
+  telefone           String?
+  email              String?
+
+  cep                String?
+  logradouro         String?
+  numero             String?
+  complemento        String?
+  bairro             String?
+  cidade             String?
+  estado             String?
+
+  ativo              Boolean     @default(true)
+
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  usuarios           UsuarioEmpresa[]
+  cargos             Cargo[]
+
+  @@map("empresas")
+}
+
+
+// ======================================================
+// USUÁRIOS INTERNOS
+// ======================================================
+
+model Usuario {
+  id           String        @id @default(cuid())
+
+  nome         String
+  email        String        @unique
+  senhaHash    String
+
+  telefone     String?
+
+  status       StatusUsuario @default(ATIVO)
+
+  ultimoAcesso DateTime?
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  empresas     UsuarioEmpresa[]
+
+  @@map("usuarios")
+}
+
+
+// ======================================================
+// CARGOS
+// ======================================================
+
+model Cargo {
+  id        String   @id @default(cuid())
+
+  empresaId String
+  nome      String
+  descricao String?
+
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa     Empresa          @relation(fields: [empresaId], references: [id])
+  usuarios    UsuarioEmpresa[]
+  permissoes  CargoPermissao[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+
+  @@map("cargos")
+}
+
+
+// ======================================================
+// PERMISSÕES
+// ======================================================
+
+model Permissao {
+  id        String   @id @default(cuid())
+
+  codigo    String   @unique
+  nome      String
+  descricao String?
+
+  createdAt DateTime @default(now())
+
+  cargos CargoPermissao[]
+
+  @@map("permissoes")
+}
+
+
+model CargoPermissao {
+  cargoId     String
+  permissaoId String
+
+  cargo     Cargo     @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  permissao Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  @@id([cargoId, permissaoId])
+
+  @@map("cargo_permissoes")
+}
+
+
+// ======================================================
+// USUÁRIO X EMPRESA
+// ======================================================
+
+model UsuarioEmpresa {
+  usuarioId String
+  empresaId String
+  cargoId   String?
+
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  cargo   Cargo?   @relation(fields: [cargoId], references: [id])
+
+  @@id([usuarioId, empresaId])
+
+  @@index([empresaId])
+  @@index([cargoId])
+
+  @@map("usuario_empresas")
+}
+
+
+// ======================================================
+// CLIENTES / TUTORES
+// ======================================================
+
+model Cliente {
+  id             String   @id @default(cuid())
+
+  nome           String
+
+  cpfCnpj        String?  @unique
+
+  telefone       String?
+  whatsapp       String?
+  email          String?
+
+  dataNascimento DateTime? @db.Date
+
+  cep            String?
+  logradouro     String?
+  numero         String?
+  complemento    String?
+  bairro         String?
+  cidade         String?
+  estado         String?
+
+  observacoes    String?  @db.Text
+
+  ativo          Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conta          ContaCliente?
+  pets           Pet[]
+
+  @@index([nome])
+  @@index([telefone])
+  @@index([whatsapp])
+  @@index([email])
+
+  @@map("clientes")
+}
+
+
+// ======================================================
+// CONTA DO CLIENTE
+// ======================================================
+
+model ContaCliente {
+  id                  String             @id @default(cuid())
+
+  clienteId           String             @unique
+
+  email               String?            @unique
+  telefone            String?            @unique
+
+  senhaHash           String
+
+  emailVerificado     Boolean            @default(false)
+  telefoneVerificado  Boolean            @default(false)
+
+  status              StatusContaCliente @default(PENDENTE)
+
+  ultimoAcesso        DateTime?
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("contas_clientes")
+}
+
+
+// ======================================================
+// ESPÉCIES
+// ======================================================
+
+model Especie {
+  id        String   @id @default(cuid())
+
+  nome      String   @unique
+
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  racas     Raca[]
+  pets      Pet[]
+
+  @@map("especies")
+}
+
+
+// ======================================================
+// RAÇAS
+// ======================================================
+
+model Raca {
+  id        String   @id @default(cuid())
+
+  especieId String
+  nome      String
+
+  ativo     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  especie Especie @relation(fields: [especieId], references: [id])
+  pets    Pet[]
+
+  @@unique([especieId, nome])
+  @@index([especieId])
+
+  @@map("racas")
+}
+
+
+// ======================================================
+// PETS
+// ======================================================
+
+model Pet {
+  id                  String   @id @default(cuid())
+
+  clienteId           String
+  especieId           String
+  racaId              String?
+
+  nome                String
+
+  sexo                SexoPet @default(NAO_INFORMADO)
+
+  dataNascimento      DateTime? @db.Date
+
+  castrado            Boolean?
+  cor                 String?
+
+  microchip           String?  @unique
+
+  fotoUrl             String?
+
+  alergias            String?  @db.Text
+  doencasPreexistentes String? @db.Text
+  observacoes         String?  @db.Text
+
+  ativo               Boolean  @default(true)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  especie Especie @relation(fields: [especieId], references: [id])
+  raca    Raca?    @relation(fields: [racaId], references: [id])
+
+  pesos PetPeso[]
+
+  @@index([clienteId])
+  @@index([especieId])
+  @@index([racaId])
+  @@index([nome])
+
+  @@map("pets")
+}
+
+
+// ======================================================
+// HISTÓRICO DE PESO
+// ======================================================
+
+model PetPeso {
+  id        String   @id @default(cuid())
+
+  petId     String
+
+  peso      Decimal  @db.Decimal(6, 2)
+
+  data      DateTime @default(now())
+
+  origem    String?
+  observacao String?
+
+  createdAt DateTime @default(now())
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([data])
+
+  @@map("pet_pesos")
 }
