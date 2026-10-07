@@ -7,7 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-
 // ======================================================
 // ENUMS
 // ======================================================
@@ -36,107 +35,200 @@ enum SexoPet {
   NAO_INFORMADO
 }
 
+enum TipoItemCatalogo {
+  PRODUTO
+  SERVICO
+}
+
+enum UnidadeEstoque {
+  UNIDADE
+  QUILOGRAMA
+  GRAMA
+  LITRO
+  MILILITRO
+  PACOTE
+  CAIXA
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  VENDA
+  CONSUMO_INTERNO
+  AJUSTE_POSITIVO
+  AJUSTE_NEGATIVO
+  PERDA
+  DEVOLUCAO_CLIENTE
+  DEVOLUCAO_FORNECEDOR
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SAIDA
+  CANCELAMENTO
+}
+
+enum StatusComanda {
+  ABERTA
+  PARCIALMENTE_FECHADA
+  FECHADA
+  CANCELADA
+}
+
+enum StatusComandaItem {
+  ATIVO
+  FATURADO
+  CANCELADO
+}
+
+enum StatusVenda {
+  ABERTA
+  FINALIZADA
+  CANCELADA
+  ESTORNADA
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  CARTAO_DEBITO
+  CARTAO_CREDITO
+  TRANSFERENCIA
+  CREDITO_CLIENTE
+  OUTRO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  APROVADO
+  RECUSADO
+  CANCELADO
+  ESTORNADO
+  REEMBOLSADO
+}
+
+enum StatusSessaoCaixa {
+  ABERTO
+  FECHADO
+}
+
+enum TipoMovimentacaoCaixa {
+  VENDA
+  SUPRIMENTO
+  SANGRIA
+  ESTORNO
+  RECEBIMENTO
+  AJUSTE
+}
 
 // ======================================================
 // EMPRESAS / CNPJS
 // ======================================================
 
 model Empresa {
-  id                 String      @id @default(cuid())
+  id String @id @default(cuid())
 
-  tipo               TipoEmpresa
+  tipo TipoEmpresa
 
-  razaoSocial        String
-  nomeFantasia       String
-  cnpj               String      @unique
+  razaoSocial  String
+  nomeFantasia String
+  cnpj         String @unique
 
   inscricaoEstadual  String?
   inscricaoMunicipal String?
 
-  telefone           String?
-  email              String?
+  telefone String?
+  email    String?
 
-  cep                String?
-  logradouro         String?
-  numero             String?
-  complemento        String?
-  bairro             String?
-  cidade             String?
-  estado             String?
+  cep         String?
+  logradouro  String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  estado      String?
 
-  ativo              Boolean     @default(true)
+  ativo Boolean @default(true)
 
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  usuarios           UsuarioEmpresa[]
-  cargos             Cargo[]
+  usuarios UsuarioEmpresa[]
+  cargos   Cargo[]
+
+  categoriasItens      CategoriaItem[]
+  itensCatalogo        ItemCatalogo[]
+  fornecedores         FornecedorEmpresa[]
+  movimentacoesEstoque MovimentacaoEstoque[]
+  comandaItens         ComandaItem[]
+  caixas               Caixa[]
+  vendas               Venda[]
 
   @@map("empresas")
 }
-
 
 // ======================================================
 // USUÁRIOS INTERNOS
 // ======================================================
 
 model Usuario {
-  id           String        @id @default(cuid())
+  id String @id @default(cuid())
 
-  nome         String
-  email        String        @unique
-  senhaHash    String
+  nome      String
+  email     String @unique
+  senhaHash String
 
-  telefone     String?
+  telefone String?
 
-  status       StatusUsuario @default(ATIVO)
+  status StatusUsuario @default(ATIVO)
 
   ultimoAcesso DateTime?
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  empresas     UsuarioEmpresa[]
+  empresas UsuarioEmpresa[]
+
+  movimentacoesEstoque MovimentacaoEstoque[]
+  vendas               Venda[]
+
+  sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
+  sessoesCaixaFechadas SessaoCaixa[] @relation("SessaoCaixaFechamento")
+
+  movimentacoesCaixa MovimentacaoCaixa[]
 
   @@map("usuarios")
 }
-
 
 // ======================================================
 // CARGOS
 // ======================================================
 
 model Cargo {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   empresaId String
   nome      String
   descricao String?
 
-  ativo     Boolean  @default(true)
+  ativo Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  empresa     Empresa          @relation(fields: [empresaId], references: [id])
-  usuarios    UsuarioEmpresa[]
-  permissoes  CargoPermissao[]
+  empresa    Empresa          @relation(fields: [empresaId], references: [id])
+  usuarios   UsuarioEmpresa[]
+  permissoes CargoPermissao[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
-
   @@map("cargos")
 }
-
 
 // ======================================================
 // PERMISSÕES
 // ======================================================
 
 model Permissao {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  codigo    String   @unique
+  codigo    String  @unique
   nome      String
   descricao String?
 
@@ -147,7 +239,6 @@ model Permissao {
   @@map("permissoes")
 }
 
-
 model CargoPermissao {
   cargoId     String
   permissaoId String
@@ -156,10 +247,8 @@ model CargoPermissao {
   permissao Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
 
   @@id([cargoId, permissaoId])
-
   @@map("cargo_permissoes")
 }
-
 
 // ======================================================
 // USUÁRIO X EMPRESA
@@ -170,129 +259,125 @@ model UsuarioEmpresa {
   empresaId String
   cargoId   String?
 
-  ativo     Boolean  @default(true)
+  ativo Boolean @default(true)
 
   createdAt DateTime @default(now())
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  cargo   Cargo?   @relation(fields: [cargoId], references: [id])
+  cargo   Cargo?  @relation(fields: [cargoId], references: [id])
 
   @@id([usuarioId, empresaId])
-
   @@index([empresaId])
   @@index([cargoId])
-
   @@map("usuario_empresas")
 }
-
 
 // ======================================================
 // CLIENTES / TUTORES
 // ======================================================
 
 model Cliente {
-  id             String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  nome           String
+  nome String
 
-  cpfCnpj        String?  @unique
+  cpfCnpj String? @unique
 
-  telefone       String?
-  whatsapp       String?
-  email          String?
+  telefone String?
+  whatsapp String?
+  email    String?
 
   dataNascimento DateTime? @db.Date
 
-  cep            String?
-  logradouro     String?
-  numero         String?
-  complemento    String?
-  bairro         String?
-  cidade         String?
-  estado         String?
+  cep         String?
+  logradouro  String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  estado      String?
 
-  observacoes    String?  @db.Text
+  observacoes String? @db.Text
 
-  ativo          Boolean  @default(true)
+  ativo Boolean @default(true)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  conta          ContaCliente?
-  pets           Pet[]
+  conta ContaCliente?
+  pets  Pet[]
+
+  comandas Comanda[]
+  vendas   Venda[]
 
   @@index([nome])
   @@index([telefone])
   @@index([whatsapp])
   @@index([email])
-
   @@map("clientes")
 }
-
 
 // ======================================================
 // CONTA DO CLIENTE
 // ======================================================
 
 model ContaCliente {
-  id                  String             @id @default(cuid())
+  id String @id @default(cuid())
 
-  clienteId           String             @unique
+  clienteId String @unique
 
-  email               String?            @unique
-  telefone            String?            @unique
+  email    String? @unique
+  telefone String? @unique
 
-  senhaHash           String
+  senhaHash String
 
-  emailVerificado     Boolean            @default(false)
-  telefoneVerificado  Boolean            @default(false)
+  emailVerificado    Boolean @default(false)
+  telefoneVerificado Boolean @default(false)
 
-  status              StatusContaCliente @default(PENDENTE)
+  status StatusContaCliente @default(PENDENTE)
 
-  ultimoAcesso        DateTime?
+  ultimoAcesso DateTime?
 
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
   @@map("contas_clientes")
 }
 
-
 // ======================================================
 // ESPÉCIES
 // ======================================================
 
 model Especie {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  nome      String   @unique
+  nome String @unique
 
-  ativo     Boolean  @default(true)
+  ativo Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  racas     Raca[]
-  pets      Pet[]
+  racas Raca[]
+  pets  Pet[]
 
   @@map("especies")
 }
-
 
 // ======================================================
 // RAÇAS
 // ======================================================
 
 model Raca {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   especieId String
   nome      String
 
-  ativo     Boolean  @default(true)
+  ativo Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -302,73 +387,72 @@ model Raca {
 
   @@unique([especieId, nome])
   @@index([especieId])
-
   @@map("racas")
 }
-
 
 // ======================================================
 // PETS
 // ======================================================
 
 model Pet {
-  id                  String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  clienteId           String
-  especieId           String
-  racaId              String?
+  clienteId String
+  especieId String
+  racaId    String?
 
-  nome                String
+  nome String
 
-  sexo                SexoPet @default(NAO_INFORMADO)
+  sexo SexoPet @default(NAO_INFORMADO)
 
-  dataNascimento      DateTime? @db.Date
+  dataNascimento DateTime? @db.Date
 
-  castrado            Boolean?
-  cor                 String?
+  castrado Boolean?
+  cor      String?
 
-  microchip           String?  @unique
+  microchip String? @unique
 
-  fotoUrl             String?
+  fotoUrl String?
 
-  alergias            String?  @db.Text
+  alergias             String? @db.Text
   doencasPreexistentes String? @db.Text
-  observacoes         String?  @db.Text
+  observacoes          String? @db.Text
 
-  ativo               Boolean  @default(true)
+  ativo Boolean @default(true)
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   cliente Cliente @relation(fields: [clienteId], references: [id])
   especie Especie @relation(fields: [especieId], references: [id])
-  raca    Raca?    @relation(fields: [racaId], references: [id])
+  raca    Raca?   @relation(fields: [racaId], references: [id])
 
   pesos PetPeso[]
+
+  comandaItens ComandaItem[]
+  vendaItens   VendaItem[]
 
   @@index([clienteId])
   @@index([especieId])
   @@index([racaId])
   @@index([nome])
-
   @@map("pets")
 }
-
 
 // ======================================================
 // HISTÓRICO DE PESO
 // ======================================================
 
 model PetPeso {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  petId     String
+  petId String
 
-  peso      Decimal  @db.Decimal(6, 2)
+  peso Decimal @db.Decimal(6, 2)
 
-  data      DateTime @default(now())
+  data DateTime @default(now())
 
-  origem    String?
+  origem     String?
   observacao String?
 
   createdAt DateTime @default(now())
@@ -377,6 +461,537 @@ model PetPeso {
 
   @@index([petId])
   @@index([data])
-
   @@map("pet_pesos")
+}
+
+// ======================================================
+// CATEGORIAS DE PRODUTOS / SERVIÇOS
+// ======================================================
+
+model CategoriaItem {
+  id        String @id @default(cuid())
+  empresaId String
+
+  nome      String
+  descricao String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa Empresa        @relation(fields: [empresaId], references: [id])
+  itens   ItemCatalogo[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+  @@map("categorias_itens")
+}
+
+// ======================================================
+// CATÁLOGO COMERCIAL
+// ======================================================
+
+model ItemCatalogo {
+  id          String  @id @default(cuid())
+  empresaId   String
+  categoriaId String?
+
+  tipo TipoItemCatalogo
+
+  nome      String
+  descricao String? @db.Text
+
+  codigoInterno String?
+  codigoBarras  String?
+
+  precoVenda Decimal @db.Decimal(12, 2)
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa   Empresa        @relation(fields: [empresaId], references: [id])
+  categoria CategoriaItem? @relation(fields: [categoriaId], references: [id])
+
+  produto Produto?
+  servico Servico?
+
+  comandaItens ComandaItem[]
+  vendaItens   VendaItem[]
+
+  @@unique([empresaId, codigoInterno])
+  @@unique([empresaId, codigoBarras])
+  @@index([empresaId])
+  @@index([categoriaId])
+  @@index([nome])
+  @@index([tipo])
+  @@map("itens_catalogo")
+}
+
+// ======================================================
+// PRODUTOS
+// ======================================================
+
+model Produto {
+  id     String @id @default(cuid())
+  itemId String @unique
+
+  unidade UnidadeEstoque @default(UNIDADE)
+
+  custoMedio    Decimal @default(0) @db.Decimal(12, 2)
+  estoqueMinimo Decimal @default(0) @db.Decimal(14, 3)
+
+  controlaEstoque Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  item ItemCatalogo @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  estoque       EstoqueSaldo?
+  lotes         LoteProduto[]
+  movimentacoes MovimentacaoEstoque[]
+
+  @@map("produtos")
+}
+
+// ======================================================
+// SERVIÇOS
+// ======================================================
+
+model Servico {
+  id     String @id @default(cuid())
+  itemId String @unique
+
+  duracaoMinutos Int?
+
+  geraComissao       Boolean  @default(false)
+  percentualComissao Decimal? @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  item ItemCatalogo @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("servicos")
+}
+
+// ======================================================
+// FORNECEDORES
+// ======================================================
+
+model Fornecedor {
+  id String @id @default(cuid())
+
+  razaoSocial  String?
+  nomeFantasia String
+
+  cpfCnpj String? @unique
+
+  telefone String?
+  whatsapp String?
+  email    String?
+
+  cep         String?
+  logradouro  String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  estado      String?
+
+  observacoes String? @db.Text
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresas FornecedorEmpresa[]
+
+  @@index([nomeFantasia])
+  @@map("fornecedores")
+}
+
+model FornecedorEmpresa {
+  fornecedorId String
+  empresaId    String
+
+  createdAt DateTime @default(now())
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  empresa    Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@id([fornecedorId, empresaId])
+  @@map("fornecedor_empresas")
+}
+
+// ======================================================
+// SALDO DE ESTOQUE
+// ======================================================
+
+model EstoqueSaldo {
+  id        String @id @default(cuid())
+  produtoId String @unique
+
+  quantidade Decimal @default(0) @db.Decimal(14, 3)
+
+  updatedAt DateTime @updatedAt
+
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@map("estoque_saldos")
+}
+
+// ======================================================
+// LOTES
+// ======================================================
+
+model LoteProduto {
+  id        String @id @default(cuid())
+  produtoId String
+
+  numeroLote String
+
+  dataFabricacao DateTime? @db.Date
+  dataValidade   DateTime? @db.Date
+
+  quantidadeAtual Decimal @default(0) @db.Decimal(14, 3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  movimentacoes MovimentacaoEstoque[]
+
+  @@unique([produtoId, numeroLote])
+  @@index([produtoId])
+  @@index([dataValidade])
+  @@map("lotes_produtos")
+}
+
+// ======================================================
+// MOVIMENTAÇÕES DE ESTOQUE
+// ======================================================
+
+model MovimentacaoEstoque {
+  id String @id @default(cuid())
+
+  empresaId String
+  produtoId String
+  loteId    String?
+  usuarioId String?
+
+  tipo TipoMovimentacaoEstoque
+
+  quantidade     Decimal @db.Decimal(14, 3)
+  saldoAnterior  Decimal @db.Decimal(14, 3)
+  saldoPosterior Decimal @db.Decimal(14, 3)
+
+  custoUnitario Decimal? @db.Decimal(12, 2)
+
+  origemTipo String?
+  origemId   String?
+
+  observacao String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  empresa Empresa      @relation(fields: [empresaId], references: [id])
+  produto Produto      @relation(fields: [produtoId], references: [id])
+  lote    LoteProduto? @relation(fields: [loteId], references: [id])
+  usuario Usuario?     @relation(fields: [usuarioId], references: [id])
+
+  @@index([empresaId])
+  @@index([produtoId])
+  @@index([loteId])
+  @@index([usuarioId])
+  @@index([createdAt])
+  @@index([origemTipo, origemId])
+  @@map("movimentacoes_estoque")
+}
+
+// ======================================================
+// COMANDAS
+// ======================================================
+
+model Comanda {
+  id     String @id @default(cuid())
+  numero Int    @unique @default(autoincrement())
+
+  clienteId String
+
+  status StatusComanda @default(ABERTA)
+
+  observacoes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fechadaEm DateTime?
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  itens  ComandaItem[]
+  vendas Venda[]
+
+  @@index([clienteId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("comandas")
+}
+
+// ======================================================
+// ITENS DA COMANDA
+// ======================================================
+
+model ComandaItem {
+  id String @id @default(cuid())
+
+  comandaId      String
+  empresaId      String
+  itemCatalogoId String
+  petId          String?
+
+  descricao String
+
+  quantidade Decimal @default(1) @db.Decimal(12, 3)
+
+  valorUnitario Decimal @db.Decimal(12, 2)
+  desconto      Decimal @default(0) @db.Decimal(12, 2)
+  valorTotal    Decimal @db.Decimal(12, 2)
+
+  origemTipo String?
+  origemId   String?
+
+  status StatusComandaItem @default(ATIVO)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comanda      Comanda      @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  empresa      Empresa      @relation(fields: [empresaId], references: [id])
+  itemCatalogo ItemCatalogo @relation(fields: [itemCatalogoId], references: [id])
+  pet          Pet?         @relation(fields: [petId], references: [id])
+
+  vendaItens VendaItem[]
+
+  @@index([comandaId])
+  @@index([empresaId])
+  @@index([itemCatalogoId])
+  @@index([petId])
+  @@index([status])
+  @@map("comanda_itens")
+}
+
+// ======================================================
+// CAIXAS
+// ======================================================
+
+model Caixa {
+  id        String @id @default(cuid())
+  empresaId String
+
+  nome      String
+  descricao String?
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  sessoes SessaoCaixa[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+  @@map("caixas")
+}
+
+// ======================================================
+// SESSÕES DE CAIXA
+// ======================================================
+
+model SessaoCaixa {
+  id      String @id @default(cuid())
+  caixaId String
+
+  usuarioAberturaId   String
+  usuarioFechamentoId String?
+
+  status StatusSessaoCaixa @default(ABERTO)
+
+  dataAbertura   DateTime  @default(now())
+  dataFechamento DateTime?
+
+  valorAbertura       Decimal  @default(0) @db.Decimal(12, 2)
+  valorFechamento     Decimal? @db.Decimal(12, 2)
+  valorEsperado       Decimal? @db.Decimal(12, 2)
+  diferencaFechamento Decimal? @db.Decimal(12, 2)
+
+  observacoes String? @db.Text
+
+  caixa Caixa @relation(fields: [caixaId], references: [id])
+
+  usuarioAbertura Usuario @relation("SessaoCaixaAbertura", fields: [usuarioAberturaId], references: [id])
+
+  usuarioFechamento Usuario? @relation("SessaoCaixaFechamento", fields: [usuarioFechamentoId], references: [id])
+
+  pagamentos    Pagamento[]
+  movimentacoes MovimentacaoCaixa[]
+
+  @@index([caixaId])
+  @@index([usuarioAberturaId])
+  @@index([status])
+  @@index([dataAbertura])
+  @@map("sessoes_caixa")
+}
+
+// ======================================================
+// VENDAS
+// ======================================================
+
+model Venda {
+  id     String @id @default(cuid())
+  numero Int    @unique @default(autoincrement())
+
+  empresaId String
+  comandaId String?
+  clienteId String?
+  usuarioId String
+
+  status StatusVenda @default(ABERTA)
+
+  subtotal   Decimal @default(0) @db.Decimal(12, 2)
+  desconto   Decimal @default(0) @db.Decimal(12, 2)
+  acrescimo  Decimal @default(0) @db.Decimal(12, 2)
+  valorTotal Decimal @default(0) @db.Decimal(12, 2)
+
+  observacoes String? @db.Text
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  finalizadaEm DateTime?
+  canceladaEm  DateTime?
+
+  empresa Empresa  @relation(fields: [empresaId], references: [id])
+  comanda Comanda? @relation(fields: [comandaId], references: [id])
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+  usuario Usuario  @relation(fields: [usuarioId], references: [id])
+
+  itens      VendaItem[]
+  pagamentos Pagamento[]
+
+  @@index([empresaId])
+  @@index([comandaId])
+  @@index([clienteId])
+  @@index([usuarioId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("vendas")
+}
+
+// ======================================================
+// ITENS DA VENDA
+// ======================================================
+
+model VendaItem {
+  id String @id @default(cuid())
+
+  vendaId        String
+  itemCatalogoId String?
+  comandaItemId  String?
+  petId          String?
+
+  descricao String
+
+  quantidade    Decimal @default(1) @db.Decimal(12, 3)
+  valorUnitario Decimal @db.Decimal(12, 2)
+  desconto      Decimal @default(0) @db.Decimal(12, 2)
+  valorTotal    Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  venda        Venda         @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  itemCatalogo ItemCatalogo? @relation(fields: [itemCatalogoId], references: [id])
+  comandaItem  ComandaItem?  @relation(fields: [comandaItemId], references: [id])
+  pet          Pet?          @relation(fields: [petId], references: [id])
+
+  @@index([vendaId])
+  @@index([itemCatalogoId])
+  @@index([comandaItemId])
+  @@index([petId])
+  @@map("venda_itens")
+}
+
+// ======================================================
+// PAGAMENTOS
+// ======================================================
+
+model Pagamento {
+  id String @id @default(cuid())
+
+  vendaId       String
+  sessaoCaixaId String?
+
+  forma  FormaPagamento
+  status StatusPagamento @default(PENDENTE)
+
+  valor Decimal @db.Decimal(12, 2)
+
+  parcelas Int? @default(1)
+
+  transacaoExternaId String?
+  codigoAutorizacao  String?
+
+  observacoes String? @db.Text
+
+  createdAt DateTime  @default(now())
+  pagoEm    DateTime?
+
+  venda       Venda        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  sessaoCaixa SessaoCaixa? @relation(fields: [sessaoCaixaId], references: [id])
+
+  @@index([vendaId])
+  @@index([sessaoCaixaId])
+  @@index([status])
+  @@index([forma])
+  @@index([createdAt])
+  @@map("pagamentos")
+}
+
+// ======================================================
+// MOVIMENTAÇÕES DE CAIXA
+// ======================================================
+
+model MovimentacaoCaixa {
+  id String @id @default(cuid())
+
+  sessaoCaixaId String
+  usuarioId     String
+
+  tipo TipoMovimentacaoCaixa
+
+  valor Decimal @db.Decimal(12, 2)
+
+  descricao String
+
+  referenciaTipo String?
+  referenciaId   String?
+
+  createdAt DateTime @default(now())
+
+  sessaoCaixa SessaoCaixa @relation(fields: [sessaoCaixaId], references: [id])
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+
+  @@index([sessaoCaixaId])
+  @@index([usuarioId])
+  @@index([tipo])
+  @@index([createdAt])
+  @@index([referenciaTipo, referenciaId])
+  @@map("movimentacoes_caixa")
 }
