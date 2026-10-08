@@ -46,6 +46,7 @@ export async function criar(req, res, next) {
 
     const cliente =
       await clientesService.criarCliente(
+        req.organizacao.id,
         resultado.data
       );
 
@@ -84,6 +85,7 @@ export async function listar(
 
     const resultado =
       await clientesService.listarClientes({
+        organizacaoId: req.organizacao.id,
         busca,
         pagina,
         limite,
@@ -106,6 +108,7 @@ export async function buscarPorId(
   try {
     const cliente =
       await clientesService.buscarClientePorId(
+        req.organizacao.id,
         req.params.id
       );
 
@@ -140,6 +143,7 @@ export async function atualizar(
 
     const cliente =
       await clientesService.atualizarCliente(
+        req.organizacao.id,
         req.params.id,
         resultado.data
       );

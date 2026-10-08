@@ -1,5 +1,4 @@
 import jwt from "jsonwebtoken";
-
 import prisma from "../config/prisma.js";
 
 // ======================================================
@@ -29,10 +28,7 @@ export async function autenticarUsuario(req, res, next) {
     let payload;
 
     try {
-      payload = jwt.verify(
-        token,
-        process.env.JWT_ACCESS_SECRET
-      );
+      payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
     } catch {
       return res.status(401).json({
         success: false,
@@ -41,9 +37,7 @@ export async function autenticarUsuario(req, res, next) {
     }
 
     const usuario = await prisma.usuario.findUnique({
-      where: {
-        id: payload.sub,
-      },
+      where: { id: payload.sub },
       select: {
         id: true,
         nome: true,
@@ -60,16 +54,14 @@ export async function autenticarUsuario(req, res, next) {
     }
 
     req.usuario = usuario;
-
     next();
   } catch (error) {
     next(error);
   }
 }
 
-
 // ======================================================
-// EMPRESA SELECIONADA
+// EMPRESA + ORGANIZAÇÃO (TENANT) SELECIONADAS
 // ======================================================
 
 export async function selecionarEmpresa(req, res, next) {
@@ -81,67 +73,90 @@ export async function selecionarEmpresa(req, res, next) {
       });
     }
 
-    const empresaId =
-      req.headers["x-empresa-id"];
+    const empresaId = req.headers["x-empresa-id"];
 
     if (!empresaId) {
       return res.status(400).json({
         success: false,
-        message:
-          "Empresa não informada. Utilize o cabeçalho X-Empresa-Id.",
+        message: "Empresa não informada. Utilize o cabeçalho X-Empresa-Id.",
       });
     }
 
-    const vinculo =
-      await prisma.usuarioEmpresa.findUnique({
-        where: {
-          usuarioId_empresaId: {
-            usuarioId: req.usuario.id,
-            empresaId,
-          },
+    const vinculo = await prisma.usuarioEmpresa.findUnique({
+      where: {
+        usuarioId_empresaId: {
+          usuarioId: req.usuario.id,
+          empresaId,
         },
-
-        include: {
-          empresa: true,
-
-          cargo: {
-            include: {
-              permissoes: {
-                include: {
-                  permissao: true,
-                },
+      },
+      include: {
+        empresa: {
+          include: {
+            organizacao: {
+              include: {
+                configuracao: true,
+                modulos: true,
               },
             },
           },
         },
-      });
+        cargo: {
+          include: {
+            permissoes: {
+              include: { permissao: true },
+            },
+          },
+        },
+      },
+    });
 
-    if (
-      !vinculo ||
-      !vinculo.ativo ||
-      !vinculo.empresa.ativo
-    ) {
+    if (!vinculo || !vinculo.ativo || !vinculo.empresa.ativo) {
       return res.status(403).json({
         success: false,
-        message:
-          "Você não possui acesso a esta empresa.",
+        message: "Você não possui acesso a esta empresa.",
+      });
+    }
+
+    const organizacao = vinculo.empresa.organizacao;
+
+    if (!organizacao?.ativo) {
+      return res.status(403).json({
+        success: false,
+        message: "A organização vinculada a esta empresa está inativa.",
+      });
+    }
+
+    const vinculoOrganizacao = await prisma.usuarioOrganizacao.findUnique({
+      where: {
+        usuarioId_organizacaoId: {
+          usuarioId: req.usuario.id,
+          organizacaoId: organizacao.id,
+        },
+      },
+    });
+
+    if (!vinculoOrganizacao?.ativo) {
+      return res.status(403).json({
+        success: false,
+        message: "Você não possui acesso a esta organização.",
       });
     }
 
     req.empresa = vinculo.empresa;
+    req.organizacao = organizacao;
     req.vinculoEmpresa = vinculo;
-
+    req.vinculoOrganizacao = vinculoOrganizacao;
     req.permissoes =
-      vinculo.cargo?.permissoes.map(
-        (item) => item.permissao.codigo
-      ) || [];
+      vinculo.cargo?.permissoes.map((item) => item.permissao.codigo) || [];
+    req.modulosHabilitados = organizacao.modulos
+      .filter((item) => item.habilitado)
+      .map((item) => item.modulo);
 
     next();
   } catch (error) {
     next(error);
   }
 }
-
 
 // ======================================================
 // VERIFICAÇÃO DE PERMISSÃO
@@ -156,19 +171,43 @@ export function exigirPermissao(codigo) {
       });
     }
 
-    if (!req.empresa) {
+    if (!req.empresa || !req.organizacao) {
       return res.status(400).json({
         success: false,
-        message: "Empresa não selecionada.",
+        message: "Empresa/organização não selecionada.",
       });
     }
 
     if (!req.permissoes?.includes(codigo)) {
       return res.status(403).json({
         success: false,
-        message:
-          "Você não possui permissão para realizar esta operação.",
+        message: "Você não possui permissão para realizar esta operação.",
         permissaoNecessaria: codigo,
+      });
+    }
+
+    next();
+  };
+}
+
+// ======================================================
+// VERIFICAÇÃO DE MÓDULO CONTRATADO/HABILITADO
+// ======================================================
+
+export function exigirModulo(modulo) {
+  return function (req, res, next) {
+    if (!req.organizacao) {
+      return res.status(400).json({
+        success: false,
+        message: "Organização não selecionada.",
+      });
+    }
+
+    if (!req.modulosHabilitados?.includes(modulo)) {
+      return res.status(403).json({
+        success: false,
+        message: "Este módulo não está habilitado para a organização.",
+        moduloNecessario: modulo,
       });
     }
 

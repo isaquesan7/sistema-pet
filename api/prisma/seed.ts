@@ -1,215 +1,114 @@
 import "dotenv/config";
-
-import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaClient } from "../src/generated/prisma/client.ts";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL não encontrada no arquivo .env");
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL não encontrada no arquivo .env");
-}
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
-const adapter = new PrismaPg({
-  connectionString,
-});
+const permissoes = [
+  ["clientes.visualizar", "Visualizar clientes", "Permite visualizar cadastros de clientes."],
+  ["clientes.criar", "Cadastrar clientes", "Permite cadastrar novos clientes."],
+  ["clientes.editar", "Editar clientes", "Permite alterar dados de clientes."],
+  ["pets.visualizar", "Visualizar pets", "Permite visualizar os pets cadastrados."],
+  ["pets.criar", "Cadastrar pets", "Permite cadastrar novos pets."],
+  ["pets.editar", "Editar pets", "Permite alterar dados de pets."],
+  ["cadastros.gerenciar", "Gerenciar cadastros auxiliares", "Permite gerenciar espécies, raças e outros cadastros auxiliares."],
+  ["catalogo.visualizar", "Visualizar catálogo", "Permite visualizar categorias, produtos e serviços."],
+  ["catalogo.gerenciar", "Gerenciar catálogo", "Permite cadastrar e alterar categorias, produtos, serviços e preços."],
+  ["consultorio.acessar", "Acessar consultório", "Permite acessar o módulo veterinário."],
+  ["consultorio.prontuario", "Gerenciar prontuários", "Permite criar e editar prontuários veterinários."],
+  ["banho_tosa.acessar", "Acessar banho e tosa", "Permite acessar o módulo de banho e tosa."],
+  ["banho_tosa.gerenciar", "Gerenciar banho e tosa", "Permite gerenciar ordens e serviços de banho e tosa."],
+  ["agenda.visualizar", "Visualizar agenda", "Permite consultar os agendamentos."],
+  ["agenda.gerenciar", "Gerenciar agenda", "Permite criar, editar e cancelar agendamentos."],
+  ["pdv.acessar", "Acessar PDV", "Permite utilizar o frente de caixa."],
+  ["pdv.cancelar_venda", "Cancelar vendas", "Permite cancelar vendas no PDV."],
+  ["pdv.aplicar_desconto", "Aplicar descontos", "Permite aplicar descontos em vendas."],
+  ["estoque.visualizar", "Visualizar estoque", "Permite consultar produtos e estoque."],
+  ["estoque.gerenciar", "Gerenciar estoque", "Permite realizar movimentações e ajustes de estoque."],
+  ["financeiro.visualizar", "Visualizar financeiro", "Permite acessar informações financeiras."],
+  ["financeiro.gerenciar", "Gerenciar financeiro", "Permite realizar operações financeiras."],
+  ["usuarios.visualizar", "Visualizar usuários", "Permite consultar usuários do sistema."],
+  ["usuarios.gerenciar", "Gerenciar usuários", "Permite cadastrar e alterar usuários e permissões."],
+  ["funcionarios.visualizar", "Visualizar funcionários", "Permite consultar funcionários e jornadas."],
+  ["funcionarios.gerenciar", "Gerenciar funcionários", "Permite cadastrar funcionários, funções e jornadas."],
+  ["ponto.registrar", "Registrar ponto", "Permite registrar batidas de ponto."],
+  ["ponto.gerenciar", "Gerenciar ponto", "Permite visualizar e ajustar registros de ponto."],
+  ["pacotes.visualizar", "Visualizar pacotes", "Permite consultar modelos e pacotes de clientes."],
+  ["pacotes.gerenciar", "Gerenciar pacotes", "Permite criar pacotes e consumir créditos."],
+  ["fiscal.gerenciar", "Gerenciar fiscal", "Permite configurar e operar integrações fiscais."],
+  ["relatorios.visualizar", "Visualizar relatórios", "Permite acessar relatórios gerenciais."],
+  ["empresas.gerenciar", "Gerenciar empresas", "Permite configurar os CNPJs do sistema."],
+  ["organizacao.gerenciar", "Gerenciar organização", "Permite alterar marca, configurações e módulos da organização."],
+] as const;
 
-const prisma = new PrismaClient({
-  adapter,
-});
+const modulos = [
+  "PDV",
+  "ESTOQUE",
+  "CONSULTORIO",
+  "BANHO_TOSA",
+  "FINANCEIRO",
+  "PORTAL_CLIENTE",
+  "PONTO",
+  "FISCAL",
+  "RELATORIOS",
+] as const;
 
 async function main() {
-  console.log("🌱 Iniciando seed da Pet King...");
+  console.log("🌱 Iniciando seed estrutural da plataforma...");
 
-  // =====================================================
-  // ESPÉCIES
-  // =====================================================
-
-  const especies = [
-    "Cão",
-    "Gato",
-    "Coelho",
-    "Ave",
-    "Roedor",
-    "Réptil",
-    "Outro",
-  ];
-
-  for (const nome of especies) {
-    await prisma.especie.upsert({
-      where: {
-        nome,
-      },
-
-      update: {
-        ativo: true,
-      },
-
-      create: {
-        nome,
-      },
+  const idsPermissoes: string[] = [];
+  for (const [codigo, nome, descricao] of permissoes) {
+    const permissao = await prisma.permissao.upsert({
+      where: { codigo },
+      update: { nome, descricao },
+      create: { codigo, nome, descricao },
     });
+    idsPermissoes.push(permissao.id);
+  }
+  console.log(`✅ ${idsPermissoes.length} permissões sincronizadas.`);
+
+  // Administradores existentes recebem automaticamente novas permissões.
+  const cargosAdmin = await prisma.cargo.findMany({
+    where: { nome: { equals: "Administrador", mode: "insensitive" }, ativo: true },
+    select: { id: true },
+  });
+
+  for (const cargo of cargosAdmin) {
+    for (const permissaoId of idsPermissoes) {
+      await prisma.cargoPermissao.upsert({
+        where: { cargoId_permissaoId: { cargoId: cargo.id, permissaoId } },
+        update: {},
+        create: { cargoId: cargo.id, permissaoId },
+      });
+    }
+  }
+  console.log(`✅ Permissões de ${cargosAdmin.length} cargo(s) Administrador sincronizadas.`);
+
+  // Organizações existentes recebem a matriz padrão de módulos.
+  const organizacoes = await prisma.organizacao.findMany({ select: { id: true } });
+  for (const organizacao of organizacoes) {
+    for (const modulo of modulos) {
+      await prisma.moduloOrganizacao.upsert({
+        where: { organizacaoId_modulo: { organizacaoId: organizacao.id, modulo } },
+        update: {},
+        create: { organizacaoId: organizacao.id, modulo, habilitado: true },
+      });
+    }
   }
 
-  console.log("✅ Espécies cadastradas.");
-
-  // =====================================================
-  // PERMISSÕES DO SISTEMA
-  // =====================================================
-
-  const permissoes = [
-    {
-      codigo: "clientes.visualizar",
-      nome: "Visualizar clientes",
-      descricao: "Permite visualizar cadastros de clientes.",
-    },
-    {
-      codigo: "clientes.criar",
-      nome: "Cadastrar clientes",
-      descricao: "Permite cadastrar novos clientes.",
-    },
-    {
-      codigo: "clientes.editar",
-      nome: "Editar clientes",
-      descricao: "Permite alterar dados de clientes.",
-    },
-
-    {
-      codigo: "pets.visualizar",
-      nome: "Visualizar pets",
-      descricao: "Permite visualizar os pets cadastrados.",
-    },
-    {
-      codigo: "pets.criar",
-      nome: "Cadastrar pets",
-      descricao: "Permite cadastrar novos pets.",
-    },
-    {
-      codigo: "pets.editar",
-      nome: "Editar pets",
-      descricao: "Permite alterar dados de pets.",
-    },
-
-    {
-      codigo: "consultorio.acessar",
-      nome: "Acessar consultório",
-      descricao: "Permite acessar o módulo veterinário.",
-    },
-    {
-      codigo: "consultorio.prontuario",
-      nome: "Gerenciar prontuários",
-      descricao: "Permite criar e editar prontuários veterinários.",
-    },
-
-    {
-      codigo: "banho_tosa.acessar",
-      nome: "Acessar banho e tosa",
-      descricao: "Permite acessar o módulo de banho e tosa.",
-    },
-    {
-      codigo: "banho_tosa.gerenciar",
-      nome: "Gerenciar banho e tosa",
-      descricao: "Permite gerenciar ordens e serviços de banho e tosa.",
-    },
-
-    {
-      codigo: "agenda.visualizar",
-      nome: "Visualizar agenda",
-      descricao: "Permite consultar os agendamentos.",
-    },
-    {
-      codigo: "agenda.gerenciar",
-      nome: "Gerenciar agenda",
-      descricao: "Permite criar, editar e cancelar agendamentos.",
-    },
-
-    {
-      codigo: "pdv.acessar",
-      nome: "Acessar PDV",
-      descricao: "Permite utilizar o frente de caixa.",
-    },
-    {
-      codigo: "pdv.cancelar_venda",
-      nome: "Cancelar vendas",
-      descricao: "Permite cancelar vendas no PDV.",
-    },
-    {
-      codigo: "pdv.aplicar_desconto",
-      nome: "Aplicar descontos",
-      descricao: "Permite aplicar descontos em vendas.",
-    },
-
-    {
-      codigo: "estoque.visualizar",
-      nome: "Visualizar estoque",
-      descricao: "Permite consultar produtos e estoque.",
-    },
-    {
-      codigo: "estoque.gerenciar",
-      nome: "Gerenciar estoque",
-      descricao: "Permite realizar movimentações e ajustes de estoque.",
-    },
-
-    {
-      codigo: "financeiro.visualizar",
-      nome: "Visualizar financeiro",
-      descricao: "Permite acessar informações financeiras.",
-    },
-    {
-      codigo: "financeiro.gerenciar",
-      nome: "Gerenciar financeiro",
-      descricao: "Permite realizar operações financeiras.",
-    },
-
-    {
-      codigo: "usuarios.visualizar",
-      nome: "Visualizar usuários",
-      descricao: "Permite consultar usuários do sistema.",
-    },
-    {
-      codigo: "usuarios.gerenciar",
-      nome: "Gerenciar usuários",
-      descricao: "Permite cadastrar e alterar usuários e permissões.",
-    },
-
-    {
-      codigo: "relatorios.visualizar",
-      nome: "Visualizar relatórios",
-      descricao: "Permite acessar relatórios gerenciais.",
-    },
-
-    {
-      codigo: "empresas.gerenciar",
-      nome: "Gerenciar empresas",
-      descricao: "Permite configurar os CNPJs do sistema.",
-    },
-  ];
-
-  for (const permissao of permissoes) {
-    await prisma.permissao.upsert({
-      where: {
-        codigo: permissao.codigo,
-      },
-
-      update: {
-        nome: permissao.nome,
-        descricao: permissao.descricao,
-      },
-
-      create: permissao,
-    });
-  }
-
-  console.log("✅ Permissões cadastradas.");
-
-  console.log("");
-  console.log("🎉 Seed concluído com sucesso!");
+  console.log("ℹ️ Espécies, raças, categorias, produtos e serviços NÃO são mais criados pelo seed.");
+  console.log("   Esses dados são configuráveis por cada organização no painel administrativo.");
+  console.log("🎉 Seed estrutural concluído!");
 }
 
 main()
   .catch((error) => {
     console.error("❌ Erro durante o seed:");
     console.error(error);
-
     process.exit(1);
   })
   .finally(async () => {

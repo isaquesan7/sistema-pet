@@ -9,8 +9,20 @@ import prisma from "./config/prisma.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 
 import clientesRoutes from "./modules/clientes/clientes.routes.js";
+import petsRoutes from "./modules/pets/pets.routes.js";
+import organizacoesRoutes from "./modules/organizacoes/organizacoes.routes.js";
+import catalogoRoutes from "./modules/catalogo/catalogo.routes.js";
+import funcionariosRoutes from "./modules/funcionarios/funcionarios.routes.js";
+import pacotesRoutes from "./modules/pacotes/pacotes.routes.js";
 
 const app = express();
+
+const corsOrigins = (
+  process.env.CORS_ORIGINS || "http://localhost:5173,http://localhost:5174"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // ======================================================
 // SEGURANÇA
@@ -20,10 +32,12 @@ app.use(helmet());
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ],
+    origin(origin, callback) {
+      if (!origin || corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Origem não autorizada pelo CORS."));
+    },
     credentials: true,
   })
 );
@@ -58,7 +72,7 @@ app.use(cookieParser());
 app.get("/api/health", (req, res) => {
   return res.status(200).json({
     success: true,
-    service: "Pet King API",
+    service: process.env.APP_NAME || "Pet ERP API",
     status: "online",
     timestamp: new Date().toISOString(),
   });
@@ -77,7 +91,7 @@ app.get("/api/health/database", async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      service: "Pet King API",
+      service: process.env.APP_NAME || "Pet ERP API",
       database: {
         status: "connected",
         provider: "PostgreSQL",
@@ -105,6 +119,24 @@ app.use(
   "/api/clientes",
   clientesRoutes
 );
+
+// ======================================================
+// ROTA DOS PETS
+// ======================================================
+
+app.use(
+  "/api/pets",
+  petsRoutes
+);
+
+// ======================================================
+// FUNDAÇÃO SaaS / CATÁLOGO / RH / PACOTES
+// ======================================================
+
+app.use("/api/organizacao", organizacoesRoutes);
+app.use("/api/catalogo", catalogoRoutes);
+app.use("/api/funcionarios", funcionariosRoutes);
+app.use("/api/pacotes", pacotesRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA

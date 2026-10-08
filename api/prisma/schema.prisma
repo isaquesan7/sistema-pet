@@ -16,6 +16,25 @@ datasource db {
 enum TipoEmpresa {
   LOJA_CONSULTORIO
   BANHO_TOSA
+  OUTRA
+}
+
+enum TipoVinculoOrganizacao {
+  PROPRIETARIO
+  ADMINISTRADOR
+  MEMBRO
+}
+
+enum ModuloSistema {
+  PDV
+  ESTOQUE
+  CONSULTORIO
+  BANHO_TOSA
+  FINANCEIRO
+  PORTAL_CLIENTE
+  PONTO
+  FISCAL
+  RELATORIOS
 }
 
 enum StatusUsuario {
@@ -119,12 +138,157 @@ enum TipoMovimentacaoCaixa {
   AJUSTE
 }
 
+enum StatusFuncionario {
+  ATIVO
+  AFASTADO
+  FERIAS
+  DESLIGADO
+}
+
+enum TipoRegistroPonto {
+  ENTRADA
+  INICIO_PAUSA
+  FIM_PAUSA
+  SAIDA
+}
+
+enum OrigemRegistroPonto {
+  WEB
+  MOBILE
+  ADMIN
+  IMPORTACAO
+}
+
+enum StatusFechamentoPonto {
+  ABERTO
+  FECHADO
+}
+
+enum TipoPacote {
+  FIXO
+  TEMPORARIO
+  PERSONALIZADO
+}
+
+enum StatusPacoteCliente {
+  ATIVO
+  ESGOTADO
+  EXPIRADO
+  CANCELADO
+}
+
+enum RegimeTributario {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+  MEI
+  OUTRO
+}
+
+enum AmbienteFiscal {
+  HOMOLOGACAO
+  PRODUCAO
+}
+
+enum TipoDocumentoFiscal {
+  NFCE
+  NFE
+  NFSE
+  RECIBO
+}
+
+enum StatusDocumentoFiscal {
+  PENDENTE
+  PROCESSANDO
+  AUTORIZADO
+  REJEITADO
+  CANCELADO
+  ERRO
+}
+
+// ======================================================
+// ORGANIZAÇÃO / TENANT
+// ======================================================
+
+model Organizacao {
+  id   String @id @default(cuid())
+  slug String @unique
+  nome String
+
+  ativo Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  configuracao ConfiguracaoOrganizacao?
+  modulos      ModuloOrganizacao[]
+
+  empresas        Empresa[]
+  usuarios        UsuarioOrganizacao[]
+  clientes        Cliente[]
+  contasCliente   ContaCliente[]
+  especies        Especie[]
+  categoriasItens CategoriaItem[]
+  fornecedores    Fornecedor[]
+  funcoes         FuncaoFuncionario[]
+  funcionarios    Funcionario[]
+  pacotesModelo   PacoteModelo[]
+  pacotesCliente  PacoteCliente[]
+  auditorias      Auditoria[]
+
+  @@index([nome])
+  @@map("organizacoes")
+}
+
+model ConfiguracaoOrganizacao {
+  id            String @id @default(cuid())
+  organizacaoId String @unique
+
+  nomeExibicao String?
+  logoUrl      String?
+  corPrimaria  String?
+  corSecundaria String?
+
+  telefone String?
+  whatsapp String?
+  email    String?
+  site     String?
+
+  timezone String @default("America/Sao_Paulo")
+  locale   String @default("pt-BR")
+  moeda    String @default("BRL")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_organizacao")
+}
+
+model ModuloOrganizacao {
+  organizacaoId String
+  modulo        ModuloSistema
+
+  habilitado   Boolean @default(true)
+  configuracao Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+
+  @@id([organizacaoId, modulo])
+  @@map("modulos_organizacao")
+}
+
 // ======================================================
 // EMPRESAS / CNPJS
 // ======================================================
 
 model Empresa {
-  id String @id @default(cuid())
+  id            String @id @default(cuid())
+  organizacaoId String
 
   tipo TipoEmpresa
 
@@ -151,10 +315,11 @@ model Empresa {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+
   usuarios UsuarioEmpresa[]
   cargos   Cargo[]
 
-  categoriasItens      CategoriaItem[]
   itensCatalogo        ItemCatalogo[]
   fornecedores         FornecedorEmpresa[]
   movimentacoesEstoque MovimentacaoEstoque[]
@@ -162,6 +327,19 @@ model Empresa {
   caixas               Caixa[]
   vendas               Venda[]
 
+  funcionarios  FuncionarioEmpresa[]
+  jornadas      JornadaTrabalho[]
+  registrosPonto RegistroPonto[]
+  fechamentosPonto FechamentoPonto[]
+
+  pacotesModelo  PacoteModelo[]
+  pacotesCliente PacoteCliente[]
+
+  configuracaoFiscal ConfiguracaoFiscalEmpresa?
+  documentosFiscais DocumentoFiscal[]
+  auditorias        Auditoria[]
+
+  @@index([organizacaoId])
   @@map("empresas")
 }
 
@@ -185,7 +363,9 @@ model Usuario {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  empresas UsuarioEmpresa[]
+  organizacoes UsuarioOrganizacao[]
+  empresas     UsuarioEmpresa[]
+  funcionarios Funcionario[]
 
   movimentacoesEstoque MovimentacaoEstoque[]
   vendas               Venda[]
@@ -194,14 +374,37 @@ model Usuario {
   sessoesCaixaFechadas SessaoCaixa[] @relation("SessaoCaixaFechamento")
 
   movimentacoesCaixa MovimentacaoCaixa[]
+  sessoes            SessaoUsuario[]
 
-  sessoes SessaoUsuario[]
+  historicosPreco HistoricoPrecoItem[]
+  registrosPontoCriados RegistroPonto[]    @relation("RegistroPontoUsuario")
+  ajustesPonto          AjustePonto[]       @relation("AjustePontoUsuario")
+  fechamentosPonto      FechamentoPonto[]  @relation("FechamentoPontoUsuario")
+  consumosPacote  ConsumoPacote[]
+  auditorias      Auditoria[]
 
   @@map("usuarios")
 }
 
+model UsuarioOrganizacao {
+  usuarioId     String
+  organizacaoId String
+
+  papel TipoVinculoOrganizacao @default(MEMBRO)
+  ativo Boolean                @default(true)
+
+  createdAt DateTime @default(now())
+
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, organizacaoId])
+  @@index([organizacaoId])
+  @@map("usuario_organizacoes")
+}
+
 // ======================================================
-// CARGOS
+// CARGOS E PERMISSÕES
 // ======================================================
 
 model Cargo {
@@ -225,14 +428,10 @@ model Cargo {
   @@map("cargos")
 }
 
-// ======================================================
-// PERMISSÕES
-// ======================================================
-
 model Permissao {
   id String @id @default(cuid())
 
-  codigo    String  @unique
+  codigo    String @unique
   nome      String
   descricao String?
 
@@ -253,10 +452,6 @@ model CargoPermissao {
   @@id([cargoId, permissaoId])
   @@map("cargo_permissoes")
 }
-
-// ======================================================
-// USUÁRIO X EMPRESA
-// ======================================================
 
 model UsuarioEmpresa {
   usuarioId String
@@ -282,11 +477,12 @@ model UsuarioEmpresa {
 // ======================================================
 
 model Cliente {
-  id String @id @default(cuid())
+  id            String @id @default(cuid())
+  organizacaoId String
 
   nome String
 
-  cpfCnpj String? @unique
+  cpfCnpj String?
 
   telefone String?
   whatsapp String?
@@ -309,12 +505,17 @@ model Cliente {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+
   conta ContaCliente?
   pets  Pet[]
 
-  comandas Comanda[]
-  vendas   Venda[]
+  comandas       Comanda[]
+  vendas         Venda[]
+  pacotesCliente PacoteCliente[]
 
+  @@unique([organizacaoId, cpfCnpj])
+  @@index([organizacaoId])
   @@index([nome])
   @@index([telefone])
   @@index([whatsapp])
@@ -322,17 +523,13 @@ model Cliente {
   @@map("clientes")
 }
 
-// ======================================================
-// CONTA DO CLIENTE
-// ======================================================
-
 model ContaCliente {
-  id String @id @default(cuid())
+  id            String @id @default(cuid())
+  organizacaoId String
+  clienteId     String @unique
 
-  clienteId String @unique
-
-  email    String? @unique
-  telefone String? @unique
+  email    String?
+  telefone String?
 
   senhaHash String
 
@@ -346,34 +543,38 @@ model ContaCliente {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  cliente     Cliente     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
+  @@unique([organizacaoId, email])
+  @@unique([organizacaoId, telefone])
+  @@index([organizacaoId])
   @@map("contas_clientes")
 }
 
 // ======================================================
-// ESPÉCIES
+// CADASTROS VETERINÁRIOS CONFIGURÁVEIS
 // ======================================================
 
 model Especie {
-  id String @id @default(cuid())
+  id            String @id @default(cuid())
+  organizacaoId String
 
-  nome String @unique
+  nome String
 
   ativo Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  racas Raca[]
-  pets  Pet[]
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  racas       Raca[]
+  pets        Pet[]
 
+  @@unique([organizacaoId, nome])
+  @@index([organizacaoId])
   @@map("especies")
 }
-
-// ======================================================
-// RAÇAS
-// ======================================================
 
 model Raca {
   id String @id @default(cuid())
@@ -386,17 +587,13 @@ model Raca {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  especie Especie @relation(fields: [especieId], references: [id])
+  especie Especie @relation(fields: [especieId], references: [id], onDelete: Cascade)
   pets    Pet[]
 
   @@unique([especieId, nome])
   @@index([especieId])
   @@map("racas")
 }
-
-// ======================================================
-// PETS
-// ======================================================
 
 model Pet {
   id String @id @default(cuid())
@@ -433,8 +630,10 @@ model Pet {
 
   pesos PetPeso[]
 
-  comandaItens ComandaItem[]
-  vendaItens   VendaItem[]
+  comandaItens  ComandaItem[]
+  vendaItens    VendaItem[]
+  pacotesCliente PacoteCliente[]
+  consumosPacote ConsumoPacote[]
 
   @@index([clienteId])
   @@index([especieId])
@@ -442,10 +641,6 @@ model Pet {
   @@index([nome])
   @@map("pets")
 }
-
-// ======================================================
-// HISTÓRICO DE PESO
-// ======================================================
 
 model PetPeso {
   id String @id @default(cuid())
@@ -469,26 +664,33 @@ model PetPeso {
 }
 
 // ======================================================
-// CATEGORIAS DE PRODUTOS / SERVIÇOS
+// CATEGORIAS CONFIGURÁVEIS
 // ======================================================
 
 model CategoriaItem {
-  id        String @id @default(cuid())
-  empresaId String
+  id            String @id @default(cuid())
+  organizacaoId String
+  parentId      String?
+
+  tipo TipoItemCatalogo
 
   nome      String
   descricao String?
-
-  ativo Boolean @default(true)
+  ordem     Int     @default(0)
+  ativo     Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  empresa Empresa        @relation(fields: [empresaId], references: [id])
-  itens   ItemCatalogo[]
+  organizacao Organizacao    @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  pai         CategoriaItem?  @relation("CategoriaHierarquia", fields: [parentId], references: [id], onDelete: SetNull)
+  filhas      CategoriaItem[] @relation("CategoriaHierarquia")
+  itens       ItemCatalogo[]
 
-  @@unique([empresaId, nome])
-  @@index([empresaId])
+  @@unique([organizacaoId, tipo, nome])
+  @@index([organizacaoId])
+  @@index([parentId])
+  @@index([tipo])
   @@map("categorias_itens")
 }
 
@@ -509,7 +711,11 @@ model ItemCatalogo {
   codigoInterno String?
   codigoBarras  String?
 
-  precoVenda Decimal @db.Decimal(12, 2)
+  custoReferencia       Decimal  @default(0) @db.Decimal(12, 2)
+  precoVenda            Decimal  @db.Decimal(12, 2)
+  markupPercentual      Decimal? @db.Decimal(8, 4)
+  margemBrutaPercentual Decimal? @db.Decimal(8, 4)
+  lucroBruto            Decimal? @db.Decimal(12, 2)
 
   ativo Boolean @default(true)
 
@@ -522,8 +728,14 @@ model ItemCatalogo {
   produto Produto?
   servico Servico?
 
+  historicosPreco HistoricoPrecoItem[]
+  fiscalConfig    ConfiguracaoFiscalItem?
+
   comandaItens ComandaItem[]
   vendaItens   VendaItem[]
+
+  pacoteModeloItens  PacoteModeloItem[]
+  pacoteClienteItens PacoteClienteItem[]
 
   @@unique([empresaId, codigoInterno])
   @@unique([empresaId, codigoBarras])
@@ -534,9 +746,26 @@ model ItemCatalogo {
   @@map("itens_catalogo")
 }
 
-// ======================================================
-// PRODUTOS
-// ======================================================
+model HistoricoPrecoItem {
+  id             String  @id @default(cuid())
+  itemCatalogoId String
+  usuarioId      String?
+
+  custoReferencia       Decimal  @db.Decimal(12, 2)
+  precoVenda            Decimal  @db.Decimal(12, 2)
+  markupPercentual      Decimal? @db.Decimal(8, 4)
+  margemBrutaPercentual Decimal? @db.Decimal(8, 4)
+  lucroBruto            Decimal? @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  itemCatalogo ItemCatalogo @relation(fields: [itemCatalogoId], references: [id], onDelete: Cascade)
+  usuario      Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([itemCatalogoId])
+  @@index([createdAt])
+  @@map("historico_precos_itens")
+}
 
 model Produto {
   id     String @id @default(cuid())
@@ -544,10 +773,13 @@ model Produto {
 
   unidade UnidadeEstoque @default(UNIDADE)
 
-  custoMedio    Decimal @default(0) @db.Decimal(12, 2)
-  estoqueMinimo Decimal @default(0) @db.Decimal(14, 3)
+  marca          String?
+  custoMedio     Decimal @default(0) @db.Decimal(12, 2)
+  estoqueMinimo  Decimal @default(0) @db.Decimal(14, 3)
 
   controlaEstoque Boolean @default(true)
+  controlaLote    Boolean @default(false)
+  controlaValidade Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -561,10 +793,6 @@ model Produto {
   @@map("produtos")
 }
 
-// ======================================================
-// SERVIÇOS
-// ======================================================
-
 model Servico {
   id     String @id @default(cuid())
   itemId String @unique
@@ -573,6 +801,10 @@ model Servico {
 
   geraComissao       Boolean  @default(false)
   percentualComissao Decimal? @db.Decimal(5, 2)
+
+  permiteAgendamento Boolean @default(true)
+  exigePet           Boolean @default(true)
+  exigeProfissional  Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -587,12 +819,13 @@ model Servico {
 // ======================================================
 
 model Fornecedor {
-  id String @id @default(cuid())
+  id            String @id @default(cuid())
+  organizacaoId String
 
   razaoSocial  String?
   nomeFantasia String
 
-  cpfCnpj String? @unique
+  cpfCnpj String?
 
   telefone String?
   whatsapp String?
@@ -613,8 +846,11 @@ model Fornecedor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  empresas FornecedorEmpresa[]
+  organizacao Organizacao         @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  empresas    FornecedorEmpresa[]
 
+  @@unique([organizacaoId, cpfCnpj])
+  @@index([organizacaoId])
   @@index([nomeFantasia])
   @@map("fornecedores")
 }
@@ -633,7 +869,7 @@ model FornecedorEmpresa {
 }
 
 // ======================================================
-// SALDO DE ESTOQUE
+// ESTOQUE
 // ======================================================
 
 model EstoqueSaldo {
@@ -648,10 +884,6 @@ model EstoqueSaldo {
 
   @@map("estoque_saldos")
 }
-
-// ======================================================
-// LOTES
-// ======================================================
 
 model LoteProduto {
   id        String @id @default(cuid())
@@ -676,10 +908,6 @@ model LoteProduto {
   @@index([dataValidade])
   @@map("lotes_produtos")
 }
-
-// ======================================================
-// MOVIMENTAÇÕES DE ESTOQUE
-// ======================================================
 
 model MovimentacaoEstoque {
   id String @id @default(cuid())
@@ -719,7 +947,7 @@ model MovimentacaoEstoque {
 }
 
 // ======================================================
-// COMANDAS
+// COMANDAS / VENDAS / CAIXA
 // ======================================================
 
 model Comanda {
@@ -747,10 +975,6 @@ model Comanda {
   @@index([createdAt])
   @@map("comandas")
 }
-
-// ======================================================
-// ITENS DA COMANDA
-// ======================================================
 
 model ComandaItem {
   id String @id @default(cuid())
@@ -791,10 +1015,6 @@ model ComandaItem {
   @@map("comanda_itens")
 }
 
-// ======================================================
-// CAIXAS
-// ======================================================
-
 model Caixa {
   id        String @id @default(cuid())
   empresaId String
@@ -815,10 +1035,6 @@ model Caixa {
   @@index([empresaId])
   @@map("caixas")
 }
-
-// ======================================================
-// SESSÕES DE CAIXA
-// ======================================================
 
 model SessaoCaixa {
   id      String @id @default(cuid())
@@ -841,8 +1057,7 @@ model SessaoCaixa {
 
   caixa Caixa @relation(fields: [caixaId], references: [id])
 
-  usuarioAbertura Usuario @relation("SessaoCaixaAbertura", fields: [usuarioAberturaId], references: [id])
-
+  usuarioAbertura   Usuario  @relation("SessaoCaixaAbertura", fields: [usuarioAberturaId], references: [id])
   usuarioFechamento Usuario? @relation("SessaoCaixaFechamento", fields: [usuarioFechamentoId], references: [id])
 
   pagamentos    Pagamento[]
@@ -854,10 +1069,6 @@ model SessaoCaixa {
   @@index([dataAbertura])
   @@map("sessoes_caixa")
 }
-
-// ======================================================
-// VENDAS
-// ======================================================
 
 model Venda {
   id     String @id @default(cuid())
@@ -887,8 +1098,10 @@ model Venda {
   cliente Cliente? @relation(fields: [clienteId], references: [id])
   usuario Usuario  @relation(fields: [usuarioId], references: [id])
 
-  itens      VendaItem[]
-  pagamentos Pagamento[]
+  itens             VendaItem[]
+  pagamentos        Pagamento[]
+  pacotesCliente    PacoteCliente[]
+  documentosFiscais DocumentoFiscal[]
 
   @@index([empresaId])
   @@index([comandaId])
@@ -898,10 +1111,6 @@ model Venda {
   @@index([createdAt])
   @@map("vendas")
 }
-
-// ======================================================
-// ITENS DA VENDA
-// ======================================================
 
 model VendaItem {
   id String @id @default(cuid())
@@ -931,10 +1140,6 @@ model VendaItem {
   @@index([petId])
   @@map("venda_itens")
 }
-
-// ======================================================
-// PAGAMENTOS
-// ======================================================
 
 model Pagamento {
   id String @id @default(cuid())
@@ -968,10 +1173,6 @@ model Pagamento {
   @@map("pagamentos")
 }
 
-// ======================================================
-// MOVIMENTAÇÕES DE CAIXA
-// ======================================================
-
 model MovimentacaoCaixa {
   id String @id @default(cuid())
 
@@ -998,6 +1199,443 @@ model MovimentacaoCaixa {
   @@index([createdAt])
   @@index([referenciaTipo, referenciaId])
   @@map("movimentacoes_caixa")
+}
+
+// ======================================================
+// RH / FUNCIONÁRIOS / PONTO
+// ======================================================
+
+model FuncaoFuncionario {
+  id            String @id @default(cuid())
+  organizacaoId String
+
+  nome      String
+  descricao String?
+  ativo     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao  Organizacao  @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  funcionarios Funcionario[]
+
+  @@unique([organizacaoId, nome])
+  @@index([organizacaoId])
+  @@map("funcoes_funcionarios")
+}
+
+model Funcionario {
+  id            String  @id @default(cuid())
+  organizacaoId String
+  usuarioId     String?
+  funcaoId      String?
+
+  nome      String
+  cpf       String?
+  email     String?
+  telefone  String?
+  matricula String?
+
+  dataAdmissao DateTime? @db.Date
+  dataDemissao DateTime? @db.Date
+  salarioBase  Decimal?  @db.Decimal(12, 2)
+
+  status StatusFuncionario @default(ATIVO)
+
+  observacoes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao       @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  usuario     Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  funcao      FuncaoFuncionario? @relation(fields: [funcaoId], references: [id], onDelete: SetNull)
+
+  empresas    FuncionarioEmpresa[]
+  jornadas    JornadaTrabalho[]
+  registros   RegistroPonto[]
+  fechamentos FechamentoPonto[]
+
+  @@unique([organizacaoId, cpf])
+  @@unique([organizacaoId, matricula])
+  @@unique([organizacaoId, usuarioId])
+  @@index([organizacaoId])
+  @@index([usuarioId])
+  @@index([funcaoId])
+  @@index([nome])
+  @@map("funcionarios")
+}
+
+model FuncionarioEmpresa {
+  funcionarioId String
+  empresaId     String
+
+  principal Boolean @default(false)
+  ativo     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@id([funcionarioId, empresaId])
+  @@index([empresaId])
+  @@map("funcionario_empresas")
+}
+
+model JornadaTrabalho {
+  id            String @id @default(cuid())
+  funcionarioId String
+  empresaId     String
+
+  diaSemana Int
+
+  entradaPrevista  String
+  saidaPrevista    String
+  inicioIntervalo  String?
+  fimIntervalo     String?
+
+  toleranciaMinutos Int @default(0)
+  ativo             Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([funcionarioId, empresaId, diaSemana])
+  @@index([empresaId])
+  @@map("jornadas_trabalho")
+}
+
+model RegistroPonto {
+  id              String @id @default(cuid())
+  funcionarioId   String
+  empresaId       String
+  registradoPorId String?
+
+  tipo   TipoRegistroPonto
+  origem OrigemRegistroPonto @default(WEB)
+
+  registradoEm DateTime @default(now())
+
+  ip         String?
+  userAgent  String?
+  observacao String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  funcionario  Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa      Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  registradoPor Usuario?    @relation("RegistroPontoUsuario", fields: [registradoPorId], references: [id], onDelete: SetNull)
+  ajustes      AjustePonto[]
+
+  @@index([funcionarioId, registradoEm])
+  @@index([empresaId, registradoEm])
+  @@index([registradoPorId])
+  @@map("registros_ponto")
+}
+
+model AjustePonto {
+  id          String @id @default(cuid())
+  registroId  String
+  usuarioId   String
+
+  horarioAnterior DateTime
+  horarioNovo     DateTime
+  motivo          String @db.Text
+
+  createdAt DateTime @default(now())
+
+  registro RegistroPonto @relation(fields: [registroId], references: [id], onDelete: Cascade)
+  usuario  Usuario      @relation("AjustePontoUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([registroId])
+  @@index([usuarioId])
+  @@map("ajustes_ponto")
+}
+
+model FechamentoPonto {
+  id            String @id @default(cuid())
+  funcionarioId String
+  empresaId     String
+  fechadoPorId  String?
+
+  competencia String
+
+  minutosPrevistos   Int @default(0)
+  minutosTrabalhados Int @default(0)
+  minutosExtras      Int @default(0)
+  minutosAtraso      Int @default(0)
+  minutosPausa       Int @default(0)
+  faltas             Int @default(0)
+
+  status StatusFechamentoPonto @default(ABERTO)
+
+  fechadoEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fechadoPor  Usuario?    @relation("FechamentoPontoUsuario", fields: [fechadoPorId], references: [id], onDelete: SetNull)
+
+  @@unique([funcionarioId, empresaId, competencia])
+  @@index([empresaId, competencia])
+  @@map("fechamentos_ponto")
+}
+
+// ======================================================
+// PACOTES
+// ======================================================
+
+model PacoteModelo {
+  id            String @id @default(cuid())
+  organizacaoId String
+  empresaId     String
+
+  nome      String
+  descricao String? @db.Text
+  tipo      TipoPacote @default(FIXO)
+
+  valorPacote Decimal @db.Decimal(12, 2)
+  validadeDias Int?
+
+  inicioVigencia DateTime? @db.Date
+  fimVigencia    DateTime? @db.Date
+
+  visivelPortal Boolean @default(false)
+  ativo         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  itens   PacoteModeloItem[]
+  compras PacoteCliente[]
+
+  @@index([organizacaoId])
+  @@index([empresaId])
+  @@index([ativo])
+  @@map("pacotes_modelo")
+}
+
+model PacoteModeloItem {
+  id              String @id @default(cuid())
+  pacoteModeloId  String
+  itemCatalogoId  String
+
+  quantidade Decimal @default(1) @db.Decimal(12, 3)
+
+  pacoteModelo PacoteModelo @relation(fields: [pacoteModeloId], references: [id], onDelete: Cascade)
+  itemCatalogo ItemCatalogo @relation(fields: [itemCatalogoId], references: [id], onDelete: Restrict)
+
+  @@unique([pacoteModeloId, itemCatalogoId])
+  @@index([itemCatalogoId])
+  @@map("pacote_modelo_itens")
+}
+
+model PacoteCliente {
+  id            String @id @default(cuid())
+  organizacaoId String
+  empresaId     String
+  modeloId      String?
+  clienteId     String
+  petId         String?
+  vendaId       String?
+
+  tipo TipoPacote
+  nome String
+
+  valorPacote Decimal @db.Decimal(12, 2)
+
+  inicioValidade DateTime @db.Date
+  fimValidade    DateTime? @db.Date
+
+  status StatusPacoteCliente @default(ATIVO)
+
+  observacoes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao  @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  empresa     Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  modelo      PacoteModelo? @relation(fields: [modeloId], references: [id], onDelete: SetNull)
+  cliente     Cliente      @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  pet         Pet?         @relation(fields: [petId], references: [id], onDelete: SetNull)
+  venda       Venda?       @relation(fields: [vendaId], references: [id], onDelete: SetNull)
+
+  itens PacoteClienteItem[]
+
+  @@index([organizacaoId])
+  @@index([empresaId])
+  @@index([clienteId])
+  @@index([petId])
+  @@index([status])
+  @@map("pacotes_clientes")
+}
+
+model PacoteClienteItem {
+  id               String @id @default(cuid())
+  pacoteClienteId  String
+  itemCatalogoId   String
+
+  quantidadeTotal     Decimal @db.Decimal(12, 3)
+  quantidadeConsumida Decimal @default(0) @db.Decimal(12, 3)
+
+  pacoteCliente PacoteCliente @relation(fields: [pacoteClienteId], references: [id], onDelete: Cascade)
+  itemCatalogo  ItemCatalogo  @relation(fields: [itemCatalogoId], references: [id], onDelete: Restrict)
+
+  consumos ConsumoPacote[]
+
+  @@unique([pacoteClienteId, itemCatalogoId])
+  @@index([itemCatalogoId])
+  @@map("pacote_cliente_itens")
+}
+
+model ConsumoPacote {
+  id                  String @id @default(cuid())
+  pacoteClienteItemId String
+  usuarioId           String?
+  petId               String?
+
+  quantidade Decimal @db.Decimal(12, 3)
+
+  origemTipo String?
+  origemId   String?
+  observacao String? @db.Text
+
+  consumidoEm DateTime @default(now())
+
+  pacoteClienteItem PacoteClienteItem @relation(fields: [pacoteClienteItemId], references: [id], onDelete: Cascade)
+  usuario            Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  pet                Pet?              @relation(fields: [petId], references: [id], onDelete: SetNull)
+
+  @@index([pacoteClienteItemId])
+  @@index([consumidoEm])
+  @@map("consumos_pacote")
+}
+
+// ======================================================
+// FISCAL - FUNDAÇÃO PARA INTEGRAÇÃO FUTURA
+// ======================================================
+
+model ConfiguracaoFiscalEmpresa {
+  id        String @id @default(cuid())
+  empresaId String @unique
+
+  regime   RegimeTributario @default(OUTRO)
+  ambiente AmbienteFiscal   @default(HOMOLOGACAO)
+
+  provedorFiscal String?
+
+  serieNfe  String?
+  serieNfce String?
+  serieNfse String?
+
+  certificadoReferencia String?
+  certificadoValidoAte  DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_fiscais_empresas")
+}
+
+model ConfiguracaoFiscalItem {
+  id             String @id @default(cuid())
+  itemCatalogoId String @unique
+
+  ncm                    String?
+  cest                   String?
+  cfop                   String?
+  origemMercadoria       String?
+  cstCsosn               String?
+  codigoServicoMunicipal String?
+
+  aliquotaIcms Decimal? @db.Decimal(7, 4)
+  aliquotaIss  Decimal? @db.Decimal(7, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  itemCatalogo ItemCatalogo @relation(fields: [itemCatalogoId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_fiscais_itens")
+}
+
+model DocumentoFiscal {
+  id        String @id @default(cuid())
+  empresaId String
+  vendaId   String?
+
+  tipo   TipoDocumentoFiscal
+  status StatusDocumentoFiscal @default(PENDENTE)
+
+  numero String?
+  serie  String?
+  chave  String?
+
+  valorTotal Decimal? @db.Decimal(12, 2)
+
+  protocolo String?
+  xmlUrl    String?
+  pdfUrl    String?
+
+  mensagemErro String? @db.Text
+
+  emitidoEm   DateTime?
+  canceladoEm DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  venda   Venda?   @relation(fields: [vendaId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId])
+  @@index([vendaId])
+  @@index([status])
+  @@index([chave])
+  @@map("documentos_fiscais")
+}
+
+// ======================================================
+// AUDITORIA
+// ======================================================
+
+model Auditoria {
+  id            String @id @default(cuid())
+  organizacaoId String
+  empresaId     String?
+  usuarioId     String?
+
+  acao      String
+  entidade  String
+  entidadeId String?
+
+  dadosAnteriores Json?
+  dadosNovos      Json?
+
+  ip String?
+
+  createdAt DateTime @default(now())
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  empresa     Empresa?    @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  usuario     Usuario?    @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([organizacaoId, createdAt])
+  @@index([empresaId, createdAt])
+  @@index([usuarioId, createdAt])
+  @@index([entidade, entidadeId])
+  @@map("auditoria")
 }
 
 // ======================================================

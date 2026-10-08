@@ -18,10 +18,7 @@ export async function login(req, res, next) {
       userAgent: req.get("user-agent"),
     });
 
-    return res.status(200).json({
-      success: true,
-      ...resultado,
-    });
+    return res.status(200).json({ success: true, ...resultado });
   } catch (error) {
     if (error.message === "CREDENCIAIS_INVALIDAS") {
       return res.status(401).json({
@@ -29,7 +26,6 @@ export async function login(req, res, next) {
         message: "E-mail ou senha inválidos.",
       });
     }
-
     next(error);
   }
 }
@@ -37,7 +33,6 @@ export async function login(req, res, next) {
 export async function me(req, res) {
   return res.status(200).json({
     success: true,
-
     usuario: {
       id: req.usuario.id,
       nome: req.usuario.nome,
@@ -46,31 +41,30 @@ export async function me(req, res) {
   });
 }
 
-
 export async function contexto(req, res) {
   return res.status(200).json({
     success: true,
-
     usuario: {
       id: req.usuario.id,
       nome: req.usuario.nome,
       email: req.usuario.email,
     },
-
+    organizacao: {
+      id: req.organizacao.id,
+      slug: req.organizacao.slug,
+      nome: req.organizacao.nome,
+      configuracao: req.organizacao.configuracao,
+      modulosHabilitados: req.modulosHabilitados,
+    },
     empresa: {
       id: req.empresa.id,
       nomeFantasia: req.empresa.nomeFantasia,
       razaoSocial: req.empresa.razaoSocial,
       tipo: req.empresa.tipo,
     },
-
     cargo: req.vinculoEmpresa.cargo
-      ? {
-          id: req.vinculoEmpresa.cargo.id,
-          nome: req.vinculoEmpresa.cargo.nome,
-        }
+      ? { id: req.vinculoEmpresa.cargo.id, nome: req.vinculoEmpresa.cargo.nome }
       : null,
-
     permissoes: req.permissoes,
   });
 }

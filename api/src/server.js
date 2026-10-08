@@ -6,7 +6,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const server = app.listen(PORT, () => {
   console.log("");
   console.log("==========================================");
-  console.log("🐾 PET KING API");
+  console.log(`🐾 ${process.env.APP_NAME || "PET ERP API"}`);
   console.log("==========================================");
   console.log(`✅ Servidor online`);
   console.log(`🌐 http://localhost:${PORT}`);

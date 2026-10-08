@@ -1,68 +1,51 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-
 import prisma from "../../config/prisma.js";
 
 function gerarAccessToken(usuario) {
   return jwt.sign(
-    {
-      sub: usuario.id,
-      email: usuario.email,
-    },
+    { sub: usuario.id, email: usuario.email },
     process.env.JWT_ACCESS_SECRET,
-    {
-      expiresIn: process.env.JWT_ACCESS_EXPIRES || "15m",
-    }
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES || "15m" }
   );
 }
 
 function gerarRefreshToken(usuarioId, sessaoId) {
   const dias = Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 30);
-
   return jwt.sign(
-    {
-      sub: usuarioId,
-      sid: sessaoId,
-    },
+    { sub: usuarioId, sid: sessaoId },
     process.env.JWT_REFRESH_SECRET,
-    {
-      expiresIn: `${dias}d`,
-    }
+    { expiresIn: `${dias}d` }
   );
 }
 
 function hashToken(token) {
-  return crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-export async function login({
-  email,
-  senha,
-  ip,
-  userAgent,
-}) {
+export async function login({ email, senha, ip, userAgent }) {
   const usuario = await prisma.usuario.findUnique({
-    where: {
-      email: email.trim().toLowerCase(),
-    },
+    where: { email: email.trim().toLowerCase() },
     include: {
-      empresas: {
-        where: {
-          ativo: true,
+      organizacoes: {
+        where: { ativo: true },
+        include: {
+          organizacao: {
+            include: {
+              configuracao: true,
+              modulos: true,
+            },
+          },
         },
+      },
+      empresas: {
+        where: { ativo: true },
         include: {
           empresa: true,
           cargo: {
             include: {
-              permissoes: {
-                include: {
-                  permissao: true,
-                },
-              },
+              permissoes: { include: { permissao: true } },
             },
           },
         },
@@ -74,19 +57,10 @@ export async function login({
     throw new Error("CREDENCIAIS_INVALIDAS");
   }
 
-  const senhaCorreta = await bcrypt.compare(
-    senha,
-    usuario.senhaHash
-  );
+  const senhaCorreta = await bcrypt.compare(senha, usuario.senhaHash);
+  if (!senhaCorreta) throw new Error("CREDENCIAIS_INVALIDAS");
 
-  if (!senhaCorreta) {
-    throw new Error("CREDENCIAIS_INVALIDAS");
-  }
-
-  const dias = Number(
-    process.env.JWT_REFRESH_EXPIRES_DAYS || 30
-  );
-
+  const dias = Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 30);
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + dias);
 
@@ -101,56 +75,55 @@ export async function login({
   });
 
   const accessToken = gerarAccessToken(usuario);
+  const refreshToken = gerarRefreshToken(usuario.id, sessao.id);
 
-  const refreshToken = gerarRefreshToken(
-    usuario.id,
-    sessao.id
-  );
+  await prisma.$transaction([
+    prisma.sessaoUsuario.update({
+      where: { id: sessao.id },
+      data: { refreshTokenHash: hashToken(refreshToken) },
+    }),
+    prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { ultimoAcesso: new Date() },
+    }),
+  ]);
 
-  await prisma.sessaoUsuario.update({
-    where: {
-      id: sessao.id,
-    },
-    data: {
-      refreshTokenHash: hashToken(refreshToken),
-    },
-  });
+  const empresas = usuario.empresas.map((vinculo) => ({
+    id: vinculo.empresa.id,
+    organizacaoId: vinculo.empresa.organizacaoId,
+    nomeFantasia: vinculo.empresa.nomeFantasia,
+    tipo: vinculo.empresa.tipo,
+    cargo: vinculo.cargo
+      ? { id: vinculo.cargo.id, nome: vinculo.cargo.nome }
+      : null,
+    permissoes:
+      vinculo.cargo?.permissoes.map((item) => item.permissao.codigo) || [],
+  }));
 
-  await prisma.usuario.update({
-    where: {
-      id: usuario.id,
-    },
-    data: {
-      ultimoAcesso: new Date(),
-    },
-  });
+  const organizacoes = usuario.organizacoes.map((vinculo) => ({
+    id: vinculo.organizacao.id,
+    slug: vinculo.organizacao.slug,
+    nome: vinculo.organizacao.nome,
+    papel: vinculo.papel,
+    configuracao: vinculo.organizacao.configuracao,
+    modulos: vinculo.organizacao.modulos
+      .filter((item) => item.habilitado)
+      .map((item) => item.modulo),
+    empresas: empresas.filter(
+      (empresa) => empresa.organizacaoId === vinculo.organizacao.id
+    ),
+  }));
 
   return {
     accessToken,
     refreshToken,
-
     usuario: {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
-
-      empresas: usuario.empresas.map((vinculo) => ({
-        id: vinculo.empresa.id,
-        nomeFantasia: vinculo.empresa.nomeFantasia,
-        tipo: vinculo.empresa.tipo,
-
-        cargo: vinculo.cargo
-          ? {
-              id: vinculo.cargo.id,
-              nome: vinculo.cargo.nome,
-            }
-          : null,
-
-        permissoes:
-          vinculo.cargo?.permissoes.map(
-            (item) => item.permissao.codigo
-          ) || [],
-      })),
+      organizacoes,
+      // Mantido por compatibilidade com o frontend/testes atuais.
+      empresas,
     },
   };
 }
