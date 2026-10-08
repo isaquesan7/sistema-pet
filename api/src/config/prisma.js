@@ -13,6 +13,13 @@ const adapter = new PrismaPg({
 
 const prisma = new PrismaClient({
   adapter,
+  // O BichOne usa PostgreSQL remoto (Railway) durante o desenvolvimento.
+  // Operações compostas como consulta + comanda podem fazer vários round-trips.
+  // O padrão do Prisma para transações interativas é 5s, curto para esse cenário.
+  transactionOptions: {
+    maxWait: 10_000,
+    timeout: 30_000,
+  },
 });
 
 export default prisma;

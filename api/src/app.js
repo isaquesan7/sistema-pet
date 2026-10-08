@@ -15,6 +15,8 @@ import catalogoRoutes from "./modules/catalogo/catalogo.routes.js";
 import funcionariosRoutes from "./modules/funcionarios/funcionarios.routes.js";
 import pacotesRoutes from "./modules/pacotes/pacotes.routes.js";
 import pdvRoutes from "./modules/pdv/pdv.routes.js";
+import estoqueRoutes from "./modules/estoque/estoque.routes.js";
+import consultorioRoutes from "./modules/consultorio/consultorio.routes.js";
 
 const app = express();
 
@@ -139,6 +141,8 @@ app.use("/api/catalogo", catalogoRoutes);
 app.use("/api/funcionarios", funcionariosRoutes);
 app.use("/api/pacotes", pacotesRoutes);
 app.use("/api/pdv", pdvRoutes);
+app.use("/api/estoque", estoqueRoutes);
+app.use("/api/consultorio", consultorioRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA
@@ -158,9 +162,21 @@ app.use((req, res) => {
 // ======================================================
 
 app.use((err, req, res, next) => {
-  req.log?.error(err);
+  req.log?.error({
+    err,
+    code: err?.code,
+    meta: err?.meta,
+    method: req.method,
+    path: req.originalUrl,
+  }, "Erro não tratado na API");
 
-  console.error(err);
+  console.error("Erro não tratado na API:", {
+    name: err?.name,
+    message: err?.message,
+    code: err?.code,
+    meta: err?.meta,
+    stack: err?.stack,
+  });
 
   return res.status(500).json({
     success: false,

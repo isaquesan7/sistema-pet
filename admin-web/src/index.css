@@ -740,3 +740,92 @@ tbody tr:hover { background: #fcfcfd; }
 .pdv-package-receive-summary { min-height: 58px; margin-bottom: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid #e8eaf0; border-radius: 10px; background: #fafbfc; }
 .pdv-package-receive-summary span { color: #949baa; font-size: 8px; }
 .pdv-package-receive-summary strong { color: var(--tenant-primary); font-size: 16px; }
+
+/* Phase 7 — estoque operacional */
+.stock-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.stock-tabs { width:fit-content; max-width:100%; }
+.stock-table { min-width:900px; }
+.data-table td > strong { display:block; color:#414a5f; font-size:9px; }
+.data-table td > small { display:block; margin-top:2px; color:#9ba1ae; font-size:7px; }
+.badge--danger { color:#a33d49; background:#fff0f2; }
+.badge--warning { color:#8a6422; background:#fff7e6; }
+.stock-entry-heading { margin:16px 0 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.stock-entry-heading strong { color:#414a5f; font-size:10px; }
+.stock-entry-lines { display:grid; gap:7px; }
+.stock-entry-line { position:relative; display:grid; grid-template-columns:minmax(170px,1.5fr) 85px 100px 105px 125px 90px 32px; align-items:center; gap:6px; padding:8px; border:1px solid #e9ebf0; border-radius:10px; background:#fbfcfd; }
+.stock-entry-line > span { color:#3f485c; font-size:8px; font-weight:750; text-align:right; }
+.stock-entry-line__hint { position:absolute; left:9px; bottom:-13px; color:#a26c2c; font-size:6px; }
+.stock-movements { min-width:1000px; }
+.stock-inventory-table { min-width:650px; }
+.inventory-count-input { width:105px; min-height:32px; }
+.is-negative { color:#b23e4b !important; }
+.is-positive { color:#17805e !important; }
+@media (max-width:900px){ .stock-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.stock-entry-line{grid-template-columns:1fr 80px 90px 30px}.stock-entry-line > :nth-child(4),.stock-entry-line > :nth-child(5){grid-column:span 2}.stock-entry-line > :nth-child(6){grid-column:3}.stock-entry-line > :nth-child(7){grid-column:4;grid-row:1;} }
+@media (max-width:600px){ .stock-summary-grid{grid-template-columns:1fr}.stock-tabs{width:100%}.stock-entry-line{grid-template-columns:1fr 31px}.stock-entry-line > *{grid-column:1}.stock-entry-line > :last-of-type{grid-column:2;grid-row:1}.stock-entry-line > span{text-align:left;} }
+
+/* Phase 8 — veterinary clinic */
+.clinic-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:11px; }
+.clinic-summary-card { min-height:84px; padding:14px 15px; display:flex; align-items:center; gap:12px; border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:0 5px 18px rgba(31,39,61,.03); }
+.clinic-summary-card > span { width:38px; height:38px; flex:none; display:grid; place-items:center; border-radius:10px; color:var(--tenant-primary); background:color-mix(in srgb,var(--tenant-primary) 9%,white); }
+.clinic-summary-card > div { display:grid; gap:2px; }
+.clinic-summary-card small { color:#979daa; font-size:8px; font-weight:750; text-transform:uppercase; letter-spacing:.05em; }
+.clinic-summary-card strong { color:#30394e; font-size:20px; letter-spacing:-.03em; }
+.clinic-toolbar { min-height:65px; padding:12px 15px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); }
+.clinic-search { flex:1; }
+.clinic-status-filter { width:180px; }
+.clinic-counts { color:#8f96a5; font-size:8px; white-space:nowrap; }
+.clinic-patient-banner { margin-bottom:14px; padding:12px 13px; display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:10px; border:1px solid #e8eaf0; border-radius:13px; background:#fafbfc; }
+.clinic-patient-banner > div { min-width:0; display:grid; gap:3px; }
+.clinic-patient-banner span { color:#979daa; font-size:7px; text-transform:uppercase; letter-spacing:.055em; font-weight:750; }
+.clinic-patient-banner strong { overflow:hidden; color:#3d465b; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.clinic-tabs { margin:0 -2px 16px; padding-bottom:8px; display:flex; gap:5px; overflow-x:auto; border-bottom:1px solid var(--line); }
+.clinic-tabs button { min-height:34px; border:0; border-radius:9px; padding:0 10px; display:inline-flex; align-items:center; gap:6px; flex:none; color:#7f8797; background:transparent; font-size:9px; font-weight:750; }
+.clinic-tabs button:hover { background:#f5f6f8; }
+.clinic-tabs button.is-active { color:var(--tenant-primary); background:color-mix(in srgb,var(--tenant-primary) 8%,white); }
+.clinic-tab-content { display:grid; gap:13px; }
+.clinic-vitals-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:12px; border:1px solid #e8eaf0; border-radius:12px; background:#fbfcfd; }
+.clinic-last-weight { min-height:64px; padding:10px 11px; display:grid; align-content:center; gap:3px; border:1px solid #e7e9ef; border-radius:10px; background:#fff; }
+.clinic-last-weight span { color:#999fab; font-size:8px; }
+.clinic-last-weight strong { color:#3f485e; font-size:13px; }
+.clinic-record-grid { margin-top:2px; }
+.clinic-editor-card { padding:13px; display:grid; gap:11px; border:1px solid #e7e9ef; border-radius:13px; background:#fafbfc; }
+.clinic-editor-title { display:grid; gap:3px; }
+.clinic-editor-title strong { color:#3d465a; font-size:11px; }
+.clinic-editor-title span { color:#989eab; font-size:8px; }
+.clinic-editor-actions { display:flex; justify-content:flex-end; gap:8px; }
+.clinic-history-list { display:grid; gap:8px; }
+.clinic-history-card { padding:11px 12px; display:grid; gap:8px; border:1px solid #e8eaf0; border-radius:11px; background:#fff; }
+.clinic-history-card header { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.clinic-history-card header strong { color:#3c455a; font-size:10px; }
+.clinic-history-card header span { color:#949ba9; font-size:8px; }
+.clinic-history-card p { margin:0; color:#657086; font-size:9px; line-height:1.55; white-space:pre-wrap; }
+.clinic-history-line { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.clinic-history-line b { color:#535d73; font-size:9px; }
+.clinic-history-line span { color:#9299a8; font-size:8px; text-align:right; }
+.clinic-prescription-lines { display:grid; gap:7px; }
+.clinic-prescription-line { display:grid; grid-template-columns:1.2fr 1.2fr .65fr .55fr .8fr .7fr 32px; gap:6px; align-items:center; }
+.clinic-stock-check { align-self:end; min-width:0; }
+.clinic-result-card { border-color:color-mix(in srgb,var(--tenant-primary) 20%,#e7e9ef); }
+
+@media (max-width: 980px) {
+  .clinic-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .clinic-vitals-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .clinic-patient-banner { grid-template-columns:1fr 1fr; }
+  .clinic-patient-banner > div:first-child { grid-column:1 / -1; }
+  .clinic-prescription-line { grid-template-columns:1fr 1fr 1fr; }
+}
+
+@media (max-width: 620px) {
+  .clinic-summary-grid { grid-template-columns:1fr 1fr; }
+  .clinic-toolbar { align-items:stretch; flex-direction:column; }
+  .clinic-status-filter { width:100%; }
+  .clinic-patient-banner { grid-template-columns:1fr; }
+  .clinic-patient-banner > div:first-child { grid-column:auto; }
+  .clinic-vitals-grid { grid-template-columns:1fr 1fr; }
+  .clinic-prescription-line { grid-template-columns:1fr; }
+  .clinic-history-card header, .clinic-history-line { flex-direction:column; }
+  .clinic-history-line span { text-align:left; }
+}
+.clinic-date-filter { width:145px; }
+@media (max-width: 620px) { .clinic-date-filter { width:100%; } }
+.clinic-pet-history { margin-top:4px; padding-top:13px; display:grid; gap:9px; border-top:1px solid var(--line); }

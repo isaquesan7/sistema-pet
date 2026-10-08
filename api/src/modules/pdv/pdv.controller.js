@@ -55,6 +55,13 @@ function mapError(error, res, next) {
     });
   }
 
+  if (error.message === "ESTOQUE_LOTE_INSUFICIENTE") {
+    return res.status(409).json({
+      success: false,
+      message: `Saldo por lote insuficiente para ${error.itemNome || "um dos produtos"}. Registre a entrada/lote no Estoque.`,
+    });
+  }
+
   const mapped = messages[error.message];
   if (mapped) return res.status(mapped[0]).json({ success: false, message: mapped[1] });
   next(error);

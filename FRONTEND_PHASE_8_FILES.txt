@@ -1,0 +1,14 @@
+api/prisma/schema.prisma
+api/prisma/seed.ts
+api/prisma/migrations/20261008130000_clinic_operations/migration.sql
+api/src/app.js
+api/src/modules/consultorio/consultorio.schema.js
+api/src/modules/consultorio/consultorio.service.js
+api/src/modules/consultorio/consultorio.controller.js
+api/src/modules/consultorio/consultorio.routes.js
+admin-web/src/App.jsx
+admin-web/src/layout/AppLayout.jsx
+admin-web/src/pages/ConsultorioPage.jsx
+admin-web/src/index.css
+FRONTEND_PHASE_8.md
+ROADMAP_SAAS.md

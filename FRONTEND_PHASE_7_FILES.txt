@@ -1,0 +1,18 @@
+Fase 7 — principais arquivos adicionados/alterados
+
+API
+- api/prisma/schema.prisma
+- api/prisma/migrations/20261008073000_stock_operations/migration.sql
+- api/src/app.js
+- api/src/modules/estoque/estoque.schema.js
+- api/src/modules/estoque/estoque.service.js
+- api/src/modules/estoque/estoque.controller.js
+- api/src/modules/estoque/estoque.routes.js
+- api/src/modules/pdv/pdv.service.js
+- api/src/modules/pdv/pdv.controller.js
+
+ADMIN WEB
+- admin-web/src/App.jsx
+- admin-web/src/layout/AppLayout.jsx
+- admin-web/src/pages/StockPage.jsx
+- admin-web/src/index.css

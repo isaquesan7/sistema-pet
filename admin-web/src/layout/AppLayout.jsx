@@ -16,6 +16,7 @@ import {
   Stethoscope,
   UserRound,
   UsersRound,
+  Warehouse,
   X,
 } from "lucide-react";
 import BrandMark from "../components/BrandMark.jsx";
@@ -28,8 +29,9 @@ const navItems = [
   { to: "/pets", label: "Pets", icon: PawPrint, permission: "pets.visualizar" },
   { to: "/pdv", label: "PDV", icon: ShoppingCart, permission: "pdv.acessar", module: "PDV" },
   { to: "/catalogo", label: "Produtos e serviços", icon: Boxes, permission: "catalogo.visualizar" },
-  { to: "/consultorio", label: "Consultório", icon: Stethoscope, permission: "consultorio.acessar", module: "CONSULTORIO" },
-  { to: "/banho-e-tosa", label: "Banho e Tosa", icon: Bath, permission: "banho_tosa.acessar", module: "BANHO_TOSA" },
+  { to: "/estoque", label: "Estoque", icon: Warehouse, permission: "estoque.visualizar", module: "ESTOQUE" },
+  { to: "/consultorio", label: "Consultório", icon: Stethoscope, permission: "consultorio.acessar", module: "CONSULTORIO", companyTypes: ["LOJA_CONSULTORIO", "OUTRA"] },
+  { to: "/banho-e-tosa", label: "Banho e Tosa", icon: Bath, permission: "banho_tosa.acessar", module: "BANHO_TOSA", companyTypes: ["BANHO_TOSA", "OUTRA"] },
   { to: "/pacotes", label: "Pacotes", icon: PackageOpen, permission: "pacotes.visualizar" },
   { to: "/funcionarios", label: "Funcionários", icon: UserRound, permission: "funcionarios.visualizar" },
   { to: "/ponto", label: "Ponto", icon: Clock3, permission: "ponto.registrar", module: "PONTO" },
@@ -57,9 +59,10 @@ export default function AppLayout() {
       navItems.filter((item) => {
         const permissionOk = !item.permission || hasPermission(item.permission);
         const moduleOk = !item.module || modules.includes(item.module);
-        return permissionOk && moduleOk;
+        const companyOk = !item.companyTypes || item.companyTypes.includes(selectedCompany?.tipo);
+        return permissionOk && moduleOk && companyOk;
       }),
-    [hasPermission, modules]
+    [hasPermission, modules, selectedCompany?.tipo]
   );
 
   const companies = user?.empresas || [];

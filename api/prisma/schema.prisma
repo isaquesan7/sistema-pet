@@ -85,6 +85,17 @@ enum TipoMovimentacaoEstoque {
   CANCELAMENTO
 }
 
+enum StatusEntradaEstoque {
+  CONCLUIDA
+  CANCELADA
+}
+
+enum StatusInventarioEstoque {
+  ABERTO
+  CONCLUIDO
+  CANCELADO
+}
+
 enum StatusComanda {
   ABERTA
   PARCIALMENTE_FECHADA
@@ -207,6 +218,33 @@ enum StatusDocumentoFiscal {
 }
 
 // ======================================================
+// CONSULTÓRIO VETERINÁRIO
+// ======================================================
+
+enum StatusAtendimentoClinico {
+  AGUARDANDO
+  EM_ATENDIMENTO
+  FINALIZADO
+  CANCELADO
+}
+
+enum StatusExameClinico {
+  SOLICITADO
+  COLETADO
+  EM_PROCESSAMENTO
+  RESULTADO_DISPONIVEL
+  CANCELADO
+}
+
+enum TipoDocumentoClinico {
+  RECEITA
+  ATESTADO
+  RELATORIO
+  ORIENTACAO
+  OUTRO
+}
+
+// ======================================================
 // ORGANIZAÇÃO / TENANT
 // ======================================================
 
@@ -323,6 +361,8 @@ model Empresa {
   itensCatalogo        ItemCatalogo[]
   fornecedores         FornecedorEmpresa[]
   movimentacoesEstoque MovimentacaoEstoque[]
+  entradasEstoque      EntradaEstoque[]
+  inventariosEstoque   InventarioEstoque[]
   comandaItens         ComandaItem[]
   caixas               Caixa[]
   vendas               Venda[]
@@ -337,6 +377,7 @@ model Empresa {
 
   configuracaoFiscal ConfiguracaoFiscalEmpresa?
   documentosFiscais DocumentoFiscal[]
+  atendimentosClinicos AtendimentoClinico[]
   auditorias        Auditoria[]
 
   @@index([organizacaoId])
@@ -368,6 +409,8 @@ model Usuario {
   funcionarios Funcionario[]
 
   movimentacoesEstoque MovimentacaoEstoque[]
+  entradasEstoque      EntradaEstoque[]
+  inventariosEstoque   InventarioEstoque[]
   vendas               Venda[]
 
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -381,6 +424,8 @@ model Usuario {
   ajustesPonto          AjustePonto[]       @relation("AjustePontoUsuario")
   fechamentosPonto      FechamentoPonto[]  @relation("FechamentoPontoUsuario")
   consumosPacote  ConsumoPacote[]
+  atendimentosVeterinario AtendimentoClinico[] @relation("AtendimentoVeterinario")
+  prescricoesClinicas PrescricaoClinica[] @relation("PrescricaoVeterinario")
   auditorias      Auditoria[]
 
   @@map("usuarios")
@@ -513,6 +558,7 @@ model Cliente {
   comandas       Comanda[]
   vendas         Venda[]
   pacotesCliente PacoteCliente[]
+  atendimentosClinicos AtendimentoClinico[]
 
   @@unique([organizacaoId, cpfCnpj])
   @@index([organizacaoId])
@@ -634,6 +680,9 @@ model Pet {
   vendaItens    VendaItem[]
   pacotesCliente PacoteCliente[]
   consumosPacote ConsumoPacote[]
+  atendimentosClinicos AtendimentoClinico[]
+  vacinasAplicadas VacinaAplicacao[]
+  vermifugacoes VermifugacaoAplicacao[]
 
   @@index([clienteId])
   @@index([especieId])
@@ -736,6 +785,11 @@ model ItemCatalogo {
 
   pacoteModeloItens  PacoteModeloItem[]
   pacoteClienteItens PacoteClienteItem[]
+  prescricoesItens PrescricaoItem[]
+  vacinasAplicacoes VacinaAplicacao[]
+  vermifugacoesAplicacoes VermifugacaoAplicacao[]
+  examesClinicos ExameClinico[]
+  procedimentosClinicos ProcedimentoClinico[]
 
   @@unique([empresaId, codigoInterno])
   @@unique([empresaId, codigoBarras])
@@ -786,9 +840,11 @@ model Produto {
 
   item ItemCatalogo @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  estoque       EstoqueSaldo?
-  lotes         LoteProduto[]
-  movimentacoes MovimentacaoEstoque[]
+  estoque         EstoqueSaldo?
+  lotes           LoteProduto[]
+  movimentacoes   MovimentacaoEstoque[]
+  entradasItens   EntradaEstoqueItem[]
+  inventarioItens InventarioEstoqueItem[]
 
   @@map("produtos")
 }
@@ -848,6 +904,7 @@ model Fornecedor {
 
   organizacao Organizacao         @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
   empresas    FornecedorEmpresa[]
+  entradasEstoque EntradaEstoque[]
 
   @@unique([organizacaoId, cpfCnpj])
   @@index([organizacaoId])
@@ -901,12 +958,118 @@ model LoteProduto {
 
   produto Produto @relation(fields: [produtoId], references: [id])
 
-  movimentacoes MovimentacaoEstoque[]
+  movimentacoes   MovimentacaoEstoque[]
+  entradasItens   EntradaEstoqueItem[]
+  inventarioItens InventarioEstoqueItem[]
+  vacinasAplicacoes VacinaAplicacao[]
+  vermifugacoesAplicacoes VermifugacaoAplicacao[]
 
   @@unique([produtoId, numeroLote])
   @@index([produtoId])
   @@index([dataValidade])
   @@map("lotes_produtos")
+}
+
+model EntradaEstoque {
+  id           String @id @default(cuid())
+  empresaId    String
+  fornecedorId String?
+  usuarioId    String
+
+  numeroDocumento String?
+  dataEntrada     DateTime @default(now())
+  valorTotal      Decimal  @default(0) @db.Decimal(14, 2)
+  status          StatusEntradaEstoque @default(CONCLUIDA)
+  observacao      String? @db.Text
+
+  canceladaEm        DateTime?
+  motivoCancelamento String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  fornecedor Fornecedor? @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  usuario    Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  itens      EntradaEstoqueItem[]
+
+  @@index([empresaId])
+  @@index([fornecedorId])
+  @@index([dataEntrada])
+  @@index([status])
+  @@map("entradas_estoque")
+}
+
+model EntradaEstoqueItem {
+  id        String @id @default(cuid())
+  entradaId String
+  produtoId String
+  loteId    String?
+
+  quantidade    Decimal @db.Decimal(14, 3)
+  custoUnitario Decimal @db.Decimal(14, 2)
+  subtotal      Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  entrada EntradaEstoque @relation(fields: [entradaId], references: [id], onDelete: Cascade)
+  produto Produto        @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  lote    LoteProduto?   @relation(fields: [loteId], references: [id], onDelete: SetNull)
+
+  @@index([entradaId])
+  @@index([produtoId])
+  @@index([loteId])
+  @@map("entrada_estoque_itens")
+}
+
+model InventarioEstoque {
+  id        String @id @default(cuid())
+  empresaId String
+  usuarioId String
+
+  status     StatusInventarioEstoque @default(ABERTO)
+  descricao  String?
+  observacao String? @db.Text
+
+  iniciadoEm  DateTime @default(now())
+  concluidoEm DateTime?
+  canceladoEm DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  itens   InventarioEstoqueItem[]
+
+  @@index([empresaId])
+  @@index([status])
+  @@index([iniciadoEm])
+  @@map("inventarios_estoque")
+}
+
+model InventarioEstoqueItem {
+  id           String @id @default(cuid())
+  inventarioId String
+  produtoId    String
+  loteId       String?
+
+  saldoSistema      Decimal @db.Decimal(14, 3)
+  quantidadeContada Decimal? @db.Decimal(14, 3)
+  diferenca         Decimal? @db.Decimal(14, 3)
+  movimentacaoId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventario InventarioEstoque @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  produto    Produto            @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  lote       LoteProduto?       @relation(fields: [loteId], references: [id], onDelete: SetNull)
+
+  @@index([inventarioId])
+  @@index([produtoId])
+  @@index([loteId])
+  @@map("inventario_estoque_itens")
 }
 
 model MovimentacaoEstoque {
@@ -969,6 +1132,7 @@ model Comanda {
 
   itens  ComandaItem[]
   vendas Venda[]
+  atendimentosClinicos AtendimentoClinico[]
 
   @@index([clienteId])
   @@index([status])
@@ -1006,6 +1170,7 @@ model ComandaItem {
   pet          Pet?         @relation(fields: [petId], references: [id])
 
   vendaItens VendaItem[]
+  procedimentoClinico ProcedimentoClinico?
 
   @@index([comandaId])
   @@index([empresaId])
@@ -1518,6 +1683,242 @@ model ConsumoPacote {
   @@index([pacoteClienteItemId])
   @@index([consumidoEm])
   @@map("consumos_pacote")
+}
+
+// ======================================================
+// CONSULTÓRIO VETERINÁRIO
+// ======================================================
+
+model AtendimentoClinico {
+  id            String @id @default(cuid())
+  empresaId     String
+  clienteId     String
+  petId         String
+  veterinarioId String?
+  comandaId     String?
+
+  status StatusAtendimentoClinico @default(AGUARDANDO)
+
+  agendadoPara DateTime?
+  iniciadoEm   DateTime?
+  finalizadoEm DateTime?
+  canceladoEm  DateTime?
+
+  queixaPrincipal String? @db.Text
+  anamnese        String? @db.Text
+  exameFisico     String? @db.Text
+  diagnostico     String? @db.Text
+  conduta         String? @db.Text
+  observacoesInternas String? @db.Text
+
+  temperatura             Decimal? @db.Decimal(5, 2)
+  frequenciaCardiaca      Int?
+  frequenciaRespiratoria  Int?
+  hidratacao              String?
+  mucosas                 String?
+  tpcSegundos             Decimal? @db.Decimal(4, 1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  pet         Pet      @relation(fields: [petId], references: [id], onDelete: Restrict)
+  veterinario Usuario? @relation("AtendimentoVeterinario", fields: [veterinarioId], references: [id], onDelete: SetNull)
+  comanda     Comanda? @relation(fields: [comandaId], references: [id], onDelete: SetNull)
+
+  prescricoes    PrescricaoClinica[]
+  vacinas        VacinaAplicacao[]
+  vermifugacoes  VermifugacaoAplicacao[]
+  exames         ExameClinico[]
+  procedimentos  ProcedimentoClinico[]
+  documentos     DocumentoClinico[]
+
+  @@index([empresaId, status])
+  @@index([petId, createdAt])
+  @@index([clienteId, createdAt])
+  @@index([veterinarioId])
+  @@index([agendadoPara])
+  @@map("atendimentos_clinicos")
+}
+
+model PrescricaoClinica {
+  id            String @id @default(cuid())
+  atendimentoId String
+  veterinarioId String?
+
+  orientacoes String? @db.Text
+  emitidaEm   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  atendimento AtendimentoClinico @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  veterinario Usuario? @relation("PrescricaoVeterinario", fields: [veterinarioId], references: [id], onDelete: SetNull)
+  itens       PrescricaoItem[]
+
+  @@index([atendimentoId])
+  @@index([veterinarioId])
+  @@map("prescricoes_clinicas")
+}
+
+model PrescricaoItem {
+  id             String @id @default(cuid())
+  prescricaoId   String
+  itemCatalogoId String?
+
+  medicamento  String
+  concentracao String?
+  dose         String?
+  via          String?
+  frequencia   String?
+  duracao      String?
+  quantidade   String?
+  orientacao   String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  prescricao   PrescricaoClinica @relation(fields: [prescricaoId], references: [id], onDelete: Cascade)
+  itemCatalogo ItemCatalogo?     @relation(fields: [itemCatalogoId], references: [id], onDelete: SetNull)
+
+  @@index([prescricaoId])
+  @@index([itemCatalogoId])
+  @@map("prescricao_itens")
+}
+
+model VacinaAplicacao {
+  id             String @id @default(cuid())
+  atendimentoId  String
+  petId          String
+  itemCatalogoId String?
+  loteProdutoId  String?
+
+  nomeVacina  String
+  fabricante  String?
+  numeroLote  String?
+  dataValidade DateTime? @db.Date
+  dose        String?
+  via         String?
+  local       String?
+
+  aplicadaEm  DateTime @default(now())
+  proximaDose DateTime? @db.Date
+  observacoes String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  atendimento  AtendimentoClinico @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  pet          Pet                @relation(fields: [petId], references: [id], onDelete: Restrict)
+  itemCatalogo ItemCatalogo?      @relation(fields: [itemCatalogoId], references: [id], onDelete: SetNull)
+  loteProduto  LoteProduto?       @relation(fields: [loteProdutoId], references: [id], onDelete: SetNull)
+
+  @@index([atendimentoId])
+  @@index([petId, aplicadaEm])
+  @@index([proximaDose])
+  @@map("vacinas_aplicacoes")
+}
+
+model VermifugacaoAplicacao {
+  id             String @id @default(cuid())
+  atendimentoId  String
+  petId          String
+  itemCatalogoId String?
+  loteProdutoId  String?
+
+  produto      String
+  principioAtivo String?
+  dose         String?
+  numeroLote   String?
+  dataValidade DateTime? @db.Date
+
+  aplicadaEm  DateTime @default(now())
+  proximaDose DateTime? @db.Date
+  observacoes String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  atendimento  AtendimentoClinico @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  pet          Pet                @relation(fields: [petId], references: [id], onDelete: Restrict)
+  itemCatalogo ItemCatalogo?      @relation(fields: [itemCatalogoId], references: [id], onDelete: SetNull)
+  loteProduto  LoteProduto?       @relation(fields: [loteProdutoId], references: [id], onDelete: SetNull)
+
+  @@index([atendimentoId])
+  @@index([petId, aplicadaEm])
+  @@index([proximaDose])
+  @@map("vermifugacoes_aplicacoes")
+}
+
+model ExameClinico {
+  id             String @id @default(cuid())
+  atendimentoId  String
+  itemCatalogoId String?
+
+  nome   String
+  status StatusExameClinico @default(SOLICITADO)
+
+  solicitadoEm DateTime @default(now())
+  coletadoEm    DateTime?
+  resultadoEm   DateTime?
+
+  resultadoTexto String? @db.Text
+  arquivoUrl     String?
+  observacoes    String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  atendimento  AtendimentoClinico @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  itemCatalogo ItemCatalogo?      @relation(fields: [itemCatalogoId], references: [id], onDelete: SetNull)
+
+  @@index([atendimentoId])
+  @@index([status])
+  @@index([solicitadoEm])
+  @@map("exames_clinicos")
+}
+
+model ProcedimentoClinico {
+  id             String @id @default(cuid())
+  atendimentoId  String
+  itemCatalogoId String
+  comandaItemId  String? @unique
+
+  quantidade    Decimal @default(1) @db.Decimal(12, 3)
+  valorUnitario Decimal @db.Decimal(12, 2)
+  observacoes   String? @db.Text
+  realizadoEm   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  atendimento  AtendimentoClinico @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  itemCatalogo ItemCatalogo      @relation(fields: [itemCatalogoId], references: [id], onDelete: Restrict)
+  comandaItem  ComandaItem?      @relation(fields: [comandaItemId], references: [id], onDelete: SetNull)
+
+  @@index([atendimentoId])
+  @@index([itemCatalogoId])
+  @@index([realizadoEm])
+  @@map("procedimentos_clinicos")
+}
+
+model DocumentoClinico {
+  id            String @id @default(cuid())
+  atendimentoId String
+
+  tipo    TipoDocumentoClinico
+  titulo  String
+  conteudo String @db.Text
+  arquivoUrl String?
+  visivelCliente Boolean @default(true)
+  emitidoEm DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  atendimento AtendimentoClinico @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+
+  @@index([atendimentoId])
+  @@index([tipo])
+  @@index([emitidoEm])
+  @@map("documentos_clinicos")
 }
 
 // ======================================================

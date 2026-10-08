@@ -115,7 +115,70 @@ async function baixarEstoque(tx, { empresaId, usuarioId, vendaId, itens }) {
     const produto = linha.item.produto;
     if (!produto?.controlaEstoque) continue;
 
-    const saldoAnterior = number(produto.estoque?.quantidade);
+    let restante = linha.quantidade;
+
+    if (produto.controlaLote) {
+      const inicioHoje = new Date();
+      inicioHoje.setHours(0, 0, 0, 0);
+      const lotes = await tx.loteProduto.findMany({
+        where: {
+          produtoId: produto.id,
+          quantidadeAtual: { gt: 0 },
+          OR: [{ dataValidade: null }, { dataValidade: { gte: inicioHoje } }],
+        },
+        orderBy: [{ dataValidade: "asc" }, { createdAt: "asc" }],
+      });
+
+      const disponivel = lotes.reduce((sum, lote) => sum + number(lote.quantidadeAtual), 0);
+      if (disponivel + 0.0001 < restante) {
+        const error = new Error("ESTOQUE_LOTE_INSUFICIENTE");
+        error.itemNome = linha.item.nome;
+        throw error;
+      }
+
+      for (const lote of lotes) {
+        if (restante <= 0.0001) break;
+        const retirar = Math.min(restante, number(lote.quantidadeAtual));
+        const saldo = await tx.estoqueSaldo.findUnique({ where: { produtoId: produto.id } });
+        const saldoAnterior = number(saldo?.quantidade);
+        const saldoPosterior = saldoAnterior - retirar;
+        if (saldoPosterior < -0.0001) {
+          const error = new Error("ESTOQUE_INSUFICIENTE");
+          error.itemNome = linha.item.nome;
+          throw error;
+        }
+
+        await tx.loteProduto.update({
+          where: { id: lote.id },
+          data: { quantidadeAtual: number(lote.quantidadeAtual) - retirar },
+        });
+        await tx.estoqueSaldo.upsert({
+          where: { produtoId: produto.id },
+          update: { quantidade: saldoPosterior },
+          create: { produtoId: produto.id, quantidade: saldoPosterior },
+        });
+        await tx.movimentacaoEstoque.create({
+          data: {
+            empresaId,
+            produtoId: produto.id,
+            loteId: lote.id,
+            usuarioId,
+            tipo: "VENDA",
+            quantidade: retirar,
+            saldoAnterior,
+            saldoPosterior,
+            custoUnitario: produto.custoMedio,
+            origemTipo: "VENDA",
+            origemId: vendaId,
+          },
+        });
+        restante -= retirar;
+      }
+      continue;
+    }
+
+    const saldoAtual = await tx.estoqueSaldo.findUnique({ where: { produtoId: produto.id } });
+    const saldoAnterior = number(saldoAtual?.quantidade);
     const saldoPosterior = saldoAnterior - linha.quantidade;
     if (saldoPosterior < -0.0001) {
       const error = new Error("ESTOQUE_INSUFICIENTE");
@@ -147,29 +210,50 @@ async function baixarEstoque(tx, { empresaId, usuarioId, vendaId, itens }) {
 }
 
 async function restaurarEstoque(tx, { venda, usuarioId }) {
-  for (const linha of venda.itens) {
-    const produto = linha.itemCatalogo?.produto;
-    if (!produto?.controlaEstoque) continue;
-    const saldoAtual = number(produto.estoque?.quantidade);
-    const quantidade = number(linha.quantidade);
-    const saldoPosterior = saldoAtual + quantidade;
+  const movimentos = await tx.movimentacaoEstoque.findMany({
+    where: {
+      empresaId: venda.empresaId,
+      origemTipo: "VENDA",
+      origemId: venda.id,
+      tipo: "VENDA",
+    },
+    include: { produto: true, lote: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  for (const movimento of movimentos) {
+    const quantidade = number(movimento.quantidade);
+    const saldo = await tx.estoqueSaldo.findUnique({ where: { produtoId: movimento.produtoId } });
+    const saldoAnterior = number(saldo?.quantidade);
+    const saldoPosterior = saldoAnterior + quantidade;
 
     await tx.estoqueSaldo.upsert({
-      where: { produtoId: produto.id },
+      where: { produtoId: movimento.produtoId },
       update: { quantidade: saldoPosterior },
-      create: { produtoId: produto.id, quantidade: saldoPosterior },
+      create: { produtoId: movimento.produtoId, quantidade: saldoPosterior },
     });
+
+    if (movimento.loteId) {
+      const lote = await tx.loteProduto.findUnique({ where: { id: movimento.loteId } });
+      if (lote) {
+        await tx.loteProduto.update({
+          where: { id: lote.id },
+          data: { quantidadeAtual: number(lote.quantidadeAtual) + quantidade },
+        });
+      }
+    }
 
     await tx.movimentacaoEstoque.create({
       data: {
         empresaId: venda.empresaId,
-        produtoId: produto.id,
+        produtoId: movimento.produtoId,
+        loteId: movimento.loteId,
         usuarioId,
         tipo: "CANCELAMENTO",
         quantidade,
-        saldoAnterior: saldoAtual,
+        saldoAnterior,
         saldoPosterior,
-        custoUnitario: produto.custoMedio,
+        custoUnitario: movimento.custoUnitario,
         origemTipo: "CANCELAMENTO_VENDA",
         origemId: venda.id,
       },

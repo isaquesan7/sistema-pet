@@ -29,20 +29,20 @@
 - Comandas compartilhadas entre CNPJs com fechamento financeiro separado.
 - Baixa e restauração de estoque por venda/cancelamento.
 - Recebimento de pacotes e vínculo automático com `vendaId`.
+- Estoque operacional: fornecedores, entradas, custo médio, lotes, validade, inventário e ajustes.
+- Consultório veterinário: fila, prontuário, prescrições, vacinação, vermifugação, exames, procedimentos, documentos e integração com comanda/estoque.
 
-## Próxima fase recomendada — Estoque operacional
-1. Entrada de mercadorias e documentos de compra.
-2. Lotes e validade.
-3. Inventário e ajustes com motivos configuráveis.
-4. Transferência entre CNPJs com trilha de auditoria.
-5. Alertas de estoque mínimo e vencimento.
-6. Fornecedores e histórico de custo.
+## Próxima fase recomendada — Banho e Tosa
+1. Agenda e capacidade por profissional/recurso.
+2. Check-in e ordem de serviço.
+3. Ficha técnica de estética/comportamento.
+4. Kanban de produção: aguardando, banho, secagem, tosa, pronto e entregue.
+5. Fotos/observações de entrada e saída.
+6. Pacotes, créditos e lançamento automático na comanda.
+7. Aviso de pet pronto preparado para Portal/WhatsApp.
 
 ## Fases seguintes
-- PDV operacional e comandas multi-CNPJ.
-- Estoque por movimentação, lotes e validade.
-- Banho e tosa: agenda, OS, produção e pacotes.
-- Consultório: prontuário, vacinação, exames e documentos.
+- Portal/PWA do cliente: cadastro, pets, agenda e pagamento antecipado.
 - Portal/PWA do cliente: cadastro, pets, agenda e pagamento antecipado.
 - Financeiro: contas a pagar/receber e conciliação.
 - Fechamento do ponto e exportação para folha (sem substituir software contábil na primeira versão).

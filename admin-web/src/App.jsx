@@ -13,6 +13,8 @@ import EmployeesPage from "./pages/EmployeesPage.jsx";
 import TimeClockPage from "./pages/TimeClockPage.jsx";
 import PackagesPage from "./pages/PackagesPage.jsx";
 import PdvPage from "./pages/PdvPage.jsx";
+import StockPage from "./pages/StockPage.jsx";
+import ConsultorioPage from "./pages/ConsultorioPage.jsx";
 
 export default function App() {
   return (
@@ -27,7 +29,8 @@ export default function App() {
             <Route path="pets" element={<PetsPage />} />
             <Route path="catalogo" element={<CatalogPage />} />
             <Route path="pdv" element={<PdvPage />} />
-            <Route path="consultorio" element={<ComingSoonPage title="Consultório veterinário" />} />
+            <Route path="estoque" element={<StockPage />} />
+            <Route path="consultorio" element={<ConsultorioPage />} />
             <Route path="banho-e-tosa" element={<ComingSoonPage title="Banho e Tosa" />} />
             <Route path="pacotes" element={<PackagesPage />} />
             <Route path="funcionarios" element={<EmployeesPage />} />
