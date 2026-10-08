@@ -72,7 +72,7 @@ app.use(cookieParser());
 app.get("/api/health", (req, res) => {
   return res.status(200).json({
     success: true,
-    service: process.env.APP_NAME || "Pet ERP API",
+    service: process.env.APP_NAME || "BichOne API",
     status: "online",
     timestamp: new Date().toISOString(),
   });
@@ -91,7 +91,7 @@ app.get("/api/health/database", async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      service: process.env.APP_NAME || "Pet ERP API",
+      service: process.env.APP_NAME || "BichOne API",
       database: {
         status: "connected",
         provider: "PostgreSQL",
