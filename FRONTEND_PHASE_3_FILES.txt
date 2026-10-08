@@ -1,0 +1,8 @@
+Arquivos principais alterados/adicionados na Fase 3:
+
+admin-web/src/App.jsx
+admin-web/src/pages/CatalogPage.jsx
+admin-web/src/pages/SettingsPage.jsx
+admin-web/src/lib/formatters.js
+admin-web/src/index.css
+FRONTEND_PHASE_3.md

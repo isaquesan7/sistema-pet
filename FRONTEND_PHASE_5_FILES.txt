@@ -1,0 +1,9 @@
+admin-web/src/App.jsx
+admin-web/src/pages/PackagesPage.jsx
+admin-web/src/index.css
+api/src/modules/pacotes/pacotes.routes.js
+api/src/modules/pacotes/pacotes.controller.js
+api/src/modules/pacotes/pacotes.service.js
+api/src/modules/pacotes/pacotes.schema.js
+FRONTEND_PHASE_5.md
+ROADMAP_SAAS.md

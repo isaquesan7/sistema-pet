@@ -1652,8 +1652,9 @@ model SessaoUsuario {
   userAgent String?
   ip        String?
 
-  expiresAt DateTime
-  revokedAt DateTime?
+  lembrarConectado Boolean  @default(false)
+  expiresAt         DateTime?
+  revokedAt         DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

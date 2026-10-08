@@ -1,0 +1,8 @@
+admin-web/src/App.jsx
+admin-web/src/pages/EmployeesPage.jsx
+admin-web/src/pages/TimeClockPage.jsx
+admin-web/src/lib/formatters.js
+admin-web/src/index.css
+api/src/modules/funcionarios/funcionarios.service.js
+FRONTEND_PHASE_4.md
+FRONTEND_PHASE_4_FILES.txt

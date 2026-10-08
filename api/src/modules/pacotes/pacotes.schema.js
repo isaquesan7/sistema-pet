@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const decimalPositivo = z.union([z.number(), z.string()]).transform(Number).refine((v) => Number.isFinite(v) && v > 0);
+const decimalPositivo = z
+  .union([z.number(), z.string()])
+  .transform(Number)
+  .refine((v) => Number.isFinite(v) && v > 0, "Informe um valor maior que zero.");
 
 const itemPacoteSchema = z.object({
   itemCatalogoId: z.string().min(1),
@@ -28,7 +31,7 @@ export const pacoteClienteSchema = z.object({
   petId: z.string().optional().nullable(),
   nome: z.string().trim().min(2).max(160).optional(),
   valorPacote: decimalPositivo.optional(),
-  inicioValidade: z.string(),
+  inicioValidade: z.string().min(1, "Informe a data inicial."),
   fimValidade: z.string().optional().nullable(),
   observacoes: z.string().trim().optional().nullable(),
   itens: z.array(itemPacoteSchema).optional(),

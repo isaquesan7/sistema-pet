@@ -93,6 +93,9 @@ export async function listarFuncionarios(organizacaoId, busca) {
       empresas: {
         include: { empresa: { select: { id: true, nomeFantasia: true, tipo: true } } },
       },
+      jornadas: {
+        orderBy: [{ empresaId: "asc" }, { diaSemana: "asc" }],
+      },
     },
   });
 }

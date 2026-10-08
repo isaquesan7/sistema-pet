@@ -4,6 +4,11 @@ function data(valor) {
   return valor ? new Date(`${valor}T00:00:00.000Z`) : null;
 }
 
+function inicioHoje() {
+  const agora = new Date();
+  return new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()));
+}
+
 function validarPeriodo(inicio, fim) {
   if (inicio && fim && fim < inicio) {
     throw new Error("PERIODO_INVALIDO");
@@ -22,13 +27,22 @@ async function validarItens(empresaId, itens) {
 export async function listarModelos(organizacaoId, empresaId) {
   return prisma.pacoteModelo.findMany({
     where: { organizacaoId, empresaId },
-    orderBy: { nome: "asc" },
+    orderBy: [{ ativo: "desc" }, { nome: "asc" }],
     include: {
       itens: {
         include: {
-          itemCatalogo: { select: { id: true, nome: true, tipo: true, precoVenda: true } },
+          itemCatalogo: {
+            select: {
+              id: true,
+              nome: true,
+              tipo: true,
+              precoVenda: true,
+              categoria: { select: { id: true, nome: true } },
+            },
+          },
         },
       },
+      _count: { select: { compras: true } },
     },
   });
 }
@@ -59,7 +73,10 @@ export async function criarModelo(organizacaoId, empresaId, dados) {
         })),
       },
     },
-    include: { itens: { include: { itemCatalogo: true } } },
+    include: {
+      itens: { include: { itemCatalogo: true } },
+      _count: { select: { compras: true } },
+    },
   });
 }
 
@@ -93,12 +110,8 @@ export async function atualizarModelo(organizacaoId, empresaId, id, dados) {
         ...(Object.prototype.hasOwnProperty.call(dados, "validadeDias")
           ? { validadeDias: dados.validadeDias ?? null }
           : {}),
-        ...(Object.prototype.hasOwnProperty.call(dados, "inicioVigencia")
-          ? { inicioVigencia }
-          : {}),
-        ...(Object.prototype.hasOwnProperty.call(dados, "fimVigencia")
-          ? { fimVigencia }
-          : {}),
+        ...(Object.prototype.hasOwnProperty.call(dados, "inicioVigencia") ? { inicioVigencia } : {}),
+        ...(Object.prototype.hasOwnProperty.call(dados, "fimVigencia") ? { fimVigencia } : {}),
         ...(dados.visivelPortal !== undefined ? { visivelPortal: dados.visivelPortal } : {}),
         ...(dados.ativo !== undefined ? { ativo: dados.ativo } : {}),
       },
@@ -117,12 +130,56 @@ export async function atualizarModelo(organizacaoId, empresaId, id, dados) {
 
     return tx.pacoteModelo.findUnique({
       where: { id },
-      include: { itens: { include: { itemCatalogo: true } } },
+      include: {
+        itens: { include: { itemCatalogo: true } },
+        _count: { select: { compras: true } },
+      },
     });
   });
 }
 
+async function expirarPacotesVencidos(organizacaoId, empresaId) {
+  await prisma.pacoteCliente.updateMany({
+    where: {
+      organizacaoId,
+      empresaId,
+      status: "ATIVO",
+      fimValidade: { lt: inicioHoje() },
+    },
+    data: { status: "EXPIRADO" },
+  });
+}
+
+const pacoteClienteInclude = {
+  cliente: { select: { id: true, nome: true, telefone: true, whatsapp: true } },
+  pet: { select: { id: true, nome: true } },
+  modelo: { select: { id: true, nome: true, tipo: true } },
+  itens: {
+    include: {
+      itemCatalogo: {
+        select: {
+          id: true,
+          nome: true,
+          tipo: true,
+          precoVenda: true,
+          categoria: { select: { id: true, nome: true } },
+        },
+      },
+      consumos: {
+        orderBy: { consumidoEm: "desc" },
+        take: 5,
+        include: {
+          usuario: { select: { id: true, nome: true } },
+          pet: { select: { id: true, nome: true } },
+        },
+      },
+    },
+  },
+};
+
 export async function listarPacotesCliente({ organizacaoId, empresaId, clienteId, status }) {
+  await expirarPacotesVencidos(organizacaoId, empresaId);
+
   return prisma.pacoteCliente.findMany({
     where: {
       organizacaoId,
@@ -131,23 +188,54 @@ export async function listarPacotesCliente({ organizacaoId, empresaId, clienteId
       ...(status ? { status } : {}),
     },
     orderBy: { createdAt: "desc" },
+    include: pacoteClienteInclude,
+  });
+}
+
+export async function buscarPacoteCliente({ organizacaoId, empresaId, id }) {
+  await expirarPacotesVencidos(organizacaoId, empresaId);
+
+  const pacote = await prisma.pacoteCliente.findFirst({
+    where: { id, organizacaoId, empresaId },
     include: {
-      cliente: { select: { id: true, nome: true } },
-      pet: { select: { id: true, nome: true } },
+      ...pacoteClienteInclude,
       itens: {
         include: {
-          itemCatalogo: { select: { id: true, nome: true, tipo: true } },
+          itemCatalogo: {
+            select: {
+              id: true,
+              nome: true,
+              tipo: true,
+              precoVenda: true,
+              categoria: { select: { id: true, nome: true } },
+            },
+          },
+          consumos: {
+            orderBy: { consumidoEm: "desc" },
+            include: {
+              usuario: { select: { id: true, nome: true } },
+              pet: { select: { id: true, nome: true } },
+            },
+          },
         },
       },
     },
   });
+
+  if (!pacote) throw new Error("PACOTE_NAO_ENCONTRADO");
+  return pacote;
 }
 
 async function validarClientePet(organizacaoId, clienteId, petId) {
-  const cliente = await prisma.cliente.findFirst({ where: { id: clienteId, organizacaoId, ativo: true } });
+  const cliente = await prisma.cliente.findFirst({
+    where: { id: clienteId, organizacaoId, ativo: true },
+  });
   if (!cliente) throw new Error("CLIENTE_NAO_ENCONTRADO");
+
   if (petId) {
-    const pet = await prisma.pet.findFirst({ where: { id: petId, clienteId, ativo: true } });
+    const pet = await prisma.pet.findFirst({
+      where: { id: petId, clienteId, ativo: true },
+    });
     if (!pet) throw new Error("PET_NAO_ENCONTRADO");
   }
 }
@@ -173,6 +261,7 @@ export async function criarPacoteCliente(organizacaoId, empresaId, dados) {
     const fimModelo = modelo.fimVigencia
       ? new Date(`${modelo.fimVigencia.toISOString().slice(0, 10)}T23:59:59.999Z`)
       : null;
+
     if ((inicioModelo && hoje < inicioModelo) || (fimModelo && hoje > fimModelo)) {
       throw new Error("MODELO_FORA_VIGENCIA");
     }
@@ -191,7 +280,7 @@ export async function criarPacoteCliente(organizacaoId, empresaId, dados) {
         fimValidade:
           fimValidadeInformada ||
           (modelo.validadeDias
-            ? new Date(new Date(`${dados.inicioValidade}T00:00:00.000Z`).getTime() + modelo.validadeDias * 86400000)
+            ? new Date(inicioValidade.getTime() + modelo.validadeDias * 86400000)
             : null),
         observacoes: dados.observacoes || null,
         itens: {
@@ -201,7 +290,7 @@ export async function criarPacoteCliente(organizacaoId, empresaId, dados) {
           })),
         },
       },
-      include: { itens: { include: { itemCatalogo: true } } },
+      include: pacoteClienteInclude,
     });
   }
 
@@ -230,7 +319,7 @@ export async function criarPacoteCliente(organizacaoId, empresaId, dados) {
         })),
       },
     },
-    include: { itens: { include: { itemCatalogo: true } } },
+    include: pacoteClienteInclude,
   });
 }
 
@@ -246,7 +335,9 @@ export async function consumir({ organizacaoId, empresaId, usuarioId, pacoteItem
     if (!item) throw new Error("ITEM_PACOTE_CLIENTE_NAO_ENCONTRADO");
 
     const hoje = new Date();
-    const inicio = new Date(`${item.pacoteCliente.inicioValidade.toISOString().slice(0, 10)}T00:00:00.000Z`);
+    const inicio = new Date(
+      `${item.pacoteCliente.inicioValidade.toISOString().slice(0, 10)}T00:00:00.000Z`
+    );
     const fim = item.pacoteCliente.fimValidade
       ? new Date(`${item.pacoteCliente.fimValidade.toISOString().slice(0, 10)}T23:59:59.999Z`)
       : null;
@@ -296,7 +387,10 @@ export async function consumir({ organizacaoId, empresaId, usuarioId, pacoteItem
     const saldos = await tx.pacoteClienteItem.findMany({
       where: { pacoteClienteId: item.pacoteClienteId },
     });
-    const esgotado = saldos.every((saldo) => Number(saldo.quantidadeConsumida) >= Number(saldo.quantidadeTotal));
+    const esgotado = saldos.every(
+      (saldo) => Number(saldo.quantidadeConsumida) >= Number(saldo.quantidadeTotal)
+    );
+
     if (esgotado) {
       await tx.pacoteCliente.update({
         where: { id: item.pacoteClienteId },
@@ -305,5 +399,20 @@ export async function consumir({ organizacaoId, empresaId, usuarioId, pacoteItem
     }
 
     return consumo;
+  });
+}
+
+export async function cancelarPacoteCliente({ organizacaoId, empresaId, id }) {
+  const pacote = await prisma.pacoteCliente.findFirst({
+    where: { id, organizacaoId, empresaId },
+  });
+
+  if (!pacote) throw new Error("PACOTE_NAO_ENCONTRADO");
+  if (pacote.status !== "ATIVO") throw new Error("PACOTE_NAO_ATIVO");
+
+  return prisma.pacoteCliente.update({
+    where: { id },
+    data: { status: "CANCELADO" },
+    include: pacoteClienteInclude,
   });
 }

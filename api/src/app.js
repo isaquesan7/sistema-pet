@@ -14,6 +14,7 @@ import organizacoesRoutes from "./modules/organizacoes/organizacoes.routes.js";
 import catalogoRoutes from "./modules/catalogo/catalogo.routes.js";
 import funcionariosRoutes from "./modules/funcionarios/funcionarios.routes.js";
 import pacotesRoutes from "./modules/pacotes/pacotes.routes.js";
+import pdvRoutes from "./modules/pdv/pdv.routes.js";
 
 const app = express();
 
@@ -137,6 +138,7 @@ app.use("/api/organizacao", organizacoesRoutes);
 app.use("/api/catalogo", catalogoRoutes);
 app.use("/api/funcionarios", funcionariosRoutes);
 app.use("/api/pacotes", pacotesRoutes);
+app.use("/api/pdv", pdvRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA

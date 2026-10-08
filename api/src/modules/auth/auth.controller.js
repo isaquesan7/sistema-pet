@@ -2,7 +2,7 @@ import * as authService from "./auth.service.js";
 
 export async function login(req, res, next) {
   try {
-    const { email, senha } = req.body;
+    const { email, senha, manterConectado = false } = req.body;
 
     if (!email || !senha) {
       return res.status(400).json({
@@ -14,6 +14,7 @@ export async function login(req, res, next) {
     const resultado = await authService.login({
       email,
       senha,
+      manterConectado: Boolean(manterConectado),
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
@@ -26,6 +27,34 @@ export async function login(req, res, next) {
         message: "E-mail ou senha inválidos.",
       });
     }
+    next(error);
+  }
+}
+
+export async function renovar(req, res, next) {
+  try {
+    const resultado = await authService.refresh({
+      refreshToken: req.body?.refreshToken,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    return res.status(200).json({ success: true, ...resultado });
+  } catch (error) {
+    if (error.message === "REFRESH_TOKEN_INVALIDO") {
+      return res.status(401).json({
+        success: false,
+        message: "Sua sessão não é mais válida. Entre novamente.",
+      });
+    }
+    next(error);
+  }
+}
+
+export async function sair(req, res, next) {
+  try {
+    await authService.logout({ refreshToken: req.body?.refreshToken });
+    return res.status(200).json({ success: true, message: "Sessão encerrada." });
+  } catch (error) {
     next(error);
   }
 }
