@@ -28,6 +28,7 @@ export async function atualizarConfiguracao(organizacaoId, dados) {
   const normalizado = {
     ...dados,
     email: dados.email === "" ? null : dados.email,
+    lgpdContatoEmail: dados.lgpdContatoEmail === "" ? null : dados.lgpdContatoEmail,
   };
 
   return prisma.configuracaoOrganizacao.upsert({

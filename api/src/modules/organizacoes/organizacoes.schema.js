@@ -14,6 +14,9 @@ export const atualizarConfiguracaoSchema = z.object({
   timezone: z.string().trim().min(1).optional(),
   locale: z.string().trim().min(2).optional(),
   moeda: z.string().trim().length(3).optional(),
+  lgpdContatoEmail: z.string().trim().email().optional().nullable().or(z.literal("")),
+  retencaoAuditoriaDias: z.coerce.number().int().min(365).max(3650).optional(),
+  retencaoArquivosExcluidosDias: z.coerce.number().int().min(1).max(365).optional(),
 });
 
 export const atualizarModuloSchema = z.object({

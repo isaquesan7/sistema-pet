@@ -411,6 +411,39 @@ enum ProvedorCobrancaSaaS {
 }
 
 // ======================================================
+// SEGURANÇA / LGPD / ARQUIVOS
+// ======================================================
+
+enum TipoArquivoPetRise {
+  LOGO
+  FOTO_PET
+  BANHO_TOSA
+  CLINICO
+  DOCUMENTO
+  EXPORTACAO_LGPD
+  OUTRO
+}
+
+enum StatusArquivoPetRise {
+  PENDENTE
+  ATIVO
+  EXCLUIDO
+}
+
+enum TipoSolicitacaoLGPD {
+  EXPORTACAO
+  ANONIMIZACAO
+}
+
+enum StatusSolicitacaoLGPD {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDA
+  REJEITADA
+  ERRO
+}
+
+// ======================================================
 // ORGANIZAÇÃO / TENANT
 // ======================================================
 
@@ -445,6 +478,8 @@ model Organizacao {
   categoriasFinanceiras CategoriaFinanceira[]
   titulosFinanceiros    TituloFinanceiro[]
   auditorias      Auditoria[]
+  arquivos        ArquivoPetRise[]
+  solicitacoesLGPD SolicitacaoLGPD[]
 
   @@index([nome])
   @@map("organizacoes")
@@ -467,6 +502,11 @@ model ConfiguracaoOrganizacao {
   timezone String @default("America/Sao_Paulo")
   locale   String @default("pt-BR")
   moeda    String @default("BRL")
+
+  // Fase 16 — governança de dados e retenção.
+  lgpdContatoEmail             String?
+  retencaoAuditoriaDias        Int     @default(3650)
+  retencaoArquivosExcluidosDias Int    @default(30)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -558,6 +598,7 @@ model Empresa {
   titulosFinanceiros    TituloFinanceiro[]
   conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias        Auditoria[]
+  arquivos           ArquivoPetRise[]
 
   @@index([organizacaoId])
   @@map("empresas")
@@ -611,6 +652,8 @@ model Usuario {
   baixasFinanceiras BaixaFinanceira[]
   conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias      Auditoria[]
+  arquivosCriados ArquivoPetRise[] @relation("ArquivoCriadoPorUsuario")
+  solicitacoesLGPD SolicitacaoLGPD[] @relation("SolicitacaoLGPDUsuario")
   eventosSaaSPlataforma EventoSaaS[] @relation("EventoSaaSUsuario")
 
   @@map("usuarios")
@@ -748,6 +791,8 @@ model Cliente {
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
   transacoesOnline      TransacaoOnline[]
   titulosFinanceiros    TituloFinanceiro[]
+  arquivos              ArquivoPetRise[]
+  solicitacoesLGPD      SolicitacaoLGPD[]
 
   @@unique([organizacaoId, cpfCnpj])
   @@index([organizacaoId])
@@ -877,6 +922,7 @@ model Pet {
   fichaBanhoTosa        FichaBanhoTosaPet?
   agendamentosBanhoTosa AgendamentoBanhoTosa[]
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
+  arquivos              ArquivoPetRise[]
 
   @@index([clienteId])
   @@index([especieId])
@@ -2695,6 +2741,77 @@ model EventoSaaS {
 // ======================================================
 // AUDITORIA
 // ======================================================
+
+// ======================================================
+// FASE 16 — ARQUIVOS PRIVADOS / LGPD
+// ======================================================
+
+model ArquivoPetRise {
+  id                    String @id @default(cuid())
+  organizacaoId         String
+  empresaId             String?
+  criadoPorUsuarioId    String?
+  clienteId             String?
+  petId                 String?
+
+  tipo        TipoArquivoPetRise
+  status      StatusArquivoPetRise @default(PENDENTE)
+  chave       String @unique
+  nomeOriginal String
+  mimeType    String
+  tamanhoBytes BigInt?
+  privado     Boolean @default(true)
+  metadata    Json?
+
+  confirmadoEm DateTime?
+  excluidoEm   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  empresa     Empresa?    @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  criadoPor   Usuario?    @relation("ArquivoCriadoPorUsuario", fields: [criadoPorUsuarioId], references: [id], onDelete: SetNull)
+  cliente     Cliente?    @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  pet         Pet?        @relation(fields: [petId], references: [id], onDelete: SetNull)
+
+  exportacoesLGPD SolicitacaoLGPD[] @relation("ExportacaoLGPDArquivo")
+
+  @@index([organizacaoId, status, createdAt])
+  @@index([empresaId, createdAt])
+  @@index([clienteId, createdAt])
+  @@index([petId, createdAt])
+  @@index([tipo])
+  @@map("arquivos_petrise")
+}
+
+model SolicitacaoLGPD {
+  id                    String @id @default(cuid())
+  organizacaoId         String
+  clienteId             String
+  solicitadoPorUsuarioId String?
+  exportArquivoId       String?
+
+  tipo   TipoSolicitacaoLGPD
+  status StatusSolicitacaoLGPD @default(PENDENTE)
+  motivo String? @db.Text
+  observacoes String? @db.Text
+  resultado Json?
+  erro      String? @db.Text
+
+  processadoEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  cliente     Cliente     @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  solicitadoPor Usuario?  @relation("SolicitacaoLGPDUsuario", fields: [solicitadoPorUsuarioId], references: [id], onDelete: SetNull)
+  exportArquivo ArquivoPetRise? @relation("ExportacaoLGPDArquivo", fields: [exportArquivoId], references: [id], onDelete: SetNull)
+
+  @@index([organizacaoId, status, createdAt])
+  @@index([clienteId, createdAt])
+  @@index([tipo])
+  @@map("solicitacoes_lgpd")
+}
 
 model Auditoria {
   id            String @id @default(cuid())

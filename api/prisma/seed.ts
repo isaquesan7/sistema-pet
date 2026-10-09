@@ -52,6 +52,9 @@ const permissoes = [
   ["relatorios.visualizar", "Visualizar relatórios", "Permite acessar relatórios gerenciais."],
   ["empresas.gerenciar", "Gerenciar empresas", "Permite configurar os CNPJs do sistema."],
   ["organizacao.gerenciar", "Gerenciar organização", "Permite alterar marca, configurações e módulos da organização."],
+  ["seguranca.auditoria", "Visualizar auditoria", "Permite consultar trilhas de auditoria da organização."],
+  ["arquivos.gerenciar", "Gerenciar arquivos privados", "Permite enviar, consultar e excluir arquivos privados da organização."],
+  ["lgpd.gerenciar", "Gerenciar solicitações LGPD", "Permite exportar e anonimizar dados pessoais de clientes com rastreabilidade."],
 ] as const;
 
 const modulos = [

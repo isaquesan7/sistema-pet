@@ -21,6 +21,7 @@ import ReportsPage from "./pages/ReportsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import SubscriptionPage from "./pages/SubscriptionPage.jsx";
 import PlatformAdminPage from "./pages/PlatformAdminPage.jsx";
+import SecurityPage from "./pages/SecurityPage.jsx";
 
 export default function App() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="relatorios" element={<ReportsPage />} />
             <Route path="assinatura" element={<SubscriptionPage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
+            <Route path="seguranca" element={<SecurityPage />} />
           </Route>
         </Route>
       </Route>

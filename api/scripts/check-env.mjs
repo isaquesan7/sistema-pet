@@ -45,4 +45,14 @@ if (production) {
   }
 }
 
+
+if (production && String(process.env.STORAGE_PROVIDER || "").toLowerCase() === "railway_s3") {
+  for (const name of ["STORAGE_ENDPOINT", "STORAGE_BUCKET", "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY"]) {
+    if (!String(process.env[name] || "").trim()) {
+      console.error(`[PetRise] ${name} é obrigatório quando STORAGE_PROVIDER=railway_s3.`);
+      process.exit(1);
+    }
+  }
+}
+
 console.log(`[PetRise] Ambiente validado (${production ? "production" : "development"}).`);

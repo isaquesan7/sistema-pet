@@ -44,6 +44,7 @@ const navItems = [
   { to: "/relatorios", label: "Relatórios", icon: BarChart3, permission: "relatorios.visualizar", module: "RELATORIOS" },
   { to: "/assinatura", label: "Plano e assinatura", icon: CreditCard, organizationRoles: ["PROPRIETARIO", "ADMINISTRADOR"] },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
+  { to: "/seguranca", label: "Segurança e LGPD", icon: ShieldCheck, permissionsAny: ["seguranca.auditoria", "lgpd.gerenciar", "arquivos.gerenciar"] },
 ];
 
 export default function AppLayout() {

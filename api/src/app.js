@@ -23,6 +23,7 @@ import financeiroRoutes from "./modules/financeiro/financeiro.routes.js";
 import fiscalRoutes from "./modules/fiscal/fiscal.routes.js";
 import relatoriosRoutes from "./modules/relatorios/relatorios.routes.js";
 import saasRoutes from "./modules/saas/saas.routes.js";
+import segurancaRoutes from "./modules/seguranca/seguranca.routes.js";
 
 const app = express();
 
@@ -71,7 +72,7 @@ app.use(pinoHttp());
 // PARSERS
 // ======================================================
 
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -84,6 +85,7 @@ app.get("/api/health", (req, res) => {
     success: true,
     service: process.env.APP_NAME || "PetRise API",
     status: "online",
+    storage: process.env.STORAGE_PROVIDER ? "configured" : "not-configured",
     timestamp: new Date().toISOString(),
   });
 });
@@ -156,6 +158,7 @@ app.use("/api/financeiro", financeiroRoutes);
 app.use("/api/fiscal", fiscalRoutes);
 app.use("/api/relatorios", relatoriosRoutes);
 app.use("/api/saas", saasRoutes);
+app.use("/api/seguranca", segurancaRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA

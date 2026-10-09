@@ -1096,3 +1096,8 @@ tbody tr:hover { background: #fcfcfd; }
   .platform-topbar > div:last-child { flex-wrap:wrap; }
   .module-check-grid { grid-template-columns:1fr 1fr; }
 }
+
+/* ======================================================
+   Fase 16 — Segurança, LGPD e Arquivos
+   ====================================================== */
+.security-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.security-danger{color:#aa3f4d!important}.security-upload{padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line)}.security-upload input[type=file]{max-width:320px;font-size:9px}.security-policy-grid{padding:0 14px 14px;display:grid;grid-template-columns:1.4fr .8fr .8fr auto;align-items:end;gap:10px}.security-policy-grid .form-field{margin:0}@media(max-width:900px){.security-policy-grid{grid-template-columns:1fr 1fr}.security-policy-grid .primary-button{grid-column:1/-1}.security-actions{align-items:stretch}.security-actions button{flex:1}}
