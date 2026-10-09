@@ -45,9 +45,17 @@ export async function listarModulos(organizacaoId) {
 }
 
 export async function atualizarModulo(organizacaoId, modulo, dados) {
+  const atual = await prisma.moduloOrganizacao.findUnique({
+    where: { organizacaoId_modulo: { organizacaoId, modulo } },
+  });
+
+  if (dados.habilitado && atual && !atual.contratado) {
+    throw new Error("MODULO_NAO_CONTRATADO");
+  }
+
   return prisma.moduloOrganizacao.upsert({
     where: { organizacaoId_modulo: { organizacaoId, modulo } },
     update: dados,
-    create: { organizacaoId, modulo, ...dados },
+    create: { organizacaoId, modulo, contratado: false, ...dados, habilitado: false },
   });
 }

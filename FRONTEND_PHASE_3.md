@@ -1,4 +1,4 @@
-# BichOne — Frontend Fase 3
+# PetRise — Frontend Fase 3
 
 ## Escopo desta fase
 
@@ -63,7 +63,7 @@ Campos específicos:
 
 ## Markup x Margem
 
-O BichOne diferencia os dois indicadores:
+O PetRise diferencia os dois indicadores:
 
 - **Markup** = lucro / custo;
 - **Margem bruta** = lucro / preço de venda.

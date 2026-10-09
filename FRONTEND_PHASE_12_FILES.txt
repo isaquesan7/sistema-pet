@@ -1,0 +1,14 @@
+FRONTEND_PHASE_12.md
+FRONTEND_PHASE_12_FILES.txt
+ROADMAP_SAAS.md
+TEST_CHECKLIST_SAAS.md
+admin-web/src/index.css
+admin-web/src/layout/AppLayout.jsx
+admin-web/src/pages/TimeClockPage.jsx
+api/prisma/migrations/20261009013000_timeclock_monthly_close/migration.sql
+api/prisma/schema.prisma
+api/prisma/seed.ts
+api/src/modules/funcionarios/funcionarios.controller.js
+api/src/modules/funcionarios/funcionarios.routes.js
+api/src/modules/funcionarios/funcionarios.schema.js
+api/src/modules/funcionarios/funcionarios.service.js

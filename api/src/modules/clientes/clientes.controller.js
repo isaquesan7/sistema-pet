@@ -4,6 +4,7 @@ import {
 } from "./clientes.schema.js";
 
 import * as clientesService from "./clientes.service.js";
+import { verificarLimiteRecurso } from "../saas/saas.service.js";
 
 function responderErro(error, res, next) {
   if (
@@ -27,6 +28,10 @@ function responderErro(error, res, next) {
     });
   }
 
+  if (error.message === "LIMITE_PLANO_ATINGIDO") {
+    return res.status(403).json({ success: false, message: `Seu plano atingiu o limite de ${error.limite} clientes.`, code: error.message });
+  }
+
   next(error);
 }
 
@@ -43,6 +48,8 @@ export async function criar(req, res, next) {
           resultado.error.flatten().fieldErrors,
       });
     }
+
+    await verificarLimiteRecurso(req.organizacao.id, "clientes");
 
     const cliente =
       await clientesService.criarCliente(

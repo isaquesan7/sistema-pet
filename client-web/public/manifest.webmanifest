@@ -1,0 +1,12 @@
+{
+  "name": "PetRise — Portal do Cliente",
+  "short_name": "PetRise",
+  "description": "Portal do cliente PetRise para cuidados, pets e agendamentos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#635bdb",
+  "icons": [
+    {"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}

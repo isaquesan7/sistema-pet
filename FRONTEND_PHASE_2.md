@@ -1,4 +1,4 @@
-# BichOne — Frontend Fase 2
+# PetRise — Frontend Fase 2
 
 ## Escopo concluído
 
@@ -61,7 +61,7 @@ npm run dev
 Abra `http://localhost:5173`.
 
 ### Checklist rápido
-1. Entrar no BichOne e selecionar um CNPJ.
+1. Entrar no PetRise e selecionar um CNPJ.
 2. Criar um cliente e editá-lo.
 3. Em Configurações > Espécies, criar `Cão` ou outra espécie.
 4. Em Configurações > Raças, criar uma raça vinculada à espécie.

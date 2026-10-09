@@ -1,4 +1,6 @@
 import prisma from "../../config/prisma.js";
+import { criarRecebivelFiadoNoTx } from "../financeiro/financeiro.service.js";
+import { criarDocumentoAutomaticoVenda } from "../fiscal/fiscal.service.js";
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -319,7 +321,8 @@ async function criarVendaNoTx(tx, {
   }
 
   for (const pagamento of pagamentos) {
-    await tx.pagamento.create({
+    if (pagamento.forma === "CREDITO_CLIENTE" && !clienteId) throw new Error("CLIENTE_OBRIGATORIO_CREDITO");
+    const pagamentoCriado = await tx.pagamento.create({
       data: {
         vendaId: venda.id,
         sessaoCaixaId,
@@ -333,6 +336,12 @@ async function criarVendaNoTx(tx, {
         pagoEm: pagamento.forma === "CREDITO_CLIENTE" ? null : new Date(),
       },
     });
+    if (pagamento.forma === "CREDITO_CLIENTE") {
+      await criarRecebivelFiadoNoTx(tx, {
+        organizacaoId, empresaId, clienteId, venda, pagamento: pagamentoCriado,
+        vencimentoEm: pagamento.vencimentoEm,
+      });
+    }
   }
 
   await baixarEstoque(tx, { empresaId, usuarioId, vendaId: venda.id, itens });
@@ -500,8 +509,8 @@ export async function listarItensPdv({ empresaId, organizacaoId, busca }) {
 }
 
 export async function criarVenda({ empresaId, organizacaoId, usuarioId, dados }) {
-  return prisma.$transaction(async (tx) => {
-    const venda = await criarVendaNoTx(tx, {
+  const venda = await prisma.$transaction(async (tx) => {
+    const criada = await criarVendaNoTx(tx, {
       empresaId,
       organizacaoId,
       usuarioId,
@@ -515,7 +524,7 @@ export async function criarVenda({ empresaId, organizacaoId, usuarioId, dados })
     });
 
     return tx.venda.findUnique({
-      where: { id: venda.id },
+      where: { id: criada.id },
       include: {
         cliente: { select: { id: true, nome: true } },
         itens: { include: { itemCatalogo: true, pet: { select: { id: true, nome: true } } } },
@@ -523,6 +532,8 @@ export async function criarVenda({ empresaId, organizacaoId, usuarioId, dados })
       },
     });
   });
+  await criarDocumentoAutomaticoVenda({ empresaId, organizacaoId, usuarioId, vendaId: venda.id });
+  return venda;
 }
 
 export async function listarVendas({ empresaId, busca, limite = 50 }) {
@@ -569,10 +580,29 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
         itens: { include: { itemCatalogo: { include: { produto: { include: { estoque: true } } } } } },
         pagamentos: true,
         pacotesCliente: true,
+        titulosFinanceiros: { include: { baixas: true } },
+        documentosFiscais: true,
       },
     });
     if (!venda) throw new Error("VENDA_NAO_ENCONTRADA");
     if (venda.status !== "FINALIZADA") throw new Error("VENDA_NAO_CANCELAVEL");
+    if (venda.documentosFiscais?.some((documento) => documento.status === "AUTORIZADO")) {
+      throw new Error("VENDA_POSSUI_DOCUMENTO_FISCAL");
+    }
+    if (venda.titulosFinanceiros?.some((titulo) => Number(titulo.valorPago || 0) > 0 || titulo.baixas?.length)) {
+      throw new Error("VENDA_POSSUI_RECEBIMENTO_FIADO");
+    }
+
+    // Rascunhos/erros fiscais ainda não autorizados acompanham o cancelamento da venda.
+    // Um documento autorizado é bloqueado acima e precisa ser cancelado primeiro no Fiscal.
+    await tx.documentoFiscal.updateMany({
+      where: { vendaId: venda.id, status: { in: ["PENDENTE", "ERRO", "REJEITADO"] } },
+      data: {
+        status: "CANCELADO",
+        canceladoEm: new Date(),
+        motivoCancelamento: `Venda cancelada no PDV: ${motivo}`,
+      },
+    });
 
     await restaurarEstoque(tx, { venda, usuarioId });
 
@@ -597,6 +627,13 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
           });
         }
       }
+    }
+
+    if (venda.titulosFinanceiros?.length) {
+      await tx.tituloFinanceiro.updateMany({
+        where: { vendaId: venda.id, status: { in: ["PENDENTE", "PARCIAL"] } },
+        data: { status: "CANCELADO", canceladoEm: new Date() },
+      });
     }
 
     if (venda.pacotesCliente?.length) {
@@ -752,7 +789,7 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
 }
 
 export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId, comandaId, dados }) {
-  return prisma.$transaction(async (tx) => {
+  const venda = await prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
       where: { id: comandaId, cliente: { organizacaoId } },
       include: {
@@ -815,6 +852,8 @@ export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId
       include: { pagamentos: true, itens: true },
     });
   });
+  await criarDocumentoAutomaticoVenda({ empresaId, organizacaoId, usuarioId, vendaId: venda.id });
+  return venda;
 }
 
 
@@ -836,7 +875,7 @@ export async function listarPacotesPendentes({ empresaId, organizacaoId }) {
 }
 
 export async function receberPacote({ empresaId, organizacaoId, usuarioId, pacoteId, dados }) {
-  return prisma.$transaction(async (tx) => {
+  const venda = await prisma.$transaction(async (tx) => {
     await validarSessao(tx, empresaId, dados.sessaoCaixaId);
 
     const pacote = await tx.pacoteCliente.findFirst({
@@ -889,7 +928,7 @@ export async function receberPacote({ empresaId, organizacaoId, usuarioId, pacot
     });
 
     for (const pagamento of dados.pagamentos) {
-      await tx.pagamento.create({
+      const pagamentoCriado = await tx.pagamento.create({
         data: {
           vendaId: venda.id,
           sessaoCaixaId: dados.sessaoCaixaId,
@@ -903,6 +942,13 @@ export async function receberPacote({ empresaId, organizacaoId, usuarioId, pacot
           pagoEm: pagamento.forma === "CREDITO_CLIENTE" ? null : new Date(),
         },
       });
+      if (pagamento.forma === "CREDITO_CLIENTE") {
+        await criarRecebivelFiadoNoTx(tx, {
+          organizacaoId, empresaId, clienteId: pacote.clienteId, venda, pagamento: pagamentoCriado,
+          vencimentoEm: pagamento.vencimentoEm,
+          descricao: `Pacote ${pacote.nome} · Fiado`,
+        });
+      }
     }
 
     await tx.pacoteCliente.update({
@@ -915,4 +961,6 @@ export async function receberPacote({ empresaId, organizacaoId, usuarioId, pacot
       include: { cliente: true, itens: true, pagamentos: true, pacotesCliente: true },
     });
   });
+  await criarDocumentoAutomaticoVenda({ empresaId, organizacaoId, usuarioId, vendaId: venda.id });
+  return venda;
 }

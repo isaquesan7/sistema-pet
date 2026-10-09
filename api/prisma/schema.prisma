@@ -170,6 +170,12 @@ enum OrigemRegistroPonto {
   IMPORTACAO
 }
 
+enum StatusAjustePonto {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
 enum StatusFechamentoPonto {
   ABERTO
   FECHADO
@@ -218,6 +224,48 @@ enum StatusDocumentoFiscal {
 }
 
 // ======================================================
+// BANHO E TOSA
+// ======================================================
+
+enum StatusAgendamentoBanhoTosa {
+  AGUARDANDO_PAGAMENTO
+  PENDENTE
+  CONFIRMADO
+  CHECK_IN
+  EM_ATENDIMENTO
+  CONCLUIDO
+  CANCELADO
+  FALTOU
+}
+
+enum OrigemAgendamentoBanhoTosa {
+  APP
+  BALCAO
+  WHATSAPP
+  TELEFONE
+  INTERNO
+}
+
+enum StatusOrdemBanhoTosa {
+  AGUARDANDO
+  EM_BANHO
+  EM_SECAGEM
+  EM_TOSA
+  FINALIZADO
+  AGUARDANDO_RETIRADA
+  ENTREGUE
+  CANCELADO
+}
+
+enum TipoAnexoBanhoTosa {
+  ENTRADA
+  ANTES
+  DEPOIS
+  LESAO
+  OBSERVACAO
+}
+
+// ======================================================
 // CONSULTÓRIO VETERINÁRIO
 // ======================================================
 
@@ -244,6 +292,124 @@ enum TipoDocumentoClinico {
   OUTRO
 }
 
+
+// ======================================================
+// PORTAL DO CLIENTE / AGENDAMENTO ONLINE
+// ======================================================
+
+enum OrigemAgendamentoConsultorio {
+  APP
+  BALCAO
+  WHATSAPP
+  TELEFONE
+  INTERNO
+}
+
+enum StatusTransacaoOnline {
+  PENDENTE
+  PROCESSANDO
+  APROVADO
+  RECUSADO
+  CANCELADO
+  ESTORNADO
+  REEMBOLSADO
+  EXPIRADO
+}
+
+enum FormaPagamentoOnline {
+  PIX
+  CARTAO
+}
+
+enum ProvedorPagamentoOnline {
+  DESENVOLVIMENTO
+  NAO_CONFIGURADO
+  MERCADO_PAGO
+  ASAAS
+  PAGSEGURO
+  STRIPE
+  OUTRO
+}
+
+// ======================================================
+// FINANCEIRO
+// ======================================================
+
+enum TipoCategoriaFinanceira {
+  RECEITA
+  DESPESA
+  AMBOS
+}
+
+enum TipoContaFinanceira {
+  DINHEIRO
+  BANCO
+  CARTEIRA_DIGITAL
+  OUTRO
+}
+
+enum TipoTituloFinanceiro {
+  RECEBER
+  PAGAR
+}
+
+enum StatusTituloFinanceiro {
+  PENDENTE
+  PARCIAL
+  PAGO
+  CANCELADO
+}
+
+enum OrigemTituloFinanceiro {
+  MANUAL
+  VENDA_FIADO
+  ENTRADA_ESTOQUE
+  OUTRO
+}
+
+enum OrigemConciliacaoFinanceira {
+  PAGAMENTO_VENDA
+  BAIXA_TITULO
+  TRANSACAO_ONLINE
+}
+
+enum DirecaoFinanceira {
+  ENTRADA
+  SAIDA
+}
+
+// ======================================================
+// SaaS COMERCIAL / ASSINATURAS
+// ======================================================
+
+enum StatusAssinaturaSaaS {
+  TRIAL
+  ATIVA
+  INADIMPLENTE
+  SUSPENSA
+  CANCELADA
+}
+
+enum CicloAssinaturaSaaS {
+  MENSAL
+  ANUAL
+}
+
+enum StatusFaturaSaaS {
+  PENDENTE
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+enum ProvedorCobrancaSaaS {
+  DESENVOLVIMENTO
+  MANUAL
+  STRIPE
+  ASAAS
+  OUTRO
+}
+
 // ======================================================
 // ORGANIZAÇÃO / TENANT
 // ======================================================
@@ -260,11 +426,15 @@ model Organizacao {
 
   configuracao ConfiguracaoOrganizacao?
   modulos      ModuloOrganizacao[]
+  assinaturaSaaS AssinaturaSaaS?
+  faturasSaaS    FaturaSaaS[]
 
   empresas        Empresa[]
   usuarios        UsuarioOrganizacao[]
   clientes        Cliente[]
   contasCliente   ContaCliente[]
+  sessoesCliente  SessaoCliente[]
+  transacoesOnline TransacaoOnline[]
   especies        Especie[]
   categoriasItens CategoriaItem[]
   fornecedores    Fornecedor[]
@@ -272,6 +442,8 @@ model Organizacao {
   funcionarios    Funcionario[]
   pacotesModelo   PacoteModelo[]
   pacotesCliente  PacoteCliente[]
+  categoriasFinanceiras CategoriaFinanceira[]
+  titulosFinanceiros    TituloFinanceiro[]
   auditorias      Auditoria[]
 
   @@index([nome])
@@ -308,6 +480,7 @@ model ModuloOrganizacao {
   organizacaoId String
   modulo        ModuloSistema
 
+  contratado   Boolean @default(true)
   habilitado   Boolean @default(true)
   configuracao Json?
 
@@ -378,6 +551,12 @@ model Empresa {
   configuracaoFiscal ConfiguracaoFiscalEmpresa?
   documentosFiscais DocumentoFiscal[]
   atendimentosClinicos AtendimentoClinico[]
+  agendamentosBanhoTosa AgendamentoBanhoTosa[]
+  ordensBanhoTosa       OrdemServicoBanhoTosa[]
+  transacoesOnline      TransacaoOnline[]
+  contasFinanceiras     ContaFinanceira[]
+  titulosFinanceiros    TituloFinanceiro[]
+  conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias        Auditoria[]
 
   @@index([organizacaoId])
@@ -397,7 +576,8 @@ model Usuario {
 
   telefone String?
 
-  status StatusUsuario @default(ATIVO)
+  status     StatusUsuario @default(ATIVO)
+  superAdmin Boolean       @default(false)
 
   ultimoAcesso DateTime?
 
@@ -422,11 +602,16 @@ model Usuario {
   historicosPreco HistoricoPrecoItem[]
   registrosPontoCriados RegistroPonto[]    @relation("RegistroPontoUsuario")
   ajustesPonto          AjustePonto[]       @relation("AjustePontoUsuario")
+  ajustesPontoAnalisados AjustePonto[]      @relation("AjustePontoAnalise")
   fechamentosPonto      FechamentoPonto[]  @relation("FechamentoPontoUsuario")
+  reaberturasPonto      FechamentoPonto[]  @relation("FechamentoPontoReabertura")
   consumosPacote  ConsumoPacote[]
   atendimentosVeterinario AtendimentoClinico[] @relation("AtendimentoVeterinario")
   prescricoesClinicas PrescricaoClinica[] @relation("PrescricaoVeterinario")
+  baixasFinanceiras BaixaFinanceira[]
+  conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias      Auditoria[]
+  eventosSaaSPlataforma EventoSaaS[] @relation("EventoSaaSUsuario")
 
   @@map("usuarios")
 }
@@ -559,6 +744,10 @@ model Cliente {
   vendas         Venda[]
   pacotesCliente PacoteCliente[]
   atendimentosClinicos AtendimentoClinico[]
+  agendamentosBanhoTosa AgendamentoBanhoTosa[]
+  ordensBanhoTosa       OrdemServicoBanhoTosa[]
+  transacoesOnline      TransacaoOnline[]
+  titulosFinanceiros    TituloFinanceiro[]
 
   @@unique([organizacaoId, cpfCnpj])
   @@index([organizacaoId])
@@ -591,6 +780,8 @@ model ContaCliente {
 
   organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
   cliente     Cliente     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  sessoes     SessaoCliente[]
+  transacoes  TransacaoOnline[]
 
   @@unique([organizacaoId, email])
   @@unique([organizacaoId, telefone])
@@ -683,6 +874,9 @@ model Pet {
   atendimentosClinicos AtendimentoClinico[]
   vacinasAplicadas VacinaAplicacao[]
   vermifugacoes VermifugacaoAplicacao[]
+  fichaBanhoTosa        FichaBanhoTosaPet?
+  agendamentosBanhoTosa AgendamentoBanhoTosa[]
+  ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
   @@index([clienteId])
   @@index([especieId])
@@ -790,6 +984,9 @@ model ItemCatalogo {
   vermifugacoesAplicacoes VermifugacaoAplicacao[]
   examesClinicos ExameClinico[]
   procedimentosClinicos ProcedimentoClinico[]
+  atendimentosAgendados AtendimentoClinico[] @relation("AtendimentoItemAgendado")
+  agendamentoBanhoTosaItens AgendamentoBanhoTosaItem[]
+  ordemBanhoTosaItens       OrdemServicoBanhoTosaItem[]
 
   @@unique([empresaId, codigoInterno])
   @@unique([empresaId, codigoBarras])
@@ -905,6 +1102,7 @@ model Fornecedor {
   organizacao Organizacao         @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
   empresas    FornecedorEmpresa[]
   entradasEstoque EntradaEstoque[]
+  titulosFinanceiros TituloFinanceiro[]
 
   @@unique([organizacaoId, cpfCnpj])
   @@index([organizacaoId])
@@ -992,6 +1190,7 @@ model EntradaEstoque {
   fornecedor Fornecedor? @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
   usuario    Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   itens      EntradaEstoqueItem[]
+  titulosFinanceiros TituloFinanceiro[]
 
   @@index([empresaId])
   @@index([fornecedorId])
@@ -1133,6 +1332,7 @@ model Comanda {
   itens  ComandaItem[]
   vendas Venda[]
   atendimentosClinicos AtendimentoClinico[]
+  ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
   @@index([clienteId])
   @@index([status])
@@ -1171,6 +1371,7 @@ model ComandaItem {
 
   vendaItens VendaItem[]
   procedimentoClinico ProcedimentoClinico?
+  ordemBanhoTosaItem   OrdemServicoBanhoTosaItem?
 
   @@index([comandaId])
   @@index([empresaId])
@@ -1227,6 +1428,7 @@ model SessaoCaixa {
 
   pagamentos    Pagamento[]
   movimentacoes MovimentacaoCaixa[]
+  baixasFinanceiras BaixaFinanceira[]
 
   @@index([caixaId])
   @@index([usuarioAberturaId])
@@ -1267,6 +1469,7 @@ model Venda {
   pagamentos        Pagamento[]
   pacotesCliente    PacoteCliente[]
   documentosFiscais DocumentoFiscal[]
+  titulosFinanceiros TituloFinanceiro[]
 
   @@index([empresaId])
   @@index([comandaId])
@@ -1329,6 +1532,7 @@ model Pagamento {
 
   venda       Venda        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
   sessaoCaixa SessaoCaixa? @relation(fields: [sessaoCaixaId], references: [id])
+  tituloFinanceiro TituloFinanceiro?
 
   @@index([vendaId])
   @@index([sessaoCaixaId])
@@ -1420,6 +1624,8 @@ model Funcionario {
   jornadas    JornadaTrabalho[]
   registros   RegistroPonto[]
   fechamentos FechamentoPonto[]
+  agendamentosBanhoTosa AgendamentoBanhoTosa[]
+  ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
   @@unique([organizacaoId, cpf])
   @@unique([organizacaoId, matricula])
@@ -1503,51 +1709,71 @@ model RegistroPonto {
 }
 
 model AjustePonto {
-  id          String @id @default(cuid())
-  registroId  String
-  usuarioId   String
+  id             String @id @default(cuid())
+  registroId     String
+  usuarioId      String
+  analisadoPorId String?
 
   horarioAnterior DateTime
   horarioNovo     DateTime
   motivo          String @db.Text
 
+  status             StatusAjustePonto @default(PENDENTE)
+  analisadoEm        DateTime?
+  observacaoAnalise  String? @db.Text
+
   createdAt DateTime @default(now())
 
-  registro RegistroPonto @relation(fields: [registroId], references: [id], onDelete: Cascade)
-  usuario  Usuario      @relation("AjustePontoUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
+  registro    RegistroPonto @relation(fields: [registroId], references: [id], onDelete: Cascade)
+  usuario     Usuario       @relation("AjustePontoUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
+  analisadoPor Usuario?     @relation("AjustePontoAnalise", fields: [analisadoPorId], references: [id], onDelete: SetNull)
 
   @@index([registroId])
   @@index([usuarioId])
+  @@index([analisadoPorId])
+  @@index([status, createdAt])
   @@map("ajustes_ponto")
 }
 
 model FechamentoPonto {
-  id            String @id @default(cuid())
-  funcionarioId String
-  empresaId     String
-  fechadoPorId  String?
+  id             String @id @default(cuid())
+  funcionarioId  String
+  empresaId      String
+  fechadoPorId   String?
+  reabertoPorId  String?
 
   competencia String
 
-  minutosPrevistos   Int @default(0)
-  minutosTrabalhados Int @default(0)
-  minutosExtras      Int @default(0)
-  minutosAtraso      Int @default(0)
-  minutosPausa       Int @default(0)
-  faltas             Int @default(0)
+  minutosPrevistos       Int @default(0)
+  minutosTrabalhados     Int @default(0)
+  minutosExtras          Int @default(0)
+  minutosAtraso          Int @default(0)
+  minutosPausa           Int @default(0)
+  faltas                 Int @default(0)
+  saldoBancoAnterior     Int @default(0)
+  saldoBancoCompetencia  Int @default(0)
+  saldoBancoAcumulado    Int @default(0)
+
+  divergencias Json?
+  espelho      Json?
+  observacoes  String? @db.Text
 
   status StatusFechamentoPonto @default(ABERTO)
 
-  fechadoEm DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  fechadoEm         DateTime?
+  reabertoEm        DateTime?
+  motivoReabertura  String? @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
   empresa     Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fechadoPor  Usuario?    @relation("FechamentoPontoUsuario", fields: [fechadoPorId], references: [id], onDelete: SetNull)
+  reabertoPor Usuario?    @relation("FechamentoPontoReabertura", fields: [reabertoPorId], references: [id], onDelete: SetNull)
 
   @@unique([funcionarioId, empresaId, competencia])
   @@index([empresaId, competencia])
+  @@index([reabertoPorId])
   @@map("fechamentos_ponto")
 }
 
@@ -1656,6 +1882,7 @@ model PacoteClienteItem {
   itemCatalogo  ItemCatalogo  @relation(fields: [itemCatalogoId], references: [id], onDelete: Restrict)
 
   consumos ConsumoPacote[]
+  ordemBanhoTosaItens OrdemServicoBanhoTosaItem[]
 
   @@unique([pacoteClienteId, itemCatalogoId])
   @@index([itemCatalogoId])
@@ -1686,6 +1913,167 @@ model ConsumoPacote {
 }
 
 // ======================================================
+// BANHO E TOSA — AGENDA, PRODUÇÃO E FICHA TÉCNICA
+// ======================================================
+
+model FichaBanhoTosaPet {
+  id    String @id @default(cuid())
+  petId String @unique
+
+  tipoPelagem          String?
+  temperamento         String?
+  aceitaSecador        Boolean?
+  aceitaMaquina        Boolean?
+  aceitaUnhas          Boolean?
+  alergiaProdutos      String? @db.Text
+  shampooPreferencial  String?
+  restricoes           String? @db.Text
+  observacoes           String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@map("fichas_banho_tosa_pet")
+}
+
+model AgendamentoBanhoTosa {
+  id             String @id @default(cuid())
+  empresaId      String
+  clienteId      String
+  petId          String
+  profissionalId String?
+
+  status StatusAgendamentoBanhoTosa @default(CONFIRMADO)
+  origem OrigemAgendamentoBanhoTosa @default(INTERNO)
+
+  inicio DateTime
+  fim    DateTime
+
+  reservaExpiraEm      DateTime?
+  pagamentoConfirmadoEm DateTime?
+
+  observacoesCliente  String? @db.Text
+  observacoesInternas String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  pet          Pet          @relation(fields: [petId], references: [id], onDelete: Restrict)
+  profissional Funcionario? @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
+
+  itens AgendamentoBanhoTosaItem[]
+  ordem OrdemServicoBanhoTosa?
+  transacoes TransacaoOnline[]
+
+  @@index([empresaId, inicio])
+  @@index([profissionalId, inicio])
+  @@index([petId, inicio])
+  @@index([status])
+  @@map("agendamentos_banho_tosa")
+}
+
+model AgendamentoBanhoTosaItem {
+  id             String @id @default(cuid())
+  agendamentoId  String
+  itemCatalogoId String
+
+  quantidade    Decimal @default(1) @db.Decimal(12, 3)
+  valorUnitario Decimal @db.Decimal(12, 2)
+
+  agendamento AgendamentoBanhoTosa @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+  itemCatalogo ItemCatalogo        @relation(fields: [itemCatalogoId], references: [id], onDelete: Restrict)
+
+  @@unique([agendamentoId, itemCatalogoId])
+  @@index([itemCatalogoId])
+  @@map("agendamento_banho_tosa_itens")
+}
+
+model OrdemServicoBanhoTosa {
+  id     String @id @default(cuid())
+  numero Int    @unique @default(autoincrement())
+
+  empresaId      String
+  agendamentoId  String? @unique
+  clienteId      String
+  petId          String
+  profissionalId String?
+  comandaId      String?
+
+  status StatusOrdemBanhoTosa @default(AGUARDANDO)
+
+  entrada       DateTime @default(now())
+  previsaoSaida DateTime?
+  saida         DateTime?
+
+  observacoesEntrada String? @db.Text
+  observacoesSaida   String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  empresa      Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  agendamento  AgendamentoBanhoTosa? @relation(fields: [agendamentoId], references: [id], onDelete: SetNull)
+  cliente      Cliente             @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  pet          Pet                 @relation(fields: [petId], references: [id], onDelete: Restrict)
+  profissional Funcionario?        @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
+  comanda      Comanda?            @relation(fields: [comandaId], references: [id], onDelete: SetNull)
+
+  itens   OrdemServicoBanhoTosaItem[]
+  anexos  AnexoBanhoTosa[]
+
+  @@index([empresaId, status])
+  @@index([petId, entrada])
+  @@index([profissionalId, entrada])
+  @@index([comandaId])
+  @@map("ordens_servico_banho_tosa")
+}
+
+model OrdemServicoBanhoTosaItem {
+  id                   String @id @default(cuid())
+  ordemId              String
+  itemCatalogoId       String
+  comandaItemId        String? @unique
+  pacoteClienteItemId  String?
+
+  quantidade    Decimal @default(1) @db.Decimal(12, 3)
+  valorUnitario Decimal @db.Decimal(12, 2)
+  viaPacote     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  ordem              OrdemServicoBanhoTosa @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  itemCatalogo       ItemCatalogo           @relation(fields: [itemCatalogoId], references: [id], onDelete: Restrict)
+  comandaItem        ComandaItem?           @relation(fields: [comandaItemId], references: [id], onDelete: SetNull)
+  pacoteClienteItem  PacoteClienteItem?     @relation(fields: [pacoteClienteItemId], references: [id], onDelete: SetNull)
+
+  @@index([ordemId])
+  @@index([itemCatalogoId])
+  @@index([pacoteClienteItemId])
+  @@map("ordem_servico_banho_tosa_itens")
+}
+
+model AnexoBanhoTosa {
+  id      String @id @default(cuid())
+  ordemId String
+
+  tipo TipoAnexoBanhoTosa
+  url  String
+  legenda String?
+
+  createdAt DateTime @default(now())
+
+  ordem OrdemServicoBanhoTosa @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+
+  @@index([ordemId])
+  @@index([tipo])
+  @@map("anexos_banho_tosa")
+}
+
+// ======================================================
 // CONSULTÓRIO VETERINÁRIO
 // ======================================================
 
@@ -1696,10 +2084,13 @@ model AtendimentoClinico {
   petId         String
   veterinarioId String?
   comandaId     String?
+  itemAgendadoId String?
 
   status StatusAtendimentoClinico @default(AGUARDANDO)
+  origem OrigemAgendamentoConsultorio @default(INTERNO)
 
   agendadoPara DateTime?
+  agendamentoFim DateTime?
   iniciadoEm   DateTime?
   finalizadoEm DateTime?
   canceladoEm  DateTime?
@@ -1726,6 +2117,7 @@ model AtendimentoClinico {
   pet         Pet      @relation(fields: [petId], references: [id], onDelete: Restrict)
   veterinario Usuario? @relation("AtendimentoVeterinario", fields: [veterinarioId], references: [id], onDelete: SetNull)
   comanda     Comanda? @relation(fields: [comandaId], references: [id], onDelete: SetNull)
+  itemAgendado ItemCatalogo? @relation("AtendimentoItemAgendado", fields: [itemAgendadoId], references: [id], onDelete: SetNull)
 
   prescricoes    PrescricaoClinica[]
   vacinas        VacinaAplicacao[]
@@ -1739,6 +2131,7 @@ model AtendimentoClinico {
   @@index([clienteId, createdAt])
   @@index([veterinarioId])
   @@index([agendadoPara])
+  @@index([itemAgendadoId])
   @@map("atendimentos_clinicos")
 }
 
@@ -1933,10 +2326,16 @@ model ConfiguracaoFiscalEmpresa {
   ambiente AmbienteFiscal   @default(HOMOLOGACAO)
 
   provedorFiscal String?
+  provedorContaReferencia String?
 
   serieNfe  String?
   serieNfce String?
   serieNfse String?
+
+  tipoDocumentoPadrao    TipoDocumentoFiscal?
+  emissaoAutomaticaVenda Boolean @default(false)
+  naturezaOperacaoPadrao String?
+  codigoMunicipioIbge    String?
 
   certificadoReferencia String?
   certificadoValidoAte  DateTime? @db.Date
@@ -1975,9 +2374,12 @@ model DocumentoFiscal {
   id        String @id @default(cuid())
   empresaId String
   vendaId   String?
+  usuarioId String?
 
-  tipo   TipoDocumentoFiscal
-  status StatusDocumentoFiscal @default(PENDENTE)
+  tipo     TipoDocumentoFiscal
+  status   StatusDocumentoFiscal @default(PENDENTE)
+  ambiente AmbienteFiscal        @default(HOMOLOGACAO)
+  simulado Boolean               @default(false)
 
   numero String?
   serie  String?
@@ -1985,14 +2387,25 @@ model DocumentoFiscal {
 
   valorTotal Decimal? @db.Decimal(12, 2)
 
-  protocolo String?
-  xmlUrl    String?
-  pdfUrl    String?
+  protocolo          String?
+  provedorReferencia String?
+  xmlUrl             String?
+  pdfUrl             String?
 
-  mensagemErro String? @db.Text
+  destinatarioSnapshot Json?
+  itensSnapshot        Json?
+  pagamentosSnapshot   Json?
+  payloadEnvio         Json?
+  respostaProvedor     Json?
 
-  emitidoEm   DateTime?
-  canceladoEm DateTime?
+  tentativas        Int       @default(0)
+  ultimaTentativaEm DateTime?
+  mensagemErro      String?   @db.Text
+
+  emitidoEm              DateTime?
+  canceladoEm            DateTime?
+  motivoCancelamento     String?   @db.Text
+  cancelamentoProtocolo  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2004,7 +2417,279 @@ model DocumentoFiscal {
   @@index([vendaId])
   @@index([status])
   @@index([chave])
+  @@index([provedorReferencia])
   @@map("documentos_fiscais")
+}
+
+// ======================================================
+// FINANCEIRO — CONTAS, TÍTULOS, BAIXAS E CONCILIAÇÃO
+// ======================================================
+
+model CategoriaFinanceira {
+  id            String @id @default(cuid())
+  organizacaoId String
+  nome          String
+  tipo          TipoCategoriaFinanceira @default(AMBOS)
+  ativo         Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  titulos      TituloFinanceiro[]
+
+  @@unique([organizacaoId, nome, tipo])
+  @@index([organizacaoId, ativo])
+  @@map("categorias_financeiras")
+}
+
+model ContaFinanceira {
+  id           String @id @default(cuid())
+  empresaId    String
+  nome         String
+  tipo         TipoContaFinanceira @default(BANCO)
+  saldoInicial Decimal @default(0) @db.Decimal(14, 2)
+  ativo        Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  empresa      Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  baixas       BaixaFinanceira[]
+  conciliacoes ConciliacaoFinanceira[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId, ativo])
+  @@map("contas_financeiras")
+}
+
+model TituloFinanceiro {
+  id               String @id @default(cuid())
+  organizacaoId    String
+  empresaId        String
+  tipo             TipoTituloFinanceiro
+  status           StatusTituloFinanceiro @default(PENDENTE)
+  origem           OrigemTituloFinanceiro @default(MANUAL)
+  categoriaId      String?
+  clienteId        String?
+  fornecedorId     String?
+  vendaId          String?
+  pagamentoId      String? @unique
+  entradaEstoqueId String?
+
+  descricao       String
+  documento       String?
+  parcelaAtual    Int @default(1)
+  totalParcelas   Int @default(1)
+  competencia     DateTime? @db.Date
+  emissaoEm       DateTime @default(now())
+  vencimentoEm    DateTime? @db.Date
+  valorOriginal   Decimal @db.Decimal(14, 2)
+  valorPago       Decimal @default(0) @db.Decimal(14, 2)
+  observacoes     String? @db.Text
+  canceladoEm     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  empresa     Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  categoria   CategoriaFinanceira? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  cliente     Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  fornecedor  Fornecedor? @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  venda       Venda? @relation(fields: [vendaId], references: [id], onDelete: SetNull)
+  pagamento   Pagamento? @relation(fields: [pagamentoId], references: [id], onDelete: SetNull)
+  entradaEstoque EntradaEstoque? @relation(fields: [entradaEstoqueId], references: [id], onDelete: SetNull)
+  baixas      BaixaFinanceira[]
+
+  @@index([organizacaoId])
+  @@index([empresaId, tipo, status])
+  @@index([clienteId])
+  @@index([fornecedorId])
+  @@index([vendaId])
+  @@index([entradaEstoqueId])
+  @@index([vencimentoEm])
+  @@index([createdAt])
+  @@map("titulos_financeiros")
+}
+
+model BaixaFinanceira {
+  id                 String @id @default(cuid())
+  tituloId           String
+  contaFinanceiraId  String?
+  sessaoCaixaId      String?
+  usuarioId          String
+  forma              FormaPagamento?
+  valor              Decimal @db.Decimal(14, 2)
+  desconto           Decimal @default(0) @db.Decimal(14, 2)
+  juros              Decimal @default(0) @db.Decimal(14, 2)
+  pagoEm             DateTime @default(now())
+  observacoes        String? @db.Text
+  createdAt          DateTime @default(now())
+
+  titulo          TituloFinanceiro @relation(fields: [tituloId], references: [id], onDelete: Restrict)
+  contaFinanceira ContaFinanceira? @relation(fields: [contaFinanceiraId], references: [id], onDelete: SetNull)
+  sessaoCaixa     SessaoCaixa? @relation(fields: [sessaoCaixaId], references: [id], onDelete: SetNull)
+  usuario         Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([tituloId])
+  @@index([contaFinanceiraId])
+  @@index([sessaoCaixaId])
+  @@index([usuarioId])
+  @@index([pagoEm])
+  @@map("baixas_financeiras")
+}
+
+model ConciliacaoFinanceira {
+  id                String @id @default(cuid())
+  empresaId         String
+  contaFinanceiraId String
+  usuarioId         String
+  origem            OrigemConciliacaoFinanceira
+  origemId          String
+  direcao           DirecaoFinanceira
+  valor             Decimal @db.Decimal(14, 2)
+  dataMovimento     DateTime
+  descricao         String?
+  conciliadoEm      DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  empresa         Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  contaFinanceira ContaFinanceira @relation(fields: [contaFinanceiraId], references: [id], onDelete: Restrict)
+  usuario         Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@unique([origem, origemId])
+  @@index([empresaId, dataMovimento])
+  @@index([contaFinanceiraId, dataMovimento])
+  @@index([usuarioId])
+  @@map("conciliacoes_financeiras")
+}
+
+// ======================================================
+// SaaS COMERCIAL / PLANOS E COBRANÇA
+// ======================================================
+
+model PlanoSaaS {
+  id        String @id @default(cuid())
+  slug      String @unique
+  nome      String
+  descricao String? @db.Text
+
+  precoMensal Decimal @default(0) @db.Decimal(12, 2)
+  precoAnual  Decimal @default(0) @db.Decimal(12, 2)
+  trialDias   Int     @default(14)
+
+  limiteEmpresas     Int?
+  limiteUsuarios     Int?
+  limiteClientes     Int?
+  limitePets         Int?
+  limiteFuncionarios Int?
+
+  ativo    Boolean @default(true)
+  destaque Boolean @default(false)
+  ordem    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modulos     PlanoModuloSaaS[]
+  assinaturas AssinaturaSaaS[]
+  faturasDestino FaturaSaaS[] @relation("FaturaPlanoDestino")
+
+  @@index([ativo, ordem])
+  @@map("planos_saas")
+}
+
+model PlanoModuloSaaS {
+  planoId String
+  modulo  ModuloSistema
+
+  plano PlanoSaaS @relation(fields: [planoId], references: [id], onDelete: Cascade)
+
+  @@id([planoId, modulo])
+  @@map("plano_modulos_saas")
+}
+
+model AssinaturaSaaS {
+  id            String @id @default(cuid())
+  organizacaoId String @unique
+  planoId       String
+
+  status        StatusAssinaturaSaaS @default(TRIAL)
+  ciclo         CicloAssinaturaSaaS  @default(MENSAL)
+  provedor      ProvedorCobrancaSaaS @default(MANUAL)
+
+  inicioEm          DateTime @default(now())
+  trialFimEm        DateTime?
+  proximaCobrancaEm DateTime?
+  canceladaEm       DateTime?
+  suspensaEm        DateTime?
+
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  observacoesInternas    String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  plano       PlanoSaaS   @relation(fields: [planoId], references: [id], onDelete: Restrict)
+  faturas     FaturaSaaS[]
+  eventos     EventoSaaS[]
+
+  @@index([status])
+  @@index([planoId])
+  @@index([trialFimEm])
+  @@map("assinaturas_saas")
+}
+
+model FaturaSaaS {
+  id            String @id @default(cuid())
+  assinaturaId  String
+  organizacaoId String
+  planoDestinoId String?
+
+  status   StatusFaturaSaaS    @default(PENDENTE)
+  provedor ProvedorCobrancaSaaS @default(MANUAL)
+  ciclo    CicloAssinaturaSaaS @default(MENSAL)
+
+  descricao String?
+  valor      Decimal @db.Decimal(12, 2)
+  vencimento DateTime @db.Date
+  pagoEm     DateTime?
+  canceladoEm DateTime?
+
+  referenciaExterna String?
+  checkoutUrl       String?
+  payload           Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assinatura AssinaturaSaaS @relation(fields: [assinaturaId], references: [id], onDelete: Cascade)
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  planoDestino PlanoSaaS? @relation("FaturaPlanoDestino", fields: [planoDestinoId], references: [id], onDelete: SetNull)
+
+  @@index([organizacaoId, status])
+  @@index([assinaturaId, vencimento])
+  @@index([planoDestinoId])
+  @@map("faturas_saas")
+}
+
+model EventoSaaS {
+  id            String @id @default(cuid())
+  assinaturaId  String
+  usuarioId     String?
+
+  tipo      String
+  descricao String?
+  dados     Json?
+
+  createdAt DateTime @default(now())
+
+  assinatura AssinaturaSaaS @relation(fields: [assinaturaId], references: [id], onDelete: Cascade)
+  usuario     Usuario? @relation("EventoSaaSUsuario", fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([assinaturaId, createdAt])
+  @@index([usuarioId])
+  @@map("eventos_saas")
 }
 
 // ======================================================
@@ -2037,6 +2722,73 @@ model Auditoria {
   @@index([usuarioId, createdAt])
   @@index([entidade, entidadeId])
   @@map("auditoria")
+}
+
+// ======================================================
+// PORTAL DO CLIENTE — SESSÕES E PAGAMENTOS ONLINE
+// ======================================================
+
+model SessaoCliente {
+  id              String @id @default(cuid())
+  organizacaoId   String
+  contaClienteId  String
+  refreshTokenHash String
+  userAgent       String?
+  ip              String?
+  lembrarConectado Boolean @default(true)
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizacao  Organizacao  @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  contaCliente ContaCliente @relation(fields: [contaClienteId], references: [id], onDelete: Cascade)
+
+  @@index([organizacaoId])
+  @@index([contaClienteId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("sessoes_cliente")
+}
+
+model TransacaoOnline {
+  id                String @id @default(cuid())
+  organizacaoId     String
+  empresaId         String
+  contaClienteId    String
+  clienteId         String
+  agendamentoBanhoTosaId String?
+
+  provedor ProvedorPagamentoOnline @default(NAO_CONFIGURADO)
+  forma    FormaPagamentoOnline
+  status   StatusTransacaoOnline @default(PENDENTE)
+
+  valor Decimal @db.Decimal(12, 2)
+  referenciaExterna String?
+  checkoutUrl       String?
+  pixCopiaCola      String?
+  payload           Json?
+  expiraEm          DateTime?
+  aprovadoEm        DateTime?
+  canceladoEm       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  contaCliente ContaCliente @relation(fields: [contaClienteId], references: [id], onDelete: Restrict)
+  cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  agendamentoBanhoTosa AgendamentoBanhoTosa? @relation(fields: [agendamentoBanhoTosaId], references: [id], onDelete: SetNull)
+
+  @@index([organizacaoId])
+  @@index([empresaId])
+  @@index([contaClienteId])
+  @@index([clienteId])
+  @@index([agendamentoBanhoTosaId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transacoes_online")
 }
 
 // ======================================================

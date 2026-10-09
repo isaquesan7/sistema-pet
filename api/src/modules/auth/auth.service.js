@@ -40,7 +40,7 @@ async function buscarUsuarioCompleto(usuarioId) {
         where: { ativo: true },
         include: {
           organizacao: {
-            include: { configuracao: true, modulos: true },
+            include: { configuracao: true, modulos: true, assinaturaSaaS: { include: { plano: true } } },
           },
         },
       },
@@ -77,8 +77,19 @@ function montarUsuarioResposta(usuario) {
     papel: vinculo.papel,
     configuracao: vinculo.organizacao.configuracao,
     modulos: vinculo.organizacao.modulos
-      .filter((item) => item.habilitado)
+      .filter((item) => item.habilitado && item.contratado)
       .map((item) => item.modulo),
+    assinatura: vinculo.organizacao.assinaturaSaaS
+      ? {
+          status: vinculo.organizacao.assinaturaSaaS.status,
+          ciclo: vinculo.organizacao.assinaturaSaaS.ciclo,
+          trialFimEm: vinculo.organizacao.assinaturaSaaS.trialFimEm,
+          proximaCobrancaEm: vinculo.organizacao.assinaturaSaaS.proximaCobrancaEm,
+          plano: vinculo.organizacao.assinaturaSaaS.plano
+            ? { id: vinculo.organizacao.assinaturaSaaS.plano.id, slug: vinculo.organizacao.assinaturaSaaS.plano.slug, nome: vinculo.organizacao.assinaturaSaaS.plano.nome }
+            : null,
+        }
+      : null,
     empresas: empresas.filter(
       (empresa) => empresa.organizacaoId === vinculo.organizacao.id
     ),
@@ -88,6 +99,7 @@ function montarUsuarioResposta(usuario) {
     id: usuario.id,
     nome: usuario.nome,
     email: usuario.email,
+    superAdmin: Boolean(usuario.superAdmin),
     organizacoes,
     empresas,
   };
@@ -100,7 +112,7 @@ export async function login({ email, senha, ip, userAgent, manterConectado = fal
       organizacoes: {
         where: { ativo: true },
         include: {
-          organizacao: { include: { configuracao: true, modulos: true } },
+          organizacao: { include: { configuracao: true, modulos: true, assinaturaSaaS: { include: { plano: true } } } },
         },
       },
       empresas: {

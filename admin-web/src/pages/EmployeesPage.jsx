@@ -398,7 +398,7 @@ export default function EmployeesPage() {
             </div>
 
             <FormField label="Observações"><textarea rows="3" value={form.observacoes} onChange={(e) => updateField("observacoes", e.target.value)} /></FormField>
-            {editingEmployee?.usuario && <InlineNotice type="info">Este funcionário possui acesso ao BichOne com {editingEmployee.usuario.email}. O vínculo de login é administrado separadamente das informações trabalhistas.</InlineNotice>}
+            {editingEmployee?.usuario && <InlineNotice type="info">Este funcionário possui acesso ao PetRise com {editingEmployee.usuario.email}. O vínculo de login é administrado separadamente das informações trabalhistas.</InlineNotice>}
           </div>
           <div className="modal-footer"><button className="text-button" type="button" onClick={closeEmployee}>Cancelar</button><button className="primary-button" disabled={employeeMutation.isPending}>{employeeMutation.isPending ? "Salvando..." : "Salvar"}</button></div>
         </form>

@@ -1,4 +1,4 @@
-# BichOne — Hotfix 8.1 (Consultório)
+# PetRise — Hotfix 8.1 (Consultório)
 
 ## Problema corrigido
 Ao abrir um novo atendimento com serviço de consulta e lançamento automático em comanda, a operação executa várias consultas/escritas sequenciais dentro de uma transação interativa do Prisma. O timeout padrão é de 5 segundos. Usando o PostgreSQL remoto do Railway, a latência pode fazer a transação expirar e a API responder `Erro interno do servidor`.

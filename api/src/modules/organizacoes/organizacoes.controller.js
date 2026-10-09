@@ -97,6 +97,9 @@ export async function atualizarModulo(req, res, next) {
 
     return res.json({ success: true, modulo: registro });
   } catch (error) {
+    if (error?.message === "MODULO_NAO_CONTRATADO") {
+      return res.status(403).json({ success: false, message: "Este módulo não faz parte do plano contratado. Altere a assinatura para habilitá-lo." });
+    }
     next(error);
   }
 }

@@ -1,4 +1,4 @@
-# BichOne — Fase 7: Estoque Operacional
+# PetRise — Fase 7: Estoque Operacional
 
 Esta fase transforma o estoque estrutural das versões anteriores em um módulo operacional completo, separado por CNPJ.
 
@@ -72,4 +72,4 @@ npm run dev
 - Produtos com controle de validade exigem validade na entrada.
 - Uma entrada concluída não é editada; em caso de erro, é cancelada e registrada novamente, preservando auditoria.
 - Inventário concluído não é editável.
-- O preço de venda não é alterado automaticamente quando o custo muda; o BichOne recalcula markup, margem e lucro para o preço atual.
+- O preço de venda não é alterado automaticamente quando o custo muda; o PetRise recalcula markup, margem e lucro para o preço atual.

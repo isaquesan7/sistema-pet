@@ -1,10 +1,10 @@
-# BichOne — Frontend Administrativo · Fase 1
+# PetRise — Frontend Administrativo · Fase 1
 
-Esta etapa substitui a tela padrão do Vite pelo primeiro shell funcional do painel administrativo BichOne.
+Esta etapa substitui a tela padrão do Vite pelo primeiro shell funcional do painel administrativo PetRise.
 
 ## Entregue
 
-- Identidade da plataforma **BichOne** separada da marca da organização/tenant.
+- Identidade da plataforma **PetRise** separada da marca da organização/tenant.
 - Login conectado a `POST /api/auth/login`.
 - Sessão do navegador via `sessionStorage`.
 - Seleção de empresa/CNPJ após o login.

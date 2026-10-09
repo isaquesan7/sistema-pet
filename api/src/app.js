@@ -17,6 +17,12 @@ import pacotesRoutes from "./modules/pacotes/pacotes.routes.js";
 import pdvRoutes from "./modules/pdv/pdv.routes.js";
 import estoqueRoutes from "./modules/estoque/estoque.routes.js";
 import consultorioRoutes from "./modules/consultorio/consultorio.routes.js";
+import banhoTosaRoutes from "./modules/banho-tosa/banho-tosa.routes.js";
+import portalClienteRoutes from "./modules/portal-cliente/portal-cliente.routes.js";
+import financeiroRoutes from "./modules/financeiro/financeiro.routes.js";
+import fiscalRoutes from "./modules/fiscal/fiscal.routes.js";
+import relatoriosRoutes from "./modules/relatorios/relatorios.routes.js";
+import saasRoutes from "./modules/saas/saas.routes.js";
 
 const app = express();
 
@@ -42,6 +48,7 @@ app.use(
       return callback(new Error("Origem não autorizada pelo CORS."));
     },
     credentials: true,
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 
@@ -75,7 +82,7 @@ app.use(cookieParser());
 app.get("/api/health", (req, res) => {
   return res.status(200).json({
     success: true,
-    service: process.env.APP_NAME || "BichOne API",
+    service: process.env.APP_NAME || "PetRise API",
     status: "online",
     timestamp: new Date().toISOString(),
   });
@@ -94,7 +101,7 @@ app.get("/api/health/database", async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      service: process.env.APP_NAME || "BichOne API",
+      service: process.env.APP_NAME || "PetRise API",
       database: {
         status: "connected",
         provider: "PostgreSQL",
@@ -143,6 +150,12 @@ app.use("/api/pacotes", pacotesRoutes);
 app.use("/api/pdv", pdvRoutes);
 app.use("/api/estoque", estoqueRoutes);
 app.use("/api/consultorio", consultorioRoutes);
+app.use("/api/banho-tosa", banhoTosaRoutes);
+app.use("/api/portal", portalClienteRoutes);
+app.use("/api/financeiro", financeiroRoutes);
+app.use("/api/fiscal", fiscalRoutes);
+app.use("/api/relatorios", relatoriosRoutes);
+app.use("/api/saas", saasRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA

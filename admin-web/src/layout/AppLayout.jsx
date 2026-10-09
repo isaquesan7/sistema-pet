@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
+  BarChart3,
   Bath,
+  CreditCard,
   Boxes,
   ChevronDown,
   CircleDollarSign,
+  ReceiptText,
   Clock3,
   LayoutDashboard,
   LogOut,
@@ -13,6 +16,7 @@ import {
   PawPrint,
   Settings,
   ShoppingCart,
+  ShieldCheck,
   Stethoscope,
   UserRound,
   UsersRound,
@@ -34,8 +38,11 @@ const navItems = [
   { to: "/banho-e-tosa", label: "Banho e Tosa", icon: Bath, permission: "banho_tosa.acessar", module: "BANHO_TOSA", companyTypes: ["BANHO_TOSA", "OUTRA"] },
   { to: "/pacotes", label: "Pacotes", icon: PackageOpen, permission: "pacotes.visualizar" },
   { to: "/funcionarios", label: "Funcionários", icon: UserRound, permission: "funcionarios.visualizar" },
-  { to: "/ponto", label: "Ponto", icon: Clock3, permission: "ponto.registrar", module: "PONTO" },
+  { to: "/ponto", label: "Ponto", icon: Clock3, permissionsAny: ["ponto.registrar", "ponto.gerenciar", "ponto.aprovar_ajustes", "ponto.fechamento"], module: "PONTO" },
   { to: "/financeiro", label: "Financeiro", icon: CircleDollarSign, permission: "financeiro.visualizar", module: "FINANCEIRO" },
+  { to: "/fiscal", label: "Fiscal", icon: ReceiptText, permission: "fiscal.visualizar", module: "FISCAL" },
+  { to: "/relatorios", label: "Relatórios", icon: BarChart3, permission: "relatorios.visualizar", module: "RELATORIOS" },
+  { to: "/assinatura", label: "Plano e assinatura", icon: CreditCard, organizationRoles: ["PROPRIETARIO", "ADMINISTRADOR"] },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
@@ -49,6 +56,7 @@ export default function AppLayout() {
     selectCompany,
     logout,
     hasPermission,
+    isPlatformAdmin,
   } = useAuth();
 
   const modules = selectedOrganization?.modulos || [];
@@ -57,12 +65,13 @@ export default function AppLayout() {
   const visibleItems = useMemo(
     () =>
       navItems.filter((item) => {
-        const permissionOk = !item.permission || hasPermission(item.permission);
+        const permissionOk = (!item.permission || hasPermission(item.permission)) && (!item.permissionsAny || item.permissionsAny.some((permission) => hasPermission(permission)));
         const moduleOk = !item.module || modules.includes(item.module);
         const companyOk = !item.companyTypes || item.companyTypes.includes(selectedCompany?.tipo);
-        return permissionOk && moduleOk && companyOk;
+        const roleOk = !item.organizationRoles || item.organizationRoles.includes(selectedOrganization?.papel);
+        return permissionOk && moduleOk && companyOk && roleOk;
       }),
-    [hasPermission, modules, selectedCompany?.tipo]
+    [hasPermission, modules, selectedCompany?.tipo, selectedOrganization?.papel]
   );
 
   const companies = user?.empresas || [];
@@ -128,6 +137,11 @@ export default function AppLayout() {
         </nav>
 
         <div className="sidebar__footer">
+          {isPlatformAdmin && (
+            <button className="platform-sidebar-link" type="button" onClick={() => navigate("/plataforma")}>
+              <ShieldCheck size={16}/> Administração PetRise
+            </button>
+          )}
           <div className="sidebar-user">
             <div className="sidebar-user__avatar">{user?.nome?.slice(0, 1).toUpperCase()}</div>
             <div className="sidebar-user__text">
@@ -150,7 +164,7 @@ export default function AppLayout() {
               <Menu size={21} />
             </button>
             <div>
-              <span className="topbar__eyebrow">BichOne</span>
+              <span className="topbar__eyebrow">PetRise</span>
               <strong className="topbar__org">{organizationConfig.nomeExibicao || selectedOrganization?.nome}</strong>
             </div>
           </div>

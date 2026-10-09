@@ -1,4 +1,4 @@
-# BichOne — Fase 6
+# PetRise — Fase 6
 
 ## Escopo implementado
 
@@ -117,7 +117,7 @@ npm run dev
 12. Cancele uma venda de teste e confira a restauração do estoque.
 13. Se houver pacote sem venda, use **Receber pacotes** e confira o vínculo da venda.
 14. Para testar renovação automática rapidamente, configure temporariamente `JWT_ACCESS_EXPIRES="1m"`, entre com Mantenha-me conectado e continue usando o painel após um minuto: não deve voltar para o login.
-15. Clique em **Sair**, reabra o BichOne e confirme que a sessão foi encerrada.
+15. Clique em **Sair**, reabra o PetRise e confirme que a sessão foi encerrada.
 
 ## Observações
 - O fechamento fiscal (NF-e/NFC-e/NFS-e) continua desacoplado e será conectado posteriormente às vendas.

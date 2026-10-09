@@ -1,4 +1,4 @@
-# BichOne — Frontend Fase 4
+# PetRise — Frontend Fase 4
 
 ## Escopo implementado
 - CRUD visual de funcionários.

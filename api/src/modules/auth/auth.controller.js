@@ -66,6 +66,7 @@ export async function me(req, res) {
       id: req.usuario.id,
       nome: req.usuario.nome,
       email: req.usuario.email,
+      superAdmin: Boolean(req.usuario.superAdmin),
     },
   });
 }
@@ -77,6 +78,7 @@ export async function contexto(req, res) {
       id: req.usuario.id,
       nome: req.usuario.nome,
       email: req.usuario.email,
+      superAdmin: Boolean(req.usuario.superAdmin),
     },
     organizacao: {
       id: req.organizacao.id,
@@ -84,6 +86,13 @@ export async function contexto(req, res) {
       nome: req.organizacao.nome,
       configuracao: req.organizacao.configuracao,
       modulosHabilitados: req.modulosHabilitados,
+      assinatura: req.assinaturaSaaS ? {
+        status: req.assinaturaSaaS.status,
+        ciclo: req.assinaturaSaaS.ciclo,
+        trialFimEm: req.assinaturaSaaS.trialFimEm,
+        proximaCobrancaEm: req.assinaturaSaaS.proximaCobrancaEm,
+        plano: req.assinaturaSaaS.plano ? { id: req.assinaturaSaaS.plano.id, slug: req.assinaturaSaaS.plano.slug, nome: req.assinaturaSaaS.plano.nome } : null,
+      } : null,
     },
     empresa: {
       id: req.empresa.id,

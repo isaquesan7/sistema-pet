@@ -1,0 +1,28 @@
+import { Router } from "express";
+import { autenticarUsuario, selecionarEmpresa, exigirModulo, exigirPermissao } from "../../middlewares/auth.middleware.js";
+import * as c from "./financeiro.controller.js";
+
+const r=Router();
+r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("FINANCEIRO"));
+r.get("/resumo",exigirPermissao("financeiro.visualizar"),c.resumo);
+r.get("/fluxo",exigirPermissao("financeiro.visualizar"),c.fluxo);
+r.get("/relatorio",exigirPermissao("relatorios.visualizar"),c.relatorio);
+r.get("/referencias",exigirPermissao("financeiro.visualizar"),c.referencias);
+r.get("/categorias",exigirPermissao("financeiro.visualizar"),c.categorias);
+r.post("/categorias",exigirPermissao("financeiro.gerenciar"),c.criarCategoria);
+r.patch("/categorias/:id",exigirPermissao("financeiro.gerenciar"),c.atualizarCategoria);
+r.get("/contas",exigirPermissao("financeiro.visualizar"),c.contas);
+r.post("/contas",exigirPermissao("financeiro.gerenciar"),c.criarConta);
+r.patch("/contas/:id",exigirPermissao("financeiro.gerenciar"),c.atualizarConta);
+r.get("/titulos",exigirPermissao("financeiro.visualizar"),c.titulos);
+r.get("/titulos/:id",exigirPermissao("financeiro.visualizar"),c.titulo);
+r.post("/titulos",exigirPermissao("financeiro.gerenciar"),c.criarTitulo);
+r.patch("/titulos/:id",exigirPermissao("financeiro.gerenciar"),c.atualizarTitulo);
+r.post("/titulos/:id/baixar",exigirPermissao("financeiro.gerenciar"),c.baixar);
+r.post("/titulos/:id/cancelar",exigirPermissao("financeiro.gerenciar"),c.cancelar);
+r.get("/fiado",exigirPermissao("financeiro.visualizar"),c.fiado);
+r.get("/conciliacao/pendentes",exigirPermissao("financeiro.visualizar"),c.pendentes);
+r.get("/conciliacoes",exigirPermissao("financeiro.visualizar"),c.conciliacoes);
+r.post("/conciliacoes",exigirPermissao("financeiro.gerenciar"),c.conciliar);
+r.delete("/conciliacoes/:id",exigirPermissao("financeiro.gerenciar"),c.desconciliar);
+export default r;

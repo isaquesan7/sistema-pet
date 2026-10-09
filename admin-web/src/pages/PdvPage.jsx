@@ -45,6 +45,14 @@ function round(value) {
   return Math.round((money(value) + Number.EPSILON) * 100) / 100;
 }
 
+
+function datePlusDays(days = 30) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function saleStatusLabel(status) {
   return {
     ABERTA: "Aberta",
@@ -141,7 +149,10 @@ function PaymentEditor({ payments, total, onChange }) {
       <div className="pdv-payment-list">
         {payments.map((payment, index) => (
           <div className="pdv-payment-row" key={`${payment.forma}-${index}`}>
-            <select className="form-control" value={payment.forma} onChange={(event) => update(index, { forma: event.target.value })}>
+            <select className="form-control" value={payment.forma} onChange={(event) => {
+              const forma = event.target.value;
+              update(index, { forma, ...(forma === "CREDITO_CLIENTE" && !payment.vencimentoEm ? { vencimentoEm: datePlusDays(30) } : {}) });
+            }}>
               {Object.entries(paymentLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
             </select>
             <input
@@ -161,6 +172,14 @@ function PaymentEditor({ payments, total, onChange }) {
                 value={payment.parcelas || 1}
                 onChange={(event) => update(index, { parcelas: Math.max(1, Number(event.target.value) || 1) })}
                 title="Parcelas"
+              />
+            ) : payment.forma === "CREDITO_CLIENTE" ? (
+              <input
+                className="form-control"
+                type="date"
+                value={payment.vencimentoEm || datePlusDays(30)}
+                onChange={(event) => update(index, { vencimentoEm: event.target.value })}
+                title="Vencimento do fiado"
               />
             ) : <span className="pdv-payment-spacer" />}
             <button type="button" className="icon-button table-action" onClick={() => remove(index)} disabled={payments.length === 1}><XCircle size={15} /></button>

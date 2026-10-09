@@ -4,6 +4,7 @@ const textoOpcional = z.string().trim().optional().nullable();
 const dataOpcional = z.string().optional().nullable();
 const dinheiroOpcional = z.union([z.number(), z.string()]).transform(Number).optional().nullable();
 const hora = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário deve estar no formato HH:mm.");
+const competencia = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Competência deve estar no formato AAAA-MM.");
 
 export const funcaoSchema = z.object({
   nome: z.string().trim().min(2).max(100),
@@ -54,4 +55,18 @@ export const baterPontoSchema = z.object({
 export const ajustePontoSchema = z.object({
   horarioNovo: z.string().datetime(),
   motivo: z.string().trim().min(5).max(500),
+});
+
+export const analisarAjustePontoSchema = z.object({
+  decisao: z.enum(["APROVAR", "REJEITAR"]),
+  observacao: z.string().trim().max(500).optional().nullable(),
+});
+
+export const fecharPontoSchema = z.object({
+  competencia,
+  observacoes: z.string().trim().max(1000).optional().nullable(),
+});
+
+export const reabrirPontoSchema = z.object({
+  motivo: z.string().trim().min(5).max(1000),
 });

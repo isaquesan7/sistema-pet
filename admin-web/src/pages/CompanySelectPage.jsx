@@ -1,11 +1,11 @@
-import { Building2, ChevronRight, LogOut } from "lucide-react";
+import { Building2, ChevronRight, LogOut, ShieldCheck } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import BrandMark from "../components/BrandMark.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { companyTypeLabel } from "../lib/formatters.js";
 
 export default function CompanySelectPage() {
-  const { isAuthenticated, user, selectCompany, logout } = useAuth();
+  const { isAuthenticated, isPlatformAdmin, user, selectCompany, logout } = useAuth();
   const navigate = useNavigate();
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -32,6 +32,14 @@ export default function CompanySelectPage() {
           <h1>Onde você quer trabalhar agora?</h1>
           <p>Selecione o CNPJ/empresa. Você poderá trocar de empresa a qualquer momento.</p>
         </div>
+
+        {isPlatformAdmin && (
+          <button className="platform-entry-card" type="button" onClick={() => navigate("/plataforma")}>
+            <span><ShieldCheck size={20}/></span>
+            <div><strong>Administração do PetRise</strong><small>Tenants, planos, assinaturas e cobranças da plataforma.</small></div>
+            <ChevronRight size={19}/>
+          </button>
+        )}
 
         <div className="company-grid">
           {companies.map((company) => (

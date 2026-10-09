@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import BrandMark from "../components/BrandMark.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getApiErrorMessage } from "../lib/api.js";
 
 export default function LoginPage() {
-  const { isAuthenticated, selectedCompany, login } = useAuth();
+  const { isAuthenticated, isPlatformAdmin, selectedCompany, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   if (isAuthenticated) {
-    return <Navigate to={selectedCompany ? "/" : "/selecionar-empresa"} replace />;
+    return <Navigate to={selectedCompany ? "/" : isPlatformAdmin ? "/plataforma" : "/selecionar-empresa"} replace />;
   }
 
   async function handleSubmit(event) {
@@ -27,7 +27,7 @@ export default function LoginPage() {
 
     try {
       const result = await login({ email, senha, manterConectado });
-      const fallback = result.companyId ? "/" : "/selecionar-empresa";
+      const fallback = result.companyId ? "/" : result.session?.usuario?.superAdmin ? "/plataforma" : "/selecionar-empresa";
       navigate(location.state?.from || fallback, { replace: true });
     } catch (loginError) {
       setError(getApiErrorMessage(loginError, "E-mail ou senha inválidos."));
@@ -48,7 +48,7 @@ export default function LoginPage() {
               PDV, clínica veterinária, banho e tosa, clientes, estoque e equipe em uma única plataforma.
             </p>
           </div>
-          <div className="auth-visual__footer">BichOne · Plataforma de gestão pet</div>
+          <div className="auth-visual__footer">PetRise · Plataforma de gestão pet</div>
         </div>
       </section>
 
@@ -114,9 +114,10 @@ export default function LoginPage() {
           </label>
 
           <button className="primary-button primary-button--large" type="submit" disabled={loading}>
-            {loading ? "Entrando..." : "Entrar no BichOne"}
+            {loading ? "Entrando..." : "Entrar no PetRise"}
           </button>
 
+          <p className="login-card__signup">Ainda não usa o PetRise? <Link to="/comecar">Criar conta e testar grátis</Link></p>
           <p className="login-card__security">Seu acesso e permissões são validados pela sua organização.</p>
         </form>
       </section>

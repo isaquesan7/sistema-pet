@@ -48,6 +48,7 @@ const pagamentoSchema = z.object({
   transacaoExternaId: textOptional,
   codigoAutorizacao: textOptional,
   observacoes: textOptional,
+  vencimentoEm: z.string().trim().optional().nullable(),
 });
 
 export const vendaSchema = z.object({

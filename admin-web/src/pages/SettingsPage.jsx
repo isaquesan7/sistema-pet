@@ -46,7 +46,7 @@ export default function SettingsPage() {
         <div>
           <span className="page-kicker">Administração</span>
           <h1>Configurações</h1>
-          <p>Personalize a organização e alimente os cadastros auxiliares do BichOne.</p>
+          <p>Personalize a organização e alimente os cadastros auxiliares do PetRise.</p>
         </div>
         <div className="company-badge"><Building2 size={18} /><div><strong>{selectedCompany?.nomeFantasia}</strong><span>Configurações compartilhadas da organização</span></div></div>
       </section>
@@ -111,7 +111,7 @@ function BrandSettings({ organization, loading, canManage, onUpdated }) {
       <InlineNotice tone="error">{error}</InlineNotice><InlineNotice tone="success">{success}</InlineNotice>
       <div className="brand-preview" style={{ "--preview-primary": form.corPrimaria, "--preview-secondary": form.corSecundaria }}>
         <div className="brand-preview__logo">{form.logoUrl ? <img src={form.logoUrl} alt="" /> : (form.nomeExibicao || "O").slice(0,1).toUpperCase()}</div>
-        <div><strong>{form.nomeExibicao || "Sua organização"}</strong><span>Operando dentro do BichOne</span></div>
+        <div><strong>{form.nomeExibicao || "Sua organização"}</strong><span>Operando dentro do PetRise</span></div>
       </div>
       <div className="form-grid form-grid--2">
         <FormField label="Nome de exibição"><input className="form-control" value={form.nomeExibicao} onChange={(e) => setForm({ ...form, nomeExibicao: e.target.value })} disabled={!canManage} /></FormField>
@@ -205,10 +205,10 @@ function ModulesSettings({ canManage, organizationId, onModulesChanged }) {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["organization-modules"] });
       const fresh = (await api.get("/organizacao/modulos")).data.dados || [];
-      onModulesChanged?.(organizationId, fresh.filter((item) => item.habilitado).map((item) => item.modulo));
+      onModulesChanged?.(organizationId, fresh.filter((item) => item.habilitado && item.contratado).map((item) => item.modulo));
     },
   });
-  return <section className="panel settings-section"><div className="panel__heading"><div><span>Recursos</span><h2>Módulos habilitados</h2></div></div><div className="module-grid">{(query.data || []).map((item) => <label className="module-toggle" key={item.modulo}><div><strong>{moduleLabels[item.modulo] || item.modulo}</strong><span>{item.habilitado ? "Disponível para a organização" : "Módulo desativado"}</span></div><input type="checkbox" checked={item.habilitado} disabled={!canManage || mutation.isPending} onChange={(e) => mutation.mutate({ modulo: item.modulo, habilitado: e.target.checked })} /></label>)}</div></section>;
+  return <section className="panel settings-section"><div className="panel__heading"><div><span>Recursos</span><h2>Módulos habilitados</h2><p>Os módulos disponíveis são definidos pelo plano PetRise. Aqui você pode desligar temporariamente um módulo contratado.</p></div></div><div className="module-grid">{(query.data || []).map((item) => <label className={`module-toggle ${!item.contratado ? "module-toggle--locked" : ""}`} key={item.modulo}><div><strong>{moduleLabels[item.modulo] || item.modulo}</strong><span>{!item.contratado ? "Não incluído no plano atual" : item.habilitado ? "Contratado e disponível" : "Contratado, porém desativado"}</span></div><input type="checkbox" checked={Boolean(item.habilitado && item.contratado)} disabled={!canManage || mutation.isPending || !item.contratado} onChange={(e) => mutation.mutate({ modulo: item.modulo, habilitado: e.target.checked })} /></label>)}</div></section>;
 }
 
 function SettingsList({ title, description, icon: Icon, actionLabel, canManage, onAdd, extra, children }) {

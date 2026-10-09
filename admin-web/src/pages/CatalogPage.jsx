@@ -573,7 +573,7 @@ export default function CatalogPage() {
 
           {editing && details?.historicosPreco?.length ? (
             <div className="form-section">
-              <div className="form-section__heading"><strong>Histórico de precificação</strong><span>Últimas alterações registradas pelo BichOne.</span></div>
+              <div className="form-section__heading"><strong>Histórico de precificação</strong><span>Últimas alterações registradas pelo PetRise.</span></div>
               <div className="price-history">
                 {details.historicosPreco.map((entry) => (
                   <div className="price-history__row" key={entry.id}>

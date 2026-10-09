@@ -41,9 +41,14 @@ const permissoes = [
   ["funcionarios.gerenciar", "Gerenciar funcionários", "Permite cadastrar funcionários, funções e jornadas."],
   ["ponto.registrar", "Registrar ponto", "Permite registrar batidas de ponto."],
   ["ponto.gerenciar", "Gerenciar ponto", "Permite visualizar e ajustar registros de ponto."],
+  ["ponto.aprovar_ajustes", "Aprovar ajustes de ponto", "Permite aprovar ou rejeitar solicitações de ajuste de ponto."],
+  ["ponto.fechamento", "Fechar ponto mensal", "Permite revisar, fechar, reabrir e exportar competências do ponto."],
   ["pacotes.visualizar", "Visualizar pacotes", "Permite consultar modelos e pacotes de clientes."],
   ["pacotes.gerenciar", "Gerenciar pacotes", "Permite criar pacotes e consumir créditos."],
-  ["fiscal.gerenciar", "Gerenciar fiscal", "Permite configurar e operar integrações fiscais."],
+  ["fiscal.visualizar", "Visualizar fiscal", "Permite consultar configurações, cadastros e documentos fiscais."],
+  ["fiscal.gerenciar", "Gerenciar fiscal", "Permite configurar empresa e tributação dos itens."],
+  ["fiscal.emitir", "Emitir documentos fiscais", "Permite criar e processar documentos fiscais."],
+  ["fiscal.cancelar", "Cancelar documentos fiscais", "Permite cancelar documentos fiscais quando permitido."],
   ["relatorios.visualizar", "Visualizar relatórios", "Permite acessar relatórios gerenciais."],
   ["empresas.gerenciar", "Gerenciar empresas", "Permite configurar os CNPJs do sistema."],
   ["organizacao.gerenciar", "Gerenciar organização", "Permite alterar marca, configurações e módulos da organização."],
@@ -92,14 +97,22 @@ async function main() {
   }
   console.log(`✅ Permissões de ${cargosAdmin.length} cargo(s) Administrador sincronizadas.`);
 
-  // Organizações existentes recebem a matriz padrão de módulos.
-  const organizacoes = await prisma.organizacao.findMany({ select: { id: true } });
+  // Fase 15: os módulos passam a respeitar o plano contratado.
+  // O seed nunca expande silenciosamente um plano comercial.
+  const organizacoes = await prisma.organizacao.findMany({
+    select: {
+      id: true,
+      assinaturaSaaS: { select: { plano: { select: { modulos: { select: { modulo: true } } } } } },
+    },
+  });
   for (const organizacao of organizacoes) {
+    const contratados = new Set(organizacao.assinaturaSaaS?.plano.modulos.map((item) => item.modulo) || modulos);
     for (const modulo of modulos) {
+      const contratado = contratados.has(modulo);
       await prisma.moduloOrganizacao.upsert({
         where: { organizacaoId_modulo: { organizacaoId: organizacao.id, modulo } },
-        update: {},
-        create: { organizacaoId: organizacao.id, modulo, habilitado: true },
+        update: { contratado, ...(contratado ? {} : { habilitado: false }) },
+        create: { organizacaoId: organizacao.id, modulo, contratado, habilitado: contratado },
       });
     }
   }

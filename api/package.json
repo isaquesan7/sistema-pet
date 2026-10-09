@@ -11,7 +11,9 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:create-admin": "tsx prisma/create-admin.ts",
-    "db:setup-business": "tsx prisma/configure-business.ts"
+    "db:setup-business": "tsx prisma/configure-business.ts",
+    "db:promote-platform-admin": "tsx prisma/promote-platform-admin.ts",
+    "db:repair-timeclock": "node prisma/repair-timeclock-monthly-close.js"
   },
   "keywords": [],
   "author": "",

@@ -19,3 +19,9 @@ export function RequireCompany() {
   }
   return <Outlet />;
 }
+
+export function RequirePlatformAdmin() {
+  const { isPlatformAdmin } = useAuth();
+  if (!isPlatformAdmin) return <Navigate to="/" replace />;
+  return <Outlet />;
+}

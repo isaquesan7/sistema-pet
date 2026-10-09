@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
+import { assinaturaBloqueada } from "../modules/saas/saas.service.js";
 
 // ======================================================
 // USUÁRIO AUTENTICADO
@@ -43,6 +44,7 @@ export async function autenticarUsuario(req, res, next) {
         nome: true,
         email: true,
         status: true,
+        superAdmin: true,
       },
     });
 
@@ -96,6 +98,7 @@ export async function selecionarEmpresa(req, res, next) {
               include: {
                 configuracao: true,
                 modulos: true,
+                assinaturaSaaS: { include: { plano: { include: { modulos: true } } } },
               },
             },
           },
@@ -126,6 +129,17 @@ export async function selecionarEmpresa(req, res, next) {
       });
     }
 
+    const acessoAssinatura = assinaturaBloqueada(organizacao.assinaturaSaaS);
+    if (acessoAssinatura.bloqueada) {
+      return res.status(402).json({
+        success: false,
+        message: acessoAssinatura.motivo === "TRIAL_EXPIRADO"
+          ? "O período de teste desta organização terminou. Regularize a assinatura para continuar."
+          : "A assinatura PetRise desta organização não permite acesso no momento.",
+        code: acessoAssinatura.motivo,
+      });
+    }
+
     const vinculoOrganizacao = await prisma.usuarioOrganizacao.findUnique({
       where: {
         usuarioId_organizacaoId: {
@@ -146,16 +160,75 @@ export async function selecionarEmpresa(req, res, next) {
     req.organizacao = organizacao;
     req.vinculoEmpresa = vinculo;
     req.vinculoOrganizacao = vinculoOrganizacao;
+    req.assinaturaSaaS = organizacao.assinaturaSaaS;
     req.permissoes =
       vinculo.cargo?.permissoes.map((item) => item.permissao.codigo) || [];
     req.modulosHabilitados = organizacao.modulos
-      .filter((item) => item.habilitado)
+      .filter((item) => item.habilitado && item.contratado)
       .map((item) => item.modulo);
 
     next();
   } catch (error) {
     next(error);
   }
+}
+
+// ======================================================
+// SELEÇÃO DE EMPRESA PARA REGULARIZAÇÃO DA ASSINATURA
+// Permite abrir a área de cobrança mesmo quando o trial/assinatura bloqueou o restante.
+// ======================================================
+
+export async function selecionarEmpresaParaAssinatura(req, res, next) {
+  try {
+    const empresaId = req.headers["x-empresa-id"];
+    if (!req.usuario) return res.status(401).json({ success: false, message: "Usuário não autenticado." });
+    if (!empresaId) return res.status(400).json({ success: false, message: "Empresa não informada." });
+
+    const vinculo = await prisma.usuarioEmpresa.findUnique({
+      where: { usuarioId_empresaId: { usuarioId: req.usuario.id, empresaId } },
+      include: {
+        empresa: { include: { organizacao: { include: { configuracao: true, modulos: true, assinaturaSaaS: { include: { plano: { include: { modulos: true } } } } } } } },
+        cargo: { include: { permissoes: { include: { permissao: true } } } },
+      },
+    });
+    if (!vinculo || !vinculo.ativo || !vinculo.empresa.ativo || !vinculo.empresa.organizacao?.ativo) {
+      return res.status(403).json({ success: false, message: "Você não possui acesso a esta organização." });
+    }
+    const vinculoOrganizacao = await prisma.usuarioOrganizacao.findUnique({
+      where: { usuarioId_organizacaoId: { usuarioId: req.usuario.id, organizacaoId: vinculo.empresa.organizacaoId } },
+    });
+    if (!vinculoOrganizacao?.ativo) return res.status(403).json({ success: false, message: "Você não possui acesso a esta organização." });
+
+    req.empresa = vinculo.empresa;
+    req.organizacao = vinculo.empresa.organizacao;
+    req.vinculoEmpresa = vinculo;
+    req.vinculoOrganizacao = vinculoOrganizacao;
+    req.assinaturaSaaS = vinculo.empresa.organizacao.assinaturaSaaS;
+    req.permissoes = vinculo.cargo?.permissoes.map((item) => item.permissao.codigo) || [];
+    req.modulosHabilitados = vinculo.empresa.organizacao.modulos.filter((item) => item.habilitado && item.contratado).map((item) => item.modulo);
+    next();
+  } catch (error) { next(error); }
+}
+
+export function exigirGestorOrganizacao(req, res, next) {
+  if (!req.vinculoOrganizacao || !["PROPRIETARIO", "ADMINISTRADOR"].includes(req.vinculoOrganizacao.papel)) {
+    return res.status(403).json({ success: false, message: "Somente proprietário ou administrador da organização pode acessar a assinatura." });
+  }
+  next();
+}
+
+// ======================================================
+// ADMINISTRAÇÃO INTERNA DA PLATAFORMA PETRISE
+// ======================================================
+
+export function exigirSuperAdmin(req, res, next) {
+  if (!req.usuario) {
+    return res.status(401).json({ success: false, message: "Usuário não autenticado." });
+  }
+  if (!req.usuario.superAdmin) {
+    return res.status(403).json({ success: false, message: "Acesso restrito à administração interna do PetRise." });
+  }
+  next();
 }
 
 // ======================================================

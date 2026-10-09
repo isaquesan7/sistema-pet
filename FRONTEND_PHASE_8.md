@@ -1,4 +1,4 @@
-# BichOne — Fase 8: Consultório Veterinário
+# PetRise — Fase 8: Consultório Veterinário
 
 Esta fase transforma o módulo **Consultório** em uma área clínica operacional, integrada a Clientes, Pets, Catálogo, Estoque, Comandas e PDV.
 

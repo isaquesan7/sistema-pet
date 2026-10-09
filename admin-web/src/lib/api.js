@@ -54,7 +54,7 @@ async function renovarSessao() {
   };
 
   updateStoredSession(next);
-  window.dispatchEvent(new CustomEvent("bichone:session-refreshed", { detail: next }));
+  window.dispatchEvent(new CustomEvent("petrise:session-refreshed", { detail: next }));
   return next;
 }
 
@@ -63,10 +63,16 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const isUnauthorized = error.response?.status === 401;
+    const isSubscriptionBlocked = error.response?.status === 402 && ["TRIAL_EXPIRADO", "ASSINATURA_SUSPENSA", "ASSINATURA_CANCELADA", "ASSINATURA_AUSENTE"].includes(error.response?.data?.code);
+
+    if (isSubscriptionBlocked && !original?.url?.includes("/saas/assinatura") && window.location.pathname !== "/assinatura") {
+      window.location.assign("/assinatura");
+      return Promise.reject(error);
+    }
     const isAuthEndpoint = original?.url?.includes("/auth/login") || original?.url?.includes("/auth/refresh");
 
-    if (isUnauthorized && !isAuthEndpoint && original && !original.__bichoneRetried) {
-      original.__bichoneRetried = true;
+    if (isUnauthorized && !isAuthEndpoint && original && !original.__petriseRetried) {
+      original.__petriseRetried = true;
 
       try {
         if (!refreshPromise) {
@@ -81,7 +87,7 @@ api.interceptors.response.use(
         return api(original);
       } catch {
         clearStoredSession();
-        window.dispatchEvent(new Event("bichone:unauthorized"));
+        window.dispatchEvent(new Event("petrise:unauthorized"));
       }
     }
 

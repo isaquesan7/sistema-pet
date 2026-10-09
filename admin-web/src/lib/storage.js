@@ -1,7 +1,7 @@
 const KEYS = {
-  session: "bichone.session",
-  companyId: "bichone.companyId",
-  remember: "bichone.remember",
+  session: "petrise.session",
+  companyId: "petrise.companyId",
+  remember: "petrise.remember",
 };
 
 function safeParse(raw) {

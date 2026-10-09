@@ -28,6 +28,7 @@ function parse(schema, body, res) {
 function mapError(error, res, next) {
   const messages = {
     CLIENTE_OBRIGATORIO: [400, "Selecione um cliente."],
+    CLIENTE_OBRIGATORIO_CREDITO: [400, "Para vender no fiado, selecione o cliente responsável pela conta."],
     CLIENTE_NAO_ENCONTRADO: [404, "Cliente não encontrado nesta organização."],
     PET_NAO_ENCONTRADO: [404, "Pet não encontrado ou não pertence ao cliente selecionado."],
     PET_OBRIGATORIO_SERVICO: [400, "Este serviço exige um pet vinculado."],
@@ -41,6 +42,8 @@ function mapError(error, res, next) {
     CAIXA_JA_EXISTE: [409, "Já existe um caixa com este nome nesta empresa."],
     VENDA_NAO_ENCONTRADA: [404, "Venda não encontrada."],
     VENDA_NAO_CANCELAVEL: [409, "Esta venda não pode mais ser cancelada."],
+    VENDA_POSSUI_RECEBIMENTO_FIADO: [409, "Esta venda possui recebimento de fiado já registrado. Regularize o recebimento no Financeiro antes de cancelar."],
+    VENDA_POSSUI_DOCUMENTO_FISCAL: [409, "Esta venda possui documento fiscal autorizado. Cancele o documento no módulo Fiscal antes de cancelar a venda."],
     COMANDA_NAO_ENCONTRADA: [404, "Comanda não encontrada."],
     COMANDA_FECHADA: [409, "Esta comanda está fechada ou cancelada."],
     ITEM_COMANDA_NAO_ENCONTRADO: [404, "Item ativo da comanda não encontrado para esta empresa."],

@@ -8,6 +8,7 @@ import {
   atualizarRacaSchema,
 } from "./pets.schema.js";
 import * as petsService from "./pets.service.js";
+import { verificarLimiteRecurso } from "../saas/saas.service.js";
 
 function responderErro(error, res, next) {
   const erros = {
@@ -20,6 +21,10 @@ function responderErro(error, res, next) {
     ESPECIE_JA_CADASTRADA: [409, "Já existe uma espécie com este nome nesta organização."],
     RACA_JA_CADASTRADA: [409, "Já existe uma raça com este nome para esta espécie."],
   };
+
+  if (error.message === "LIMITE_PLANO_ATINGIDO") {
+    return res.status(403).json({ success: false, message: `Seu plano atingiu o limite de ${error.limite} pets.`, code: error.message });
+  }
 
   const resposta = erros[error.message];
   if (resposta) {
@@ -45,6 +50,7 @@ export async function criar(req, res, next) {
   try {
     const dados = validar(criarPetSchema, req.body, res);
     if (!dados) return;
+    await verificarLimiteRecurso(req.organizacao.id, "pets");
     const pet = await petsService.criarPet(req.organizacao.id, dados);
     return res.status(201).json({ success: true, message: "Pet cadastrado com sucesso.", pet });
   } catch (error) {

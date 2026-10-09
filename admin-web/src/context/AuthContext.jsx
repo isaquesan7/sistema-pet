@@ -56,11 +56,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const handleUnauthorized = () => clearLocalSession();
     const handleRefresh = (event) => setSession(event.detail || getStoredSession());
-    window.addEventListener("bichone:unauthorized", handleUnauthorized);
-    window.addEventListener("bichone:session-refreshed", handleRefresh);
+    window.addEventListener("petrise:unauthorized", handleUnauthorized);
+    window.addEventListener("petrise:session-refreshed", handleRefresh);
     return () => {
-      window.removeEventListener("bichone:unauthorized", handleUnauthorized);
-      window.removeEventListener("bichone:session-refreshed", handleRefresh);
+      window.removeEventListener("petrise:unauthorized", handleUnauthorized);
+      window.removeEventListener("petrise:session-refreshed", handleRefresh);
     };
   }, [clearLocalSession]);
 
@@ -95,6 +95,22 @@ export function AuthProvider({ children }) {
     setSelectedCompanyId(null);
     setCompanyId(null);
     return { session: nextSession, companyId: null };
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const current = getStoredSession();
+    if (!current?.refreshToken) return null;
+    const { data } = await api.post("/auth/refresh", { refreshToken: current.refreshToken });
+    const next = {
+      ...current,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      manterConectado: data.manterConectado ?? current.manterConectado,
+      usuario: data.usuario || current.usuario,
+    };
+    setStoredSession(next, Boolean(next.manterConectado));
+    setSession(next);
+    return next;
   }, []);
 
   const selectCompany = useCallback((id) => {
@@ -163,10 +179,12 @@ export function AuthProvider({ children }) {
       session,
       user: session?.usuario || null,
       isAuthenticated: Boolean(session?.accessToken),
+      isPlatformAdmin: Boolean(session?.usuario?.superAdmin),
       selectedCompany,
       selectedOrganization,
       login,
       logout,
+      refreshSession,
       selectCompany,
       updateOrganizationConfig,
       updateOrganizationModules,
@@ -178,6 +196,7 @@ export function AuthProvider({ children }) {
       selectedOrganization,
       login,
       logout,
+      refreshSession,
       selectCompany,
       updateOrganizationConfig,
       updateOrganizationModules,

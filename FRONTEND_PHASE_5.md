@@ -1,4 +1,4 @@
-# BichOne — Frontend Fase 5
+# PetRise — Frontend Fase 5
 
 ## Escopo implementado
 - Módulo visual completo de Pacotes.
@@ -48,7 +48,7 @@
 9. Teste o cancelamento de um pacote ativo.
 
 ## Observação sobre pagamento
-Nesta fase o BichOne administra o **contrato e os créditos** do pacote. A geração da venda, recebimento, comanda e vínculo automático com `vendaId` entram na fase de PDV, preservando a separação por CNPJ.
+Nesta fase o PetRise administra o **contrato e os créditos** do pacote. A geração da venda, recebimento, comanda e vínculo automático com `vendaId` entram na fase de PDV, preservando a separação por CNPJ.
 
 ## Sem migration nova
 A Fase 5 utiliza as tabelas de pacotes já presentes na SaaS Foundation 2.0.
