@@ -200,7 +200,7 @@ export async function criarOnboarding(dados, meta = {}) {
         planoId: plano.id,
         status: plano.trialDias > 0 ? "TRIAL" : "ATIVA",
         ciclo: dados.ciclo,
-        provedor: process.env.SAAS_BILLING_PROVIDER === "development" ? "DESENVOLVIMENTO" : "MANUAL",
+        provedor: (process.env.SAAS_BILLING_PROVIDER === "development" && process.env.NODE_ENV !== "production") ? "DESENVOLVIMENTO" : "MANUAL",
         trialFimEm: plano.trialDias > 0 ? trialFimEm : null,
         proximaCobrancaEm: plano.trialDias > 0 ? trialFimEm : addCycle(agora, dados.ciclo),
         eventos: {
@@ -318,7 +318,7 @@ export async function gerarFaturaOrganizacao({ organizacaoId, planoId, ciclo }) 
   if (pendente) return serializeFatura(pendente);
 
   const vencimento = addDays(new Date(), 3);
-  const provedor = process.env.SAAS_BILLING_PROVIDER === "development" ? "DESENVOLVIMENTO" : "MANUAL";
+  const provedor = (process.env.SAAS_BILLING_PROVIDER === "development" && process.env.NODE_ENV !== "production") ? "DESENVOLVIMENTO" : "MANUAL";
   const fatura = await prisma.faturaSaaS.create({
     data: {
       assinaturaId: assinatura.id,
@@ -360,7 +360,7 @@ async function aplicarPagamentoFaturaTx(tx, fatura, usuarioId = null) {
 }
 
 export async function simularPagamentoTenant(organizacaoId, faturaId, usuarioId) {
-  if (process.env.SAAS_BILLING_PROVIDER !== "development") throw new Error("SIMULACAO_INDISPONIVEL");
+  if (process.env.SAAS_BILLING_PROVIDER !== "development" || process.env.NODE_ENV === "production") throw new Error("SIMULACAO_INDISPONIVEL");
   return prisma.$transaction(async (tx) => {
     const fatura = await tx.faturaSaaS.findFirst({
       where: { id: faturaId, organizacaoId }, include: { assinatura: true },

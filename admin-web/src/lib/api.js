@@ -1,4 +1,5 @@
 import axios from "axios";
+import { API_URL } from "./runtime-config.js";
 import {
   clearStoredSession,
   getSelectedCompanyId,
@@ -6,7 +7,7 @@ import {
   updateStoredSession,
 } from "./storage.js";
 
-const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const baseURL = API_URL;
 
 const api = axios.create({
   baseURL,

@@ -41,7 +41,7 @@ export async function onboarding(req, res, next) {
 }
 
 export async function minhaAssinatura(req, res, next) {
-  try { return res.json({ success: true, assinatura: await service.obterAssinaturaOrganizacao(req.organizacao.id), billingDevelopment: process.env.SAAS_BILLING_PROVIDER === "development" }); } catch (e) { next(e); }
+  try { return res.json({ success: true, assinatura: await service.obterAssinaturaOrganizacao(req.organizacao.id), billingDevelopment: process.env.SAAS_BILLING_PROVIDER === "development" && process.env.NODE_ENV !== "production" }); } catch (e) { next(e); }
 }
 
 export async function gerarFatura(req, res, next) {

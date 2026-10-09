@@ -1,8 +1,22 @@
-# Environment files
+# PetRise — arquivos locais / segredos
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
-client-web/.env
-admin-web/.env
-api/.env
+# Dependências e builds
+**/node_modules/
+**/dist/
+**/build/
+
+# Railway CLI local link
+.railway/
+
+# IDE / SO / logs
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

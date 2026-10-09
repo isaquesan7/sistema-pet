@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 import { clearSession, loadSession, saveSession } from "../lib/storage.js";
+import { getOrganizacaoSlug } from "../lib/runtime-config.js";
 
 const Context = createContext(null);
-const slug = import.meta.env.VITE_ORGANIZACAO_SLUG || "pet-king";
+const slug = getOrganizacaoSlug();
 
 export function ClientAuthProvider({ children }) {
   const initial = loadSession();

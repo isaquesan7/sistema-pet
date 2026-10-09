@@ -116,3 +116,11 @@
 - Storage real para logos, fotos de pets, anexos clínicos e Banho e Tosa.
 - URLs assinadas e controles de acesso aos arquivos.
 - Base de observabilidade, health checks e rotinas de backup/recuperação para produção SaaS.
+
+## Infra 15.2 — Railway Ready
+- Variáveis sensíveis centralizadas no Railway; `.env` local deixa de ser obrigatório.
+- API compatível com `railway run`, healthcheck e pre-deploy de migrations.
+- Admin e Portal recebem URL da API em runtime por `/runtime-config.js`.
+- Servidor estático próprio para React/Vite em produção Railway, com fallback SPA.
+- Simuladores de pagamento bloqueados quando `NODE_ENV=production`.
+- Deploy recomendado em três serviços (`petrise-api`, `petrise-admin`, `petrise-portal`) no mesmo projeto do PostgreSQL.
