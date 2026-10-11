@@ -5,12 +5,10 @@
  * Never prints database credentials. Do not commit output files.
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, statSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { pipeline } from "node:stream/promises";
-import { createWriteStream } from "node:fs";
 
 const connection = process.env.BACKUP_DATABASE_URL || process.env.DATABASE_URL;
 const output = process.argv[2];
@@ -27,13 +25,12 @@ mkdirSync(dirname(file), { recursive: true });
 const run = spawnSync("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file], { env: { ...process.env, PGDATABASE: connection }, stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
 if (run.error || run.status !== 0) {
   // Never print pg_dump stderr: connection URIs can contain credentials.
+  rmSync(file, { force: true });
   console.error("Backup failed. Verify pg_dump installation, connectivity, permissions, and free disk space.");
   process.exit(1);
 }
 const hash = createHash("sha256");
-await pipeline(createReadStream(file), async function* (source) {
-  for await (const chunk of source) { hash.update(chunk); yield chunk; }
-}, createWriteStream("/dev/null"));
+for await (const chunk of createReadStream(file)) hash.update(chunk);
 const data = { createdAt: new Date().toISOString(), bytes: statSync(file).size, sha256: hash.digest("hex"), format: "pg_dump/custom" };
 writeFileSync(file + ".sha256", data.sha256 + "  " + file.split("/").at(-1) + "\n", { mode: 0o600 });
 writeFileSync(file + ".json", JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
