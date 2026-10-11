@@ -10,7 +10,7 @@ export default function ClientLayout() {
       <header className="client-topbar">
         <div className="brand-wrap">
           <div className="brand-badge">P</div>
-          <div><strong>PetRise</strong><span>{cfg.nomeExibicao || organization?.nome || "Portal do cliente"}</span></div>
+          <div><strong>PointVet</strong><span>{cfg.nomeExibicao || organization?.nome || "Portal do cliente"}</span></div>
         </div>
         <button className="ghost-button desktop-logout" onClick={logout}><LogOut size={18}/> Sair</button>
       </header>

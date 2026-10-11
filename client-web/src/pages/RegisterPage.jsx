@@ -10,8 +10,8 @@ export default function RegisterPage() {
   if(session) return <Navigate to="/" replace/>;
   async function submit(e){e.preventDefault();setError("");setBusy(true);try{await register(form);navigate("/");}catch(err){setError(err.response?.data?.message||"Não foi possível criar sua conta.");}finally{setBusy(false);}}
   return <div className="auth-screen"><section className="auth-card wide-auth">
-    <div className="portal-logo"><span><PawPrint/></span><b>PetRise</b></div><p className="eyebrow">{organization?.configuracao?.nomeExibicao||organization?.nome||"PORTAL DO CLIENTE"}</p><h1>Crie sua conta</h1>
-    <p className="muted">Se você já possui cadastro no estabelecimento, o PetRise tentará vinculá-lo automaticamente.</p>{error&&<div className="error-box">{error}</div>}
+    <div className="portal-logo"><span><PawPrint/></span><b>PointVet</b></div><p className="eyebrow">{organization?.configuracao?.nomeExibicao||organization?.nome||"PORTAL DO CLIENTE"}</p><h1>Crie sua conta</h1>
+    <p className="muted">Se você já possui cadastro no estabelecimento, o PointVet tentará vinculá-lo automaticamente.</p>{error&&<div className="error-box">{error}</div>}
     <form onSubmit={submit} className="stack-form two-cols">
       <label>Nome completo<input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} required/></label>
       <label>E-mail<input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} required/></label>

@@ -10,8 +10,8 @@ function validation(res, parsed) {
 function businessError(res, error) {
   const messages = {
     CNPJ_INVALIDO: "Informe um CNPJ válido com 14 dígitos.",
-    EMAIL_JA_CADASTRADO: "Este e-mail já possui uma conta no PetRise.",
-    CNPJ_JA_CADASTRADO: "Este CNPJ já está cadastrado no PetRise.",
+    EMAIL_JA_CADASTRADO: "Este e-mail já possui uma conta no PointVet.",
+    CNPJ_JA_CADASTRADO: "Este CNPJ já está cadastrado no PointVet.",
     PLANO_NAO_ENCONTRADO: "Plano não encontrado ou indisponível.",
     PLATAFORMA_NAO_INICIALIZADA: "As permissões da plataforma ainda não foram inicializadas. Execute o seed.",
     ASSINATURA_NAO_ENCONTRADA: "Assinatura não encontrada.",
@@ -36,7 +36,7 @@ export async function onboarding(req, res, next) {
     const parsed = onboardingSchema.safeParse(req.body);
     if (validation(res, parsed)) return;
     const dados = await service.criarOnboarding(parsed.data, { ip: req.ip, userAgent: req.get("user-agent") });
-    return res.status(201).json({ success: true, message: "Sua conta PetRise foi criada.", dados });
+    return res.status(201).json({ success: true, message: "Sua conta PointVet foi criada.", dados });
   } catch (e) { if (!businessError(res, e)) next(e); }
 }
 

@@ -17,7 +17,7 @@ export default function LoginPage() {
   }
   const name = organization?.configuracao?.nomeExibicao || organization?.nome || "seu pet shop";
   return <div className="auth-screen"><section className="auth-card">
-    <div className="portal-logo"><span><PawPrint/></span><b>PetRise</b></div>
+    <div className="portal-logo"><span><PawPrint/></span><b>PointVet</b></div>
     <p className="eyebrow">PORTAL DO CLIENTE</p><h1>Cuide do seu pet de onde estiver.</h1>
     <p className="muted">{loadingConfig ? "Carregando..." : `Acesse ${name}, acompanhe seus pets e faça agendamentos.`}</p>
     {error && <div className="error-box">{error}</div>}
