@@ -57,7 +57,7 @@ if (inspect.error || inspect.status !== 0 || inspect.stdout.trim() !== "0") {
   console.error("Restore refused: test database must be accessible and contain zero user relations.");
   process.exit(2);
 }
-const run = spawnSync("pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", file], { env: pgEnvironment(target), stdio: ["ignore", "ignore", "pipe"] });
+const run = spawnSync("pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", "--dbname", targetName, file], { env: pgEnvironment(target), stdio: ["ignore", "ignore", "pipe"] });
 if (run.error || run.status !== 0) {
   console.error("Restore drill failed. The destination may not be empty or permissions may be insufficient; check locally without exposing secrets.");
   process.exit(1);
