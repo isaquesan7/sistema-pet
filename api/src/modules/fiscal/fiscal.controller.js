@@ -32,9 +32,9 @@ function mapError(error, res, next) {
     CONFIGURACAO_FISCAL_INCOMPLETA: [409, "A configuração fiscal do CNPJ está incompleta."],
     ITEM_FISCAL_INCOMPLETO: [409, "Há itens sem configuração fiscal obrigatória para este documento."],
     PROVEDOR_NAO_CONFIGURADO: [409, "Configure um provedor fiscal antes de enviar NF-e, NFC-e ou NFS-e."],
-    PROVEDOR_NAO_IMPLEMENTADO: [409, "O provedor selecionado ainda não possui adaptador ativo no PetRise. Use homologação com o provedor 'development' ou conecte um provedor homologado."],
+    PROVEDOR_NAO_IMPLEMENTADO: [409, "O provedor selecionado ainda não possui adaptador ativo no PointVet. Use homologação com o provedor 'development' ou conecte um provedor homologado."],
     SIMULADOR_PROIBIDO_PRODUCAO: [409, "O simulador fiscal não pode ser usado em ambiente de produção."],
-    CANCELAMENTO_PROVEDOR_NAO_IMPLEMENTADO: [409, "O cancelamento deste documento precisa ser enviado ao provedor fiscal antes de ser concluído no PetRise."],
+    CANCELAMENTO_PROVEDOR_NAO_IMPLEMENTADO: [409, "O cancelamento deste documento precisa ser enviado ao provedor fiscal antes de ser concluído no PointVet."],
   };
   const mapped = errors[error.message];
   if (mapped) return res.status(mapped[0]).json({ success: false, message: mapped[1], detalhes: error.detalhes || undefined });

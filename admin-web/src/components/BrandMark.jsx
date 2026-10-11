@@ -8,7 +8,7 @@ export default function BrandMark({ compact = false }) {
       </span>
       {!compact && (
         <span className="brand-mark__text">
-          Pet<span>Rise</span>
+          Point<span>Vet</span>
         </span>
       )}
     </div>

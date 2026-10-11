@@ -162,7 +162,7 @@ export default function ReportsPage() {
 
   return <div className="page-stack reports-page">
     <section className="page-heading page-heading--hero reports-heading">
-      <div><span className="page-kicker">Inteligência do negócio</span><h1>Relatórios e indicadores</h1><p>Transforme a operação do PetRise em números para decidir com mais segurança.</p></div>
+      <div><span className="page-kicker">Inteligência do negócio</span><h1>Relatórios e indicadores</h1><p>Transforme a operação do PointVet em números para decidir com mais segurança.</p></div>
       <div className="reports-heading__badge"><BarChart3 size={19}/><div><strong>{scope === "organizacao" ? "Consolidado" : selectedCompany?.nomeFantasia}</strong><span>{formatDate(`${period.dataInicio}T12:00:00`)} a {formatDate(`${period.dataFim}T12:00:00`)}</span></div></div>
     </section>
 

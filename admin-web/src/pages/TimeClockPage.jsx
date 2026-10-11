@@ -466,7 +466,7 @@ export default function TimeClockPage() {
         <form onSubmit={submitAdjustment}>
           <div className="modal-body form-stack">
             <InlineNotice tone="error">{adjustError}</InlineNotice>
-            <InlineNotice tone="info">O PetRise preserva a batida original. O novo horário só entra no espelho e no banco de horas após aprovação.</InlineNotice>
+            <InlineNotice tone="info">O PointVet preserva a batida original. O novo horário só entra no espelho e no banco de horas após aprovação.</InlineNotice>
             <FormField label="Registro atual"><input value={adjusting ? `${POINT_SHORT[adjusting.tipo]} • ${formatDateTime(effectiveDate(adjusting))}` : ""} disabled /></FormField>
             <FormField label="Novo horário"><input type="datetime-local" value={adjustForm.horarioNovo} onChange={(e) => setAdjustForm((current) => ({ ...current, horarioNovo: e.target.value }))} /></FormField>
             <FormField label="Motivo"><textarea rows="4" value={adjustForm.motivo} onChange={(e) => setAdjustForm((current) => ({ ...current, motivo: e.target.value }))} placeholder="Ex.: funcionário esqueceu de registrar o retorno do intervalo." /></FormField>
