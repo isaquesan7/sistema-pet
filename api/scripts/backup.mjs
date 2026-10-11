@@ -5,7 +5,7 @@
  * Never prints database credentials. Do not commit output files.
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, statSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, statSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -21,6 +21,10 @@ if (!output.endsWith(".dump")) {
   process.exit(2);
 }
 const file = resolve(output);
+if (existsSync(file) || existsSync(file + ".sha256") || existsSync(file + ".json")) {
+  console.error("Backup refused: output path already exists.");
+  process.exit(2);
+}
 mkdirSync(dirname(file), { recursive: true });
 const run = spawnSync("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file], { env: { ...process.env, PGDATABASE: connection }, stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
 if (run.error || run.status !== 0) {
