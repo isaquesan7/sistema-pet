@@ -44,3 +44,10 @@ A ferramenta rejeita identidade de banco igual (host, porta e nome), nome fora d
 - Não colocar credenciais em comandos, PRs, logs, issues nem compartilhar dumps com terceiros.
 - Em caso de erro os scripts evitam reproduzir mensagens do PostgreSQL que possam incluir detalhes de conexão.
 - O armazenamento de backup separado, agendamento e comprovação de restore ainda são **pendências** desta fase.
+
+## Ensaio automatizado com dados sintéticos
+- GitHub Actions cria PostgreSQL temporário, gera dump de registros fictícios, verifica SHA-256, restaura em banco separado e confirma contagem de registros.
+- Confirma que uma segunda restauração em banco já preenchido é rejeitada.
+- Execução aprovada: https://github.com/isaquesan7/sistema-pet/actions/runs/38156625635
+- Este ensaio NÃO restaurou o snapshot real da Pet King e NÃO valida ainda recuperação da base PostgreSQL 18 do Railway.
+- No Railway Pro, o usuário confirmou visualmente um snapshot de volume, agendamento de backup e PITR habilitado. Um teste real de restauração desses backups permanece pendente em serviço/banco isolado.
