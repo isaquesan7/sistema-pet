@@ -24,7 +24,7 @@ if (!output.endsWith(".dump")) {
 }
 const file = resolve(output);
 mkdirSync(dirname(file), { recursive: true });
-const run = spawnSync("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file, "--dbname", connection], { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
+const run = spawnSync("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file], { env: { ...process.env, PGDATABASE: connection }, stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
 if (run.error || run.status !== 0) {
   // Never print pg_dump stderr: connection URIs can contain credentials.
   console.error("Backup failed. Verify pg_dump installation, connectivity, permissions, and free disk space.");
