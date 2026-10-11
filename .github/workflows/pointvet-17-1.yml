@@ -1,0 +1,30 @@
+name: PointVet 17.1 backup tools validation
+on:
+  push:
+    branches: [feat/pointvet-17-1-backup-foundation]
+  pull_request:
+    branches: [main]
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax
+        run: |
+          node --check api/scripts/backup.mjs
+          node --check api/scripts/restore-drill.mjs
+      - name: Ensure restore guard refuses missing arguments
+        run: |
+          if node api/scripts/restore-drill.mjs /tmp/not-present.dump; then
+            echo "Expected refusal" >&2
+            exit 1
+          fi
+      - name: Ensure backup refuses missing configuration
+        run: |
+          if node api/scripts/backup.mjs; then
+            echo "Expected refusal" >&2
+            exit 1
+          fi
