@@ -36,7 +36,7 @@ export default function CompanySelectPage() {
         {isPlatformAdmin && (
           <button className="platform-entry-card" type="button" onClick={() => navigate("/plataforma")}>
             <span><ShieldCheck size={20}/></span>
-            <div><strong>Administração do PetRise</strong><small>Tenants, planos, assinaturas e cobranças da plataforma.</small></div>
+            <div><strong>Administração do PointVet</strong><small>Tenants, planos, assinaturas e cobranças da plataforma.</small></div>
             <ChevronRight size={19}/>
           </button>
         )}
