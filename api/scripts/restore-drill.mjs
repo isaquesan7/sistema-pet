@@ -38,7 +38,7 @@ if (!file.endsWith(".dump") || statSync(file).size === 0) {
 }
 const list = spawnSync("pg_restore", ["--list", file], { stdio: ["ignore", "ignore", "pipe"] });
 if (list.error || list.status !== 0) { console.error("Invalid archive or pg_restore unavailable."); process.exit(1); }
-const run = spawnSync("pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", "--dbname", target, file], { stdio: ["ignore", "ignore", "pipe"] });
+const run = spawnSync("pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", file], { env: { ...process.env, PGDATABASE: target }, stdio: ["ignore", "ignore", "pipe"] });
 if (run.error || run.status !== 0) {
   console.error("Restore drill failed. The destination may not be empty or permissions may be insufficient; check locally without exposing secrets.");
   process.exit(1);
