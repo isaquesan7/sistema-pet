@@ -20,7 +20,7 @@ if (!source || !target || !file || !existsSync(file)) {
 }
 let targetName;
 try {
-  const src = new URL(source), dst = new URL(target);
+  const dst = new URL(target);
   targetName = decodeURIComponent(dst.pathname.replace(/^\//, ""));
   if (!targetName || dbIdentity(source) === dbIdentity(target)) throw new Error("Same database");
   if (!/^pointvet_restore_[a-z0-9_]+$/i.test(targetName)) throw new Error("Dedicated restore database name required");
@@ -38,6 +38,12 @@ if (!file.endsWith(".dump") || statSync(file).size === 0) {
 }
 const list = spawnSync("pg_restore", ["--list", file], { stdio: ["ignore", "ignore", "pipe"] });
 if (list.error || list.status !== 0) { console.error("Invalid archive or pg_restore unavailable."); process.exit(1); }
+// Refuse restores unless the destination is truly empty (no non-system relations).
+const inspect = spawnSync("psql", ["-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind IN ('r','p','v','m','S','f');"], { env: { ...process.env, PGDATABASE: target }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+if (inspect.error || inspect.status !== 0 || inspect.stdout.trim() !== "0") {
+  console.error("Restore refused: test database must be accessible and contain zero user relations.");
+  process.exit(2);
+}
 const run = spawnSync("pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", file], { env: { ...process.env, PGDATABASE: target }, stdio: ["ignore", "ignore", "pipe"] });
 if (run.error || run.status !== 0) {
   console.error("Restore drill failed. The destination may not be empty or permissions may be insufficient; check locally without exposing secrets.");
