@@ -10,6 +10,19 @@ import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 
+function pgEnvironment(raw) {
+  const u = new URL(raw);
+  if (!["postgres:", "postgresql:"].includes(u.protocol)) throw new Error("Invalid PostgreSQL URL");
+  return {
+    ...process.env,
+    PGHOST: u.hostname,
+    PGPORT: u.port || "5432",
+    PGDATABASE: decodeURIComponent(u.pathname.slice(1)),
+    PGUSER: decodeURIComponent(u.username),
+    PGPASSWORD: decodeURIComponent(u.password),
+    PGSSLMODE: u.searchParams.get("sslmode") || "prefer",
+  };
+}
 const connection = process.env.BACKUP_DATABASE_URL || process.env.DATABASE_URL;
 const output = process.argv[2];
 if (!connection || !output) {
@@ -26,7 +39,7 @@ if (existsSync(file) || existsSync(file + ".sha256") || existsSync(file + ".json
   process.exit(2);
 }
 mkdirSync(dirname(file), { recursive: true });
-const run = spawnSync("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file], { env: { ...process.env, PGDATABASE: connection }, stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
+const run = spawnSync("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file], { env: pgEnvironment(connection), stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
 if (run.error || run.status !== 0) {
   // Never print pg_dump stderr: connection URIs can contain credentials.
   rmSync(file, { force: true });
