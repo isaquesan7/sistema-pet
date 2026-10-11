@@ -184,7 +184,7 @@ export async function criarOnboarding(dados, meta = {}) {
     });
 
     const cargo = await tx.cargo.create({
-      data: { empresaId: empresa.id, nome: "Administrador", descricao: "Administrador criado no onboarding PetRise." },
+      data: { empresaId: empresa.id, nome: "Administrador", descricao: "Administrador criado no onboarding PointVet." },
     });
     await tx.cargoPermissao.createMany({
       data: permissoes.map((permissao) => ({ cargoId: cargo.id, permissaoId: permissao.id })),
@@ -327,7 +327,7 @@ export async function gerarFaturaOrganizacao({ organizacaoId, planoId, ciclo }) 
       status: "PENDENTE",
       provedor,
       ciclo: cicloFinal,
-      descricao: `Assinatura PetRise — ${destino.nome} (${cicloFinal === "ANUAL" ? "anual" : "mensal"})`,
+      descricao: `Assinatura PointVet — ${destino.nome} (${cicloFinal === "ANUAL" ? "anual" : "mensal"})`,
       valor,
       vencimento: dateOnly(vencimento),
       payload: { finalidade: planoId && planoId !== assinatura.planoId ? "TROCA_PLANO" : "RENOVACAO" },
@@ -493,7 +493,7 @@ export async function criarFaturaManualPlataforma(dados) {
       planoDestinoId: dados.planoDestinoId || null,
       valor: dados.valor,
       vencimento: dateOnly(dados.vencimento),
-      descricao: dados.descricao || "Cobrança manual PetRise",
+      descricao: dados.descricao || "Cobrança manual PointVet",
       ciclo: dados.ciclo,
       provedor: "MANUAL",
     },

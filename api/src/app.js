@@ -83,7 +83,7 @@ app.use(cookieParser());
 app.get("/api/health", (req, res) => {
   return res.status(200).json({
     success: true,
-    service: process.env.APP_NAME || "PetRise API",
+    service: process.env.APP_NAME || "PointVet API",
     status: "online",
     storage: process.env.STORAGE_PROVIDER ? "configured" : "not-configured",
     timestamp: new Date().toISOString(),
@@ -103,7 +103,7 @@ app.get("/api/health/database", async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      service: process.env.APP_NAME || "PetRise API",
+      service: process.env.APP_NAME || "PointVet API",
       database: {
         status: "connected",
         provider: "PostgreSQL",

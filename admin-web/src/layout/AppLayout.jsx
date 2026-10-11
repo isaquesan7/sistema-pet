@@ -140,7 +140,7 @@ export default function AppLayout() {
         <div className="sidebar__footer">
           {isPlatformAdmin && (
             <button className="platform-sidebar-link" type="button" onClick={() => navigate("/plataforma")}>
-              <ShieldCheck size={16}/> Administração PetRise
+              <ShieldCheck size={16}/> Administração PointVet
             </button>
           )}
           <div className="sidebar-user">
@@ -165,7 +165,7 @@ export default function AppLayout() {
               <Menu size={21} />
             </button>
             <div>
-              <span className="topbar__eyebrow">PetRise</span>
+              <span className="topbar__eyebrow">PointVet</span>
               <strong className="topbar__org">{organizationConfig.nomeExibicao || selectedOrganization?.nome}</strong>
             </div>
           </div>

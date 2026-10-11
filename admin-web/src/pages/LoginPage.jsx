@@ -48,7 +48,7 @@ export default function LoginPage() {
               PDV, clínica veterinária, banho e tosa, clientes, estoque e equipe em uma única plataforma.
             </p>
           </div>
-          <div className="auth-visual__footer">PetRise · Plataforma de gestão pet</div>
+          <div className="auth-visual__footer">PointVet · Plataforma de gestão pet</div>
         </div>
       </section>
 
@@ -114,10 +114,10 @@ export default function LoginPage() {
           </label>
 
           <button className="primary-button primary-button--large" type="submit" disabled={loading}>
-            {loading ? "Entrando..." : "Entrar no PetRise"}
+            {loading ? "Entrando..." : "Entrar no PointVet"}
           </button>
 
-          <p className="login-card__signup">Ainda não usa o PetRise? <Link to="/comecar">Criar conta e testar grátis</Link></p>
+          <p className="login-card__signup">Ainda não usa o PointVet? <Link to="/comecar">Criar conta e testar grátis</Link></p>
           <p className="login-card__security">Seu acesso e permissões são validados pela sua organização.</p>
         </form>
       </section>

@@ -1,0 +1,43 @@
+name: PointVet 16.1 validation
+on:
+  push:
+    branches:
+      - feat/pointvet-16-1-rebranding
+  pull_request:
+    branches:
+      - main
+jobs:
+  frontend-builds:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workspace: [admin-web, client-web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.workspace }}
+      - run: npm run build
+        working-directory: ${{ matrix.workspace }}
+  api-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+        working-directory: api
+      - run: npm run build
+        working-directory: api
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+      - run: |
+          find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+        working-directory: api

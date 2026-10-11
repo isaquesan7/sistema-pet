@@ -72,7 +72,7 @@ export default function DashboardPage() {
           </div>
         </article>
         <article className="panel panel--soft">
-          <div className="panel__heading"><div><span>PetRise Insights</span><h2>Alertas rápidos</h2></div></div>
+          <div className="panel__heading"><div><span>PointVet Insights</span><h2>Alertas rápidos</h2></div></div>
           <div className="info-list">
             <div><span>Contas a receber vencidas</span><strong>{formatCurrency(report?.financeiro?.receberVencido || 0)}</strong></div>
             <div><span>Produtos abaixo do mínimo</span><strong>{report?.estoque?.itensEstoqueBaixo || 0}</strong></div>
@@ -82,7 +82,7 @@ export default function DashboardPage() {
         </article>
       </section> : <section className="dashboard-grid">
         <article className="panel">
-          <div className="panel__heading"><div><span>Ambiente</span><h2>Seu PetRise está conectado</h2></div><span className="status-dot">Online</span></div>
+          <div className="panel__heading"><div><span>Ambiente</span><h2>Seu PointVet está conectado</h2></div><span className="status-dot">Online</span></div>
           <div className="info-list">
             <div><span>Organização</span><strong>{data?.context?.organizacao?.nome || selectedOrganization?.nome || "—"}</strong></div>
             <div><span>Empresa</span><strong>{selectedCompany?.nomeFantasia}</strong></div>
