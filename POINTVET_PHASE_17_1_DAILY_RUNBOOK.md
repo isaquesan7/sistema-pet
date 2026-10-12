@@ -20,3 +20,6 @@
 - Railway cron é agendamento de execução do worker e não fornece, sozinho, garantia de alerta nem retenção.
 - Não iniciar cron antes de haver monitoramento e retenção suficientes.
 - A validação anterior não prova que toda tabela futura será incluída.
+
+## Confirmação operacional — 12/10/2026
+O responsável confirmou que salvou no painel Cloudflare R2 a regra de lifecycle `pointvet-daily-90d`, prefixo `postgres/daily/`, exclusão após 90 dias. A configuração foi previamente conferida por captura de tela; leitura por API Cloudflare ainda não realizada. Permanecem pendentes concessões futuras e alertas antes da ativação do cron.
