@@ -1,0 +1,19 @@
+name: PointVet organization detail contracts
+on:
+  pull_request:
+    paths:
+      - "api/src/modules/saas/organization-detail.js"
+      - "api/src/modules/saas/saas.routes.js"
+      - "api/tests/organization-detail.contract.test.mjs"
+      - ".github/workflows/pointvet-organization-detail.yml"
+  workflow_dispatch:
+jobs:
+  organization-detail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check api/src/modules/saas/organization-detail.js
+      - run: node --test api/tests/organization-detail.contract.test.mjs
