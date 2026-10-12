@@ -1,0 +1,36 @@
+name: PointVet alert delivery outbox migration
+on:
+  pull_request:
+    paths:
+      - "api/prisma/migrations/20261012170000_platform_alert_delivery_outbox/**"
+      - ".github/workflows/pointvet-alert-delivery.yml"
+  workflow_dispatch:
+jobs:
+  migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_PASSWORD: synthetic, POSTGRES_DB: testdb}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env: {PGPASSWORD: synthetic}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Verify idempotence and no claimed delivery
+        run: |
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261012170000_platform_alert_delivery_outbox/migration.sql
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO platform_alert_delivery_outbox(event_key,category,severity,title) VALUES('incident:synthetic','INCIDENT','critical','Test');
+          INSERT INTO platform_alert_delivery_outbox(event_key,category,severity,title) VALUES('incident:synthetic','INCIDENT','critical','Test') ON CONFLICT(event_key) DO NOTHING;
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM platform_alert_delivery_outbox) != 1 THEN RAISE EXCEPTION 'Duplicate delivery event'; END IF;
+            IF (SELECT state FROM platform_alert_delivery_outbox LIMIT 1) != 'AWAITING_CHANNEL' THEN RAISE EXCEPTION 'Delivery incorrectly claimed'; END IF;
+          END $$;
+          SQL
