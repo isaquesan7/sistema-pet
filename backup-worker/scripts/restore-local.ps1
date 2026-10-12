@@ -37,6 +37,11 @@ try {
   $tableCount = (& docker exec $container psql -X -qAt -U postgres -d railway -c "SELECT count(*) FROM pg_tables WHERE schemaname='public'").Trim()
   if ($LASTEXITCODE -ne 0 -or [int]$tableCount -eq 0) { throw "No restored public tables" }
   Write-Host "RESTORE VALIDATED: $tableCount public tables in isolated local PostgreSQL 18."
+  $countsSql = "SELECT 'clientes=' || (SELECT count(*) FROM public.clientes) || '; assinaturas_saas=' || (SELECT count(*) FROM public.assinaturas_saas) || '; atendimentos_clinicos=' || (SELECT count(*) FROM public.atendimentos_clinicos) || '; prisma_migrations=' || (SELECT count(*) FROM public._prisma_migrations)"
+  $criticalCounts = & docker exec $container psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d railway -c $countsSql
+  if ($LASTEXITCODE -ne 0) { throw "Critical record verification failed" }
+  Write-Host "RECOVERED RECORD COUNTS: $criticalCounts"
+  Write-Host "These totals describe the backup snapshot, not the current live database."
   Write-Host "Next: compare critical counts and migration state with the original database."
 }
 finally {
