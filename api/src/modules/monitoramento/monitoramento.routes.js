@@ -3,10 +3,44 @@
  * Never trusts or exposes Railway/R2 secrets and never fabricates backup statuses.
  */
 import { Router } from "express";
+
 import prisma from "../../config/prisma.js";
 import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
+import { timingSafeEqual } from "node:crypto";
+
+function tokenMatches(input, expected) {
+  if (typeof input !== "string" || !expected) return false;
+  const a = Buffer.from(input); const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// Ingest endpoint authenticates independently from browser accounts.
+// Its credential is never returned by administrative read routes.
+router.post("/backup-evidence", async (req, res, next) => {
+  if (!tokenMatches(req.get("x-pointvet-backup-token"), process.env.BACKUP_EVIDENCE_INGEST_TOKEN)) {
+    return res.status(401).json({ success: false, message: "Não autorizado" });
+  }
+  const { objectKey, completedAt, sizeBytes } = req.body || {};
+  if (typeof objectKey !== "string" || !/^postgres\/daily\/pointvet-[a-zA-Z0-9-]+\.dump\.age$/.test(objectKey) || objectKey.length > 240) {
+    return res.status(400).json({ success: false, message: "Objeto inválido" });
+  }
+  const when = new Date(completedAt);
+  if (!Number.isFinite(when.valueOf()) || when.valueOf() > Date.now()+60000 || when.valueOf() < Date.now()-86400000) {
+    return res.status(400).json({ success: false, message: "Horário inválido" });
+  }
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 32) return res.status(400).json({ success: false, message: "Tamanho inválido" });
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO platform_backup_evidence (object_key, completed_at, size_bytes)
+      VALUES (${objectKey}, ${when}, ${BigInt(sizeBytes)})
+      ON CONFLICT (object_key) DO NOTHING
+    `;
+    return res.status(202).json({ success: true });
+  } catch (err) { return next(err); }
+});
+
 router.use(autenticarUsuario, exigirSuperAdmin);
 
 router.get("/backups", async (_req, res, next) => {
