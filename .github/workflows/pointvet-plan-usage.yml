@@ -1,0 +1,17 @@
+name: PointVet plan usage thresholds
+on:
+  pull_request:
+    paths:
+      - "api/src/modules/saas/plan-usage.js"
+      - "api/tests/plan-usage.test.mjs"
+      - ".github/workflows/pointvet-plan-usage.yml"
+  workflow_dispatch:
+jobs:
+  thresholds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --test api/tests/plan-usage.test.mjs
