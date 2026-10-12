@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # PointVet 17.1 - encrypted R2 backup worker. No plaintext uploads.
-set -eu
+set -euo pipefail
 umask 077
 for var in R2_BUCKET R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY BACKUP_AGE_RECIPIENT; do
   eval 'val=${'"$var"'-}'
@@ -23,7 +23,8 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT HUP INT TERM
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" AWS_DEFAULT_REGION=auto
 FILE="$TMPDIR/backup.dump.age"
-if ! (pg_dump --dbname="$BACKUP_DATABASE_URL" --format=custom --no-owner --no-acl | age -r "$BACKUP_AGE_RECIPIENT" > "$FILE"); then
+export PGDATABASE="$BACKUP_DATABASE_URL"
+if ! (pg_dump --format=custom --no-owner --no-acl | age -r "$BACKUP_AGE_RECIPIENT" > "$FILE"); then
   echo "Encrypted dump failed" >&2; exit 1
 fi
 [ -s "$FILE" ] || { echo "Empty encrypted backup" >&2; exit 1; }
