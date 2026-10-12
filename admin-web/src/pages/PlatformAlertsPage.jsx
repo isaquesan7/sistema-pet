@@ -7,7 +7,10 @@ import { AlertTriangle, BellRing, Check, RefreshCw } from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
 export default function PlatformAlertsPage(){
  const [filter,setFilter]=useState("active");
+ const [emailTestResult,setEmailTestResult]=useState("");
+ const [emailTestError,setEmailTestError]=useState("");
  const qc=useQueryClient();
+ const emailTest=useMutation({mutationFn:async()=>api.post("/plataforma/monitoramento/alertas/testar-email-console"),onSuccess:(r)=>{setEmailTestError("");setEmailTestResult(r.data.message||"Teste aceito pelo provedor");},onError:e=>{setEmailTestResult("");setEmailTestError(getApiErrorMessage(e));}});
  const q=useQuery({queryKey:["platform-alerts"],queryFn:async()=>(await api.get("/plataforma/monitoramento/alertas")).data,refetchInterval:60000});
  const notifications=useQuery({queryKey:["platform-notification-outbox"],queryFn:async()=>(await api.get("/plataforma/monitoramento/alertas/notificacoes")).data,refetchInterval:60000});
  const history=useQuery({queryKey:["platform-alert-history"],queryFn:async()=>(await api.get("/plataforma/monitoramento/alertas/historico")).data.dados,refetchInterval:60000});
@@ -40,7 +43,10 @@ export default function PlatformAlertsPage(){
   {history.data?.length>0&&<div className="monitoring-scroll"><table className="monitoring-table"><thead><tr><th>Serviço</th><th>Abertura</th><th>Recuperação</th><th>Falhas registradas</th><th>Reconhecido por</th></tr></thead><tbody>{history.data.map(x=><tr key={x.id}><td>{x.serviceKey==="admin"?"Console":"Portal"}</td><td>{date(x.openedAt)}</td><td>{date(x.recoveredAt)}</td><td>{x.failureCount}</td><td>{x.acknowledgedByName||"Não reconhecido"}</td></tr>)}</tbody></table></div>}
  </section><section className="panel">
   <div className="panel__heading"><div><span>Preparação de envio</span><h2>Notificações externas</h2></div></div>
-  <p>Nenhum canal de envio externo está configurado. A fila registra apenas a intenção de envio para incidentes reais; não envia e-mail, WhatsApp ou push.</p>
+  <p>O envio automático permanece desativado enquanto validamos a entrega. Use o teste abaixo para enviar uma mensagem real ao destinatário configurado no Railway, sem consumir alertas pendentes.</p>
+  <button className="ghost-button" type="button" disabled={emailTest.isPending} onClick={()=>emailTest.mutate()}>{emailTest.isPending?"Enviando teste...":"Enviar e-mail de teste"}</button>
+  {emailTestResult&&<p role="status">{emailTestResult}</p>}
+  {emailTestError&&<div className="alert alert--error">{emailTestError}</div>}
   {notifications.isError&&<div className="alert alert--error">{getApiErrorMessage(notifications.error)}</div>}
   {notifications.isLoading&&<p>Consultando fila...</p>}
   {notifications.data?.dados?.length===0&&<p>Não há notificações preparadas.</p>}
