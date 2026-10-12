@@ -2,6 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { autenticarUsuario, selecionarEmpresaParaAssinatura, exigirGestorOrganizacao, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 import * as controller from "./saas.controller.js";
+import {activationProgress} from "./activation.controller.js";
 import * as support from "./support.controller.js";
 import { financialIndicators } from "./financial-indicators.js";
 import { organizationDetail } from "./organization-detail.js";
@@ -45,6 +46,9 @@ router.get("/plataforma/faturas", autenticarUsuario, exigirSuperAdmin, controlle
 router.post("/plataforma/faturas", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.criarFaturaManual);
 router.post("/plataforma/faturas/:id/pagar", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.liquidarFatura);
 router.post("/plataforma/faturas/:id/cancelar", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.cancelarFatura);
+
+// Guided setup requires verified company and organization membership.
+router.get("/ativacao",autenticarUsuario,selecionarEmpresaParaAssinatura,exigirGestorOrganizacao,activationProgress);
 
 // Tenant subscription/billing area.
 router.get("/assinatura", autenticarUsuario, selecionarEmpresaParaAssinatura, exigirGestorOrganizacao, controller.minhaAssinatura);
