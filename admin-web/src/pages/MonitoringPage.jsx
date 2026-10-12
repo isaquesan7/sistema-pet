@@ -35,12 +35,13 @@ export default function MonitoringPage() {
     staleTime: 0,
     refetchInterval: 60000
   });
+  const history = useQuery({ queryKey: ["platform-backup-history"], queryFn: async () => (await api.get("/plataforma/monitoramento/backups")).data, refetchInterval: 60000 });
   const d = query.data || {};
   return <div className="page-stack">
     <section className="panel">
       <div className="panel__heading">
         <div><span>Saúde da plataforma</span><h2>Verificações do PointVet</h2></div>
-        <button className="ghost-button" type="button" disabled={query.isFetching} onClick={() => query.refetch()}>
+        <button className="ghost-button" type="button" disabled={query.isFetching} onClick={() => { query.refetch(); history.refetch(); }}>
           <RefreshCw size={16}/> {query.isFetching ? "Verificando..." : "Verificar agora"}
         </button>
       </div>
@@ -58,7 +59,11 @@ export default function MonitoringPage() {
     <section className="panel">
       <div className="panel__heading"><div><span>Proteção de dados</span><h2>Backups e recuperação</h2></div></div>
       <p><Clock3 size={16} style={{ verticalAlign: "middle", marginRight: 6 }}/>Agendamento esperado: <strong>03h (Salvador)</strong> — retenção prevista: <strong>90 dias</strong>.</p>
-      <p>Histórico de execuções, arquivos R2, resultados de restauração e alertas externos serão integrados nesta seção em etapas seguintes. Até lá, o painel não declara backups como saudáveis sem evidência auditável.</p>
+      {history.isError && <div className="alert alert--error">Erro ao consultar histórico: {getApiErrorMessage(history.error)}</div>}
+      {history.data && !history.data.integrationReady && <p>Histórico aguardando migração do banco e integração do worker.</p>}
+      {history.data?.integrationReady && history.data.dados.length === 0 && <p>Nenhuma execução com evidência registrada.</p>}
+      {history.data?.dados?.length > 0 && <div style={{overflowX:"auto"}}><table style={{width:"100%"}}><thead><tr><th>Concluído (Salvador)</th><th>Resultado</th><th>Tamanho</th><th>Arquivo R2</th></tr></thead><tbody>{history.data.dados.map(item => <tr key={item.id}><td>{new Date(item.completedAt).toLocaleString("pt-BR",{timeZone:"America/Bahia"})}</td><td>{item.status === "confirmed" ? "Confirmado" : "Não verificado"}</td><td>{(Number(item.sizeBytes)/1048576).toFixed(2)} MB</td><td style={{wordBreak:"break-all"}}>{item.objectKey}</td></tr>)}</tbody></table></div>}
+      <p>Mostramos somente evidências efetivamente registradas. Esta listagem não substitui testes de restauração.</p>
     </section>
   </div>;
 }
