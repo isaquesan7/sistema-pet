@@ -1,0 +1,34 @@
+name: PointVet alert center checks
+on:
+  pull_request:
+    paths:
+      - "api/prisma/migrations/20261012160000_platform_alert_acknowledgements/**"
+      - "api/src/modules/monitoramento/monitoramento.routes.js"
+      - ".github/workflows/pointvet-alert-center.yml"
+  workflow_dispatch:
+jobs:
+  migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env: { POSTGRES_PASSWORD: synthetic, POSTGRES_DB: testdb }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env: { PGPASSWORD: synthetic }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Verify schema and idempotent recognition
+        run: |
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261012160000_platform_alert_acknowledgements/migration.sql
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO platform_alert_acknowledgements(alert_key,acknowledged_by) VALUES('backup:no-evidence','synthetic');
+          INSERT INTO platform_alert_acknowledgements(alert_key,acknowledged_by) VALUES('backup:no-evidence','synthetic') ON CONFLICT(alert_key) DO NOTHING;
+          DO $$ BEGIN IF (SELECT count(*) FROM platform_alert_acknowledgements) != 1 THEN RAISE EXCEPTION 'Acknowledgement not idempotent'; END IF; END $$;
+          SQL

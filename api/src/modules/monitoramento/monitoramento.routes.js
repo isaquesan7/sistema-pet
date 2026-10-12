@@ -4,6 +4,7 @@
  */
 import { Router } from "express";
 import { timingSafeEqual } from "node:crypto";
+import { Prisma } from "@prisma/client";
 
 import prisma from "../../config/prisma.js";
 import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
@@ -75,6 +76,69 @@ router.post("/incident-observations", async (req, res, next) => {
 });
 
 router.use(autenticarUsuario, exigirSuperAdmin);
+
+
+// PointVet 17.7 — alerts are derived from persisted incidents and worker evidence.
+// Acknowledgement is an operator action; it never closes an incident or verifies R2.
+async function activeAlerts() {
+  const incidents=await prisma.$queryRaw`
+    SELECT id::text, service_key AS "serviceKey", opened_at AS "openedAt",
+           failure_count AS "failureCount" FROM platform_service_incidents
+    WHERE recovered_at IS NULL ORDER BY opened_at DESC LIMIT 100
+  `;
+  const backup=await prisma.$queryRaw`
+    SELECT completed_at AS "completedAt" FROM platform_backup_evidence
+    ORDER BY completed_at DESC LIMIT 1
+  `;
+  const alerts=incidents.map(x=>({
+    key:"incident:"+x.id, category:"INFRASTRUCTURE", severity:"critical",
+    title:"Incidente aberto: "+(x.serviceKey==="admin"?"Console":"Portal"),
+    detail:"O coletor registrou "+x.failureCount+" falha(s) desde a abertura.",
+    detectedAt:x.openedAt, source:"collector"
+  }));
+  if(backup.length) {
+    const at=new Date(backup[0].completedAt);
+    if(Date.now()-at.getTime()>26*3600000) alerts.push({
+      key:"backup:stale:"+at.toISOString(),category:"BACKUP",severity:"critical",
+      title:"Backup diário atrasado",
+      detail:"A última evidência autenticada do upload tem mais de 26 horas. Verifique o worker e o R2.",
+      detectedAt:new Date(at.getTime()+26*3600000),source:"backup-evidence"
+    });
+  }
+  // No evidence is not evidence of failure; show as informational, not critical.
+  if(!backup.length) alerts.push({
+    key:"backup:no-evidence",category:"BACKUP",severity:"info",
+    title:"Backup ainda sem evidência no painel",
+    detail:"Nenhuma execução foi registrada pela integração. O status do R2 permanece não verificado.",
+    detectedAt:null,source:"backup-evidence"
+  });
+  if(!alerts.length) return [];
+  const keys=alerts.map(x=>x.key);
+  const acknowledges=await prisma.$queryRaw`
+    SELECT alert_key AS "key", acknowledged_at AS "acknowledgedAt", acknowledged_by AS "acknowledgedBy"
+    FROM platform_alert_acknowledgements WHERE alert_key IN (${Prisma.join(keys)})
+  `;
+  const byKey=new Map(acknowledges.map(x=>[x.key,x]));
+  return alerts.map(x=>({...x,acknowledgement:byKey.get(x.key)||null}));
+}
+router.get("/alertas",async(_req,res,next)=>{
+  try {const alerts=await activeAlerts();res.set("Cache-Control","no-store");
+    return res.json({success:true,dados:alerts,checkedAt:new Date().toISOString(),
+      note:"Alertas baseados em incidentes persistidos e evidências de backup. Não inclui métricas internas do Railway."});}
+  catch(error){next(error);}
+});
+router.post("/alertas/reconhecer",async(req,res,next)=>{
+  const key=req.body?.key;
+  if(typeof key!=="string"||key.length>160||!(/^(incident:[0-9a-f-]{36}|backup:(no-evidence|stale:.*))$/.test(key)))
+    return res.status(400).json({success:false,message:"Chave de alerta inválida"});
+  try{
+    const alerts=await activeAlerts();
+    if(!alerts.some(x=>x.key===key))return res.status(404).json({success:false,message:"Alerta não está ativo"});
+    await prisma.$executeRaw`INSERT INTO platform_alert_acknowledgements(alert_key,acknowledged_by)
+      VALUES (${key},${req.usuario.id}) ON CONFLICT (alert_key) DO NOTHING`;
+    return res.json({success:true});
+  }catch(error){next(error);}
+});
 
 router.get("/backups", async (_req, res, next) => {
   try {
