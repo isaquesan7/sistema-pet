@@ -58,11 +58,18 @@ router.post("/incident-observations", async (req, res, next) => {
   const reason=typeof detail==="string" ? detail.slice(0,200) : "Falha de conectividade";
   try {
     if(status==="error") {
-      await prisma.$executeRaw`
+      const opened = await prisma.$queryRaw`
         INSERT INTO platform_service_incidents(service_key,last_reason)
         VALUES (${serviceKey},${reason})
         ON CONFLICT (service_key) WHERE recovered_at IS NULL
         DO UPDATE SET last_failed_at=now(),failure_count=platform_service_incidents.failure_count+1,last_reason=EXCLUDED.last_reason
+        RETURNING id::text
+      `;
+      // One durable notification intent per actual incident, regardless of repeat observations.
+      await prisma.$executeRaw`
+        INSERT INTO platform_alert_delivery_outbox(event_key,category,severity,title)
+        VALUES (${"incident:"+opened[0].id},'INCIDENT','critical',${"Incidente: "+serviceKey})
+        ON CONFLICT(event_key) DO NOTHING
       `;
     } else {
       await prisma.$executeRaw`
@@ -129,6 +136,22 @@ router.get("/alertas",async(_req,res,next)=>{
 
 // Resolved incident history is sourced from the collector's persisted transitions.
 // Backup warning history is not available until separate state transitions are persisted.
+
+// Delivery outbox is informational until a destination/provider has been configured.
+// No endpoint can falsely mark unsent notifications SENT.
+router.get("/alertas/notificacoes", async (_req,res,next)=>{
+ try {
+  const rows=await prisma.$queryRaw`
+    SELECT id::text,event_key AS "eventKey",category,severity,title,
+      state,created_at AS "createdAt",attempts,last_attempt_at AS "lastAttemptAt"
+    FROM platform_alert_delivery_outbox ORDER BY created_at DESC LIMIT 100
+  `;
+  res.set("Cache-Control","no-store");
+  return res.json({success:true,dados:rows,deliveryConfigured:false,
+    note:"Eventos preparados para envio. Nenhum canal externo foi configurado; AWAITING_CHANNEL não significa enviado."});
+ }catch(error){next(error);}
+});
+
 router.get("/alertas/historico", async (_req,res,next)=>{
  try {
   const incidents=await prisma.$queryRaw`
