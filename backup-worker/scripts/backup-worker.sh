@@ -15,6 +15,19 @@ if [ "$MODE" = check ]; then
   echo "Backup worker prerequisites validated; no database accessed"
   exit 0
 fi
+if [ "$MODE" = connection-check ]; then
+  if [ -z "${BACKUP_DATABASE_URL:-}" ]; then echo "Backup database reference not configured" >&2; exit 2; fi
+  export PGDATABASE="$BACKUP_DATABASE_URL"
+  export PGCONNECT_TIMEOUT=8
+  EXPECTED_ROLE=pointvet_backup
+  ROLE=$(psql -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT current_user')
+  if [ "$ROLE" != "$EXPECTED_ROLE" ]; then echo "Unexpected database role" >&2; exit 1; fi
+  RESULT=$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database(), has_database_privilege(current_user, 'railway', 'CONNECT'), has_schema_privilege(current_user, 'public', 'USAGE'), rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = current_user")
+  if [ "$RESULT" != "railway|t|t|f|f|f" ]; then echo "Backup role verification failed" >&2; exit 1; fi
+  psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" >/dev/null
+  echo "Backup connection and restricted role verified; no backup performed"
+  exit 0
+fi
 if [ "$MODE" = probe ]; then
   if [ "${R2_PROBE_ENABLED:-}" != YES ]; then echo "R2 probe not authorized" >&2; exit 2; fi
   case "$R2_ENDPOINT" in https://*) ;; *) echo "R2 endpoint must use HTTPS" >&2; exit 2;; esac
