@@ -62,6 +62,37 @@ router.get("/backups", async (_req, res, next) => {
   }
 });
 
+
+// Public HTTPS health probes for fixed PointVet services; no user-supplied URLs.
+// These checks indicate HTTP reachability only, not Railway deployment state.
+const publicChecks = [
+  { id: "admin", label: "Console administrativo", url: "https://petrise-admin-production.up.railway.app/health" },
+  { id: "portal", label: "Portal do cliente", url: "https://petrise-portal-production.up.railway.app/health" },
+];
+async function probe(entry) {
+  const started = Date.now();
+  try {
+    const response = await fetch(entry.url, { method: "GET", signal: AbortSignal.timeout(5000), redirect: "error", cache: "no-store" });
+    return {
+      id: entry.id, label: entry.label, checkedAt: new Date().toISOString(),
+      status: response.ok ? "healthy" : "error",
+      httpStatus: response.status, latencyMs: Date.now() - started,
+      detail: response.ok ? "Endpoint HTTP respondeu" : "Resposta HTTP não saudável"
+    };
+  } catch {
+    return { id: entry.id, label: entry.label, checkedAt: new Date().toISOString(),
+      status: "error", httpStatus: null, latencyMs: Date.now() - started,
+      detail: "Falha ou tempo limite no teste de conectividade" };
+  }
+}
+
+router.get("/infraestrutura", async (_req, res) => {
+  const probes = await Promise.all(publicChecks.map(probe));
+  res.set("Cache-Control", "no-store");
+  return res.json({ success: true, dados: { checkedAt: new Date().toISOString(), checks: probes,
+    note: "Testes HTTP sob demanda. Não representam o status interno nem as métricas do Railway." } });
+});
+
 router.get("/resumo", async (_req, res) => {
   const checkedAt = new Date().toISOString();
   let database = { status: "unknown", detail: "Verificação não executada" };
