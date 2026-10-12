@@ -32,3 +32,14 @@ jobs:
             echo "Worker must reject unapproved execution" >&2
             exit 1
           fi
+      - name: Round-trip encryption with synthetic file
+        run: |
+          docker run --rm --entrypoint /usr/bin/bash pointvet-backup-check -c '
+            set -euo pipefail
+            age-keygen -o /tmp/synthetic-key.txt >/dev/null 2>&1
+            recipient=$(age-keygen -y /tmp/synthetic-key.txt)
+            printf "pointvet synthetic test - no real data\\n" >/tmp/input.txt
+            age -r "$recipient" -o /tmp/encrypted.age /tmp/input.txt
+            age -d -i /tmp/synthetic-key.txt -o /tmp/restored.txt /tmp/encrypted.age
+            cmp /tmp/input.txt /tmp/restored.txt
+          '
