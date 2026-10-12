@@ -1,0 +1,9 @@
+/* PointVet Console Interno: monitoramento e evidências de backups. */
+.monitoring-filters{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:16px 0}
+.monitoring-filters label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#667085}
+.monitoring-filters input,.monitoring-filters select{padding:9px 11px;min-width:170px;background:#fff;border:1px solid #d1d7e2;border-radius:9px;color:#273044}
+.monitoring-scroll{overflow-x:auto}
+.monitoring-table{width:100%;min-width:640px;border-collapse:collapse;text-align:left}
+.monitoring-table th,.monitoring-table td{padding:12px 10px;border-bottom:1px solid #e5e8f0;vertical-align:top}
+.monitoring-table th{font-size:12px;color:#606b80}
+.monitoring-object{max-width:360px;overflow-wrap:anywhere;margin-top:8px;font-size:12px;line-height:1.6}
