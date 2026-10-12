@@ -20,11 +20,11 @@ if [ "$MODE" = connection-check ]; then
   export PGDATABASE="$BACKUP_DATABASE_URL"
   export PGCONNECT_TIMEOUT=8
   EXPECTED_ROLE=pointvet_backup
-  ROLE=$(psql -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT current_user')
+  ROLE=$(psql --dbname="$BACKUP_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT current_user')
   if [ "$ROLE" != "$EXPECTED_ROLE" ]; then echo "Unexpected database role" >&2; exit 1; fi
-  RESULT=$(psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database(), has_database_privilege(current_user, 'railway', 'CONNECT'), has_schema_privilege(current_user, 'public', 'USAGE'), rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = current_user")
+  RESULT=$(psql --dbname="$BACKUP_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_database(), has_database_privilege(current_user, 'railway', 'CONNECT'), has_schema_privilege(current_user, 'public', 'USAGE'), rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = current_user")
   if [ "$RESULT" != "railway|t|t|f|f|f" ]; then echo "Backup role verification failed" >&2; exit 1; fi
-  psql -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" >/dev/null
+  psql --dbname="$BACKUP_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" >/dev/null
   echo "Backup connection and restricted role verified; no backup performed"
   exit 0
 fi
@@ -51,7 +51,7 @@ trap 'rm -rf "$TMPDIR"' EXIT HUP INT TERM
 export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" AWS_DEFAULT_REGION=auto
 FILE="$TMPDIR/backup.dump.age"
 export PGDATABASE="$BACKUP_DATABASE_URL"
-if ! (pg_dump --format=custom --no-owner --no-acl | age -r "$BACKUP_AGE_RECIPIENT" > "$FILE"); then
+if ! (pg_dump --dbname="$BACKUP_DATABASE_URL" --format=custom --no-owner --no-acl | age -r "$BACKUP_AGE_RECIPIENT" > "$FILE"); then
   echo "Encrypted dump failed" >&2; exit 1
 fi
 [ -s "$FILE" ] || { echo "Empty encrypted backup" >&2; exit 1; }
