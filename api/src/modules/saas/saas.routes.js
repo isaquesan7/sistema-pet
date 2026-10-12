@@ -2,6 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { autenticarUsuario, selecionarEmpresaParaAssinatura, exigirGestorOrganizacao, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 import * as controller from "./saas.controller.js";
+import * as support from "./support.controller.js";
 import { financialIndicators } from "./financial-indicators.js";
 import { organizationDetail } from "./organization-detail.js";
 import { auditPlatformMutation, auditPlatformList } from "./platform-audit.js";
@@ -18,6 +19,17 @@ const onboardingLimiter = rateLimit({
 // Public commercial surface.
 router.get("/publico/planos", controller.planosPublicos);
 router.post("/onboarding", onboardingLimiter, controller.onboarding);
+
+// Support is available to organization managers even when billing needs attention.
+const supportWriteLimit=rateLimit({windowMs:60*60*1000,limit:25,standardHeaders:true,legacyHeaders:false});
+router.get("/suporte",autenticarUsuario,selecionarEmpresaParaAssinatura,exigirGestorOrganizacao,support.listSupport);
+router.post("/suporte",autenticarUsuario,selecionarEmpresaParaAssinatura,exigirGestorOrganizacao,supportWriteLimit,support.openSupport);
+router.get("/suporte/:id",autenticarUsuario,selecionarEmpresaParaAssinatura,exigirGestorOrganizacao,support.supportThread);
+router.post("/suporte/:id/respostas",autenticarUsuario,selecionarEmpresaParaAssinatura,exigirGestorOrganizacao,supportWriteLimit,support.replySupport);
+router.get("/plataforma/suporte",autenticarUsuario,exigirSuperAdmin,support.listSupport);
+router.get("/plataforma/suporte/:id",autenticarUsuario,exigirSuperAdmin,support.supportThread);
+router.post("/plataforma/suporte/:id/respostas",autenticarUsuario,exigirSuperAdmin,supportWriteLimit,support.replySupport);
+router.patch("/plataforma/suporte/:id/status",autenticarUsuario,exigirSuperAdmin,supportWriteLimit,support.changeSupportStatus);
 
 // PetRise platform console. Does not require a tenant/company selection.
 router.get("/plataforma/auditoria", autenticarUsuario, exigirSuperAdmin, auditPlatformList);

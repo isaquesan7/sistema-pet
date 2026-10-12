@@ -1,0 +1,42 @@
+name: PointVet support access contracts
+on:
+  pull_request:
+    paths:
+      - "api/src/modules/saas/support.controller.js"
+      - "api/src/modules/saas/saas.routes.js"
+      - "api/tests/support.contract.test.mjs"
+      - "api/prisma/migrations/20261012180000_platform_support/**"
+      - ".github/workflows/pointvet-support.yml"
+  workflow_dispatch:
+jobs:
+  support:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_PASSWORD: synthetic, POSTGRES_DB: testdb}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env: {PGPASSWORD: synthetic}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: node --check api/src/modules/saas/support.controller.js
+      - run: node --test api/tests/support.contract.test.mjs
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Validate schema and tenant keys
+        run: |
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE organizacoes(id text PRIMARY KEY);
+          CREATE TABLE usuarios(id text PRIMARY KEY);
+          SQL
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261012180000_platform_support/migration.sql
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 1 FROM platform_support_tickets LIMIT 1;
+          SELECT 1 FROM platform_support_messages LIMIT 1;
+          SQL
