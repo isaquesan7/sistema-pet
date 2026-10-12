@@ -43,3 +43,6 @@ SELECT
  (SELECT count(*) FROM public._prisma_migrations) AS prisma_migrations;
 ```
 Contagens históricas: 2, 1, 1 e 15. Não presumir que o banco atual seja idêntico; comparar com os dados na data do backup. Não habilitar cron antes de revisar resultados.
+
+## Conferência final informada pelo responsável — 12/10/2026
+O responsável executou novamente o teste de recuperação local, incluindo as contagens essenciais, e informou que os valores do arquivo restaurado e do banco original foram iguais. Essa confirmação é baseada no resultado informado pelo responsável, não em logs de execução coletados por integração. A recuperação do conjunto crítico conferido está validada; testes periódicos continuam necessários.
