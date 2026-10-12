@@ -6,6 +6,7 @@ import { Router } from "express";
 import { timingSafeEqual } from "node:crypto";
 
 import prisma from "../../config/prisma.js";
+import { authenticateAlertDispatcher, dispatchAlertEmails, configured as emailConfigured } from "./email-delivery.js";
 import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
@@ -81,6 +82,8 @@ router.post("/incident-observations", async (req, res, next) => {
   } catch(err) { if(err?.meta?.code==="42P01") return res.status(503).json({success:false,message:"Migração pendente"}); return next(err); }
 });
 
+router.post("/alertas/despachar-email", authenticateAlertDispatcher, dispatchAlertEmails);
+
 router.use(autenticarUsuario, exigirSuperAdmin);
 
 
@@ -147,8 +150,8 @@ router.get("/alertas/notificacoes", async (_req,res,next)=>{
     FROM platform_alert_delivery_outbox ORDER BY created_at DESC LIMIT 100
   `;
   res.set("Cache-Control","no-store");
-  return res.json({success:true,dados:rows,deliveryConfigured:false,
-    note:"Eventos preparados para envio. Nenhum canal externo foi configurado; AWAITING_CHANNEL não significa enviado."});
+  return res.json({success:true,dados:rows,deliveryConfigured:emailConfigured(),
+    note:"O envio só ocorre após configuração do canal e execução autenticada do worker. AWAITING_CHANNEL não significa enviado."});
  }catch(error){next(error);}
 });
 
