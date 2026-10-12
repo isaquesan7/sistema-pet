@@ -50,3 +50,5 @@ jobs:
           END $$;
           DO $ BEGIN IF (SELECT count(*) FROM platform_backup_evidence) <> 1 THEN RAISE EXCEPTION 'Incorrect evidence count'; END IF; END $;
           SQL
+          count=$(psql -h localhost -U postgres -d railway -tA -c 'SELECT count(*) FROM platform_backup_evidence')
+          test "$count" = "1"
