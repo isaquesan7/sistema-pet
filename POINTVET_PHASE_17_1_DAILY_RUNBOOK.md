@@ -30,3 +30,12 @@ O responsável confirmou que salvou no painel Cloudflare R2 a regra de lifecycle
 - Configurar check do provedor externo: nome PointVet Backup Diário; cron `0 6 * * *` UTC; tolerância (grace) de **2 horas**, e integração de alerta por e-mail validada. Isso sinaliza falta de sucesso após 05:00 de Salvador, mais de 26 horas desde a execução anterior prevista.
 - Heartbeat mede execução confirmada; **não** substitui teste independente de leitura/restauração nem prova por si só a existência de objeto em data posterior.
 - Monitoramento ainda **não ativado**: usuário deve criar check e cadastrar `BACKUP_HEARTBEAT_URL` no Railway. Só então implantar o commit com suporte a heartbeat e ativar cron.
+
+## Ativação técnica — 2026-10-12 UTC
+- Responsável confirmou `BACKUP_HEARTBEAT_URL` no Railway. Verificada presença do nome da variável, sem leitura do valor.
+- GitHub Actions para commit `b012e487510c105828c410809bcf2b20a23cd56e` aprovou build do worker, backup tools, integração de restore e validação 16.1.
+- Serviço `pointvet-backup-worker` fixado no commit validado.
+- Configurado `cronSchedule=0 6 * * *` (03:00 Salvador), `BACKUP_MODE=run`, `BACKUP_EXECUTION_ENABLED=YES`, `R2_PROBE_ENABLED=NO`, sem política de restart.
+- Deploy Railway `8854862b-4f28-4b07-9d34-a4096e490b38` retornou status SUCCESS. Ainda falta observar o primeiro job agendado e verificar o recebimento do heartbeat no Healthchecks.io.
+- Cloudflare R2 lifecycle 90 dias e notificações Railway foram confirmados pelo responsável. Confirmar que a integração de e-mail do Healthchecks.io está associada ao check e enviar ping de teste apenas no contexto apropriado, para validar entrega do alerta.
+- Não considerar alertas externos comprovados até observar a execução e testar a notificação de falha/ausência.
