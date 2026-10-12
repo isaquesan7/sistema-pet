@@ -54,6 +54,8 @@ async function sendEmail(item){
 }
 export async function dispatchAlertEmails(req,res,next){
  if(!configured())return res.status(503).json({success:false,message:"Canal de e-mail não configurado",sent:0});
+ const activation=process.env.ALERT_DELIVERY_ACTIVE_AFTER;
+ if(!activation || !Number.isFinite(Date.parse(activation)))return res.status(503).json({success:false,message:"Data de ativação não configurada",sent:0});
  try{
   await staleBackupIntent();
   // Only one task holds a claim for an event at a time. Expired claims are
@@ -63,7 +65,7 @@ export async function dispatchAlertEmails(req,res,next){
      attempts=attempts+1,last_attempt_at=now()
    WHERE id IN (
      SELECT id FROM platform_alert_delivery_outbox
-     WHERE state='AWAITING_CHANNEL'
+     WHERE state='AWAITING_CHANNEL' AND created_at >= ${new Date(activation)}
      ORDER BY created_at ASC LIMIT 10 FOR UPDATE SKIP LOCKED
    )
    RETURNING id::text, event_key AS "eventKey",category,title,created_at AS "createdAt"
