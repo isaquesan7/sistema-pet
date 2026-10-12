@@ -1,0 +1,41 @@
+name: PointVet 17.4 incident migration
+on:
+  pull_request:
+    paths:
+      - "api/prisma/migrations/20261012130000_platform_incidents/**"
+      - ".github/workflows/pointvet-incidents-db.yml"
+  workflow_dispatch:
+jobs:
+  incident-ledger:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: synthetic
+          POSTGRES_DB: testdb
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: synthetic
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply and exercise migration
+        run: |
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261012130000_platform_incidents/migration.sql
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO platform_service_incidents(service_key,last_reason) VALUES ('admin','synthetic failure');
+          INSERT INTO platform_service_incidents(service_key,last_reason)
+            VALUES ('admin','synthetic second failure')
+            ON CONFLICT (service_key) WHERE recovered_at IS NULL
+            DO UPDATE SET failure_count=platform_service_incidents.failure_count+1;
+          UPDATE platform_service_incidents SET recovered_at=now() WHERE service_key='admin' AND recovered_at IS NULL;
+          INSERT INTO platform_service_incidents(service_key,last_reason) VALUES ('admin','synthetic new failure');
+          SQL
+          count=$(psql -h localhost -U postgres -d testdb -tA -c "SELECT count(*) FROM platform_service_incidents WHERE service_key='admin'")
+          test "$count" = "2"
