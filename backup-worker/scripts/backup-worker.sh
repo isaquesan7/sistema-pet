@@ -15,6 +15,20 @@ if [ "$MODE" = check ]; then
   echo "Backup worker prerequisites validated; no database accessed"
   exit 0
 fi
+if [ "$MODE" = probe ]; then
+  if [ "${R2_PROBE_ENABLED:-}" != YES ]; then echo "R2 probe not authorized" >&2; exit 2; fi
+  case "$R2_ENDPOINT" in https://*) ;; *) echo "R2 endpoint must use HTTPS" >&2; exit 2;; esac
+  DIR=$(mktemp -d)
+  trap 'rm -rf "$DIR"' EXIT HUP INT TERM
+  export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" AWS_DEFAULT_REGION=auto
+  printf "PointVet encrypted synthetic test; no customer data.\n" | age -r "$BACKUP_AGE_RECIPIENT" > "$DIR/probe.age"
+  KEY="checks/probe-$(date -u +%Y%m%dT%H%M%SZ)-$.age"
+  aws --endpoint-url "$R2_ENDPOINT" s3api put-object --bucket "$R2_BUCKET" --key "$KEY" --body "$DIR/probe.age" --output none
+  aws --endpoint-url "$R2_ENDPOINT" s3api head-object --bucket "$R2_BUCKET" --key "$KEY" --query ContentLength --output text > "$DIR/remote-size"
+  test "$(cat "$DIR/remote-size")" = "$(wc -c < "$DIR/probe.age" | tr -d ' ')" || { echo "R2 size mismatch" >&2; exit 1; }
+  echo "Encrypted synthetic R2 upload verified: $KEY"
+  exit 0
+fi
 if [ "$MODE" != run ]; then echo "Unknown BACKUP_MODE" >&2; exit 2; fi
 if [ "${BACKUP_EXECUTION_ENABLED:-}" != YES ]; then echo "Backup run not authorized" >&2; exit 2; fi
 if [ -z "${BACKUP_DATABASE_URL:-}" ]; then echo "Backup database reference not configured" >&2; exit 2; fi
