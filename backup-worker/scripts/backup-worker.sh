@@ -28,6 +28,16 @@ if [ "$MODE" = connection-check ]; then
   echo "Backup connection and restricted role verified; no backup performed"
   exit 0
 fi
+if [ "$MODE" = permissions-check ]; then
+  if [ -z "${BACKUP_DATABASE_URL:-}" ]; then echo "Backup database reference not configured" >&2; exit 2; fi
+  export PGCONNECT_TIMEOUT=8
+  RESULT=$(psql --dbname="$BACKUP_DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FILTER (WHERE NOT has_table_privilege(current_user, format('%I.%I', schemaname, tablename), 'SELECT'))::text || '|' || count(*)::text FROM pg_tables WHERE schemaname='public'")
+  DENIED=${RESULT%%|*}
+  TOTAL=${RESULT##*|}
+  if [ "$DENIED" != 0 ] || [ "$TOTAL" -eq 0 ]; then echo "Table permissions incomplete: denied=$DENIED total=$TOTAL" >&2; exit 1; fi
+  echo "All $TOTAL public tables have SELECT permission; no backup performed"
+  exit 0
+fi
 if [ "$MODE" = probe ]; then
   if [ "${R2_PROBE_ENABLED:-}" != YES ]; then echo "R2 probe not authorized" >&2; exit 2; fi
   case "$R2_ENDPOINT" in https://*) ;; *) echo "R2 endpoint must use HTTPS" >&2; exit 2;; esac
