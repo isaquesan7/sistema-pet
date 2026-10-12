@@ -22,7 +22,7 @@ if [ "$MODE" = probe ]; then
   trap 'rm -rf "$DIR"' EXIT HUP INT TERM
   export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" AWS_DEFAULT_REGION=auto
   printf "PointVet encrypted synthetic test; no customer data.\n" | age -r "$BACKUP_AGE_RECIPIENT" > "$DIR/probe.age"
-  KEY="checks/probe-$(date -u +%Y%m%dT%H%M%SZ)-$.age"
+  KEY="checks/probe-$(date -u +%Y%m%dT%H%M%SZ)-${RANDOM}-${RANDOM}.age"
   aws --endpoint-url "$R2_ENDPOINT" s3api put-object --bucket "$R2_BUCKET" --key "$KEY" --body "$DIR/probe.age" --output json >/dev/null
   aws --endpoint-url "$R2_ENDPOINT" s3api head-object --bucket "$R2_BUCKET" --key "$KEY" --query ContentLength --output text > "$DIR/remote-size"
   test "$(cat "$DIR/remote-size")" = "$(wc -c < "$DIR/probe.age" | tr -d ' ')" || { echo "R2 size mismatch" >&2; exit 1; }
@@ -43,6 +43,8 @@ if ! (pg_dump --format=custom --no-owner --no-acl | age -r "$BACKUP_AGE_RECIPIEN
 fi
 [ -s "$FILE" ] || { echo "Empty encrypted backup" >&2; exit 1; }
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-OBJECT="postgres/daily/pointvet-$STAMP.dump.age"
+OBJECT="postgres/daily/pointvet-$STAMP-${RANDOM}-${RANDOM}.dump.age"
 aws --endpoint-url "$R2_ENDPOINT" s3api put-object --bucket "$R2_BUCKET" --key "$OBJECT" --body "$FILE" --output json >/dev/null
-echo "Encrypted backup uploaded: $OBJECT"
+aws --endpoint-url "$R2_ENDPOINT" s3api head-object --bucket "$R2_BUCKET" --key "$OBJECT" --query ContentLength --output text > "$TMPDIR/remote-size"
+test "$(cat "$TMPDIR/remote-size")" = "$(wc -c < "$FILE" | tr -d ' ')" || { echo "Encrypted backup upload size mismatch" >&2; exit 1; }
+echo "Encrypted backup uploaded and size verified: $OBJECT"
