@@ -4,7 +4,6 @@
  */
 import { Router } from "express";
 import { timingSafeEqual } from "node:crypto";
-import { Prisma } from "@prisma/client";
 
 import prisma from "../../config/prisma.js";
 import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
@@ -116,7 +115,7 @@ async function activeAlerts() {
   const keys=alerts.map(x=>x.key);
   const acknowledges=await prisma.$queryRaw`
     SELECT alert_key AS "key", acknowledged_at AS "acknowledgedAt", acknowledged_by AS "acknowledgedBy"
-    FROM platform_alert_acknowledgements WHERE alert_key IN (${Prisma.join(keys)})
+    FROM platform_alert_acknowledgements WHERE alert_key = ANY(${keys}::text[])
   `;
   const byKey=new Map(acknowledges.map(x=>[x.key,x]));
   return alerts.map(x=>({...x,acknowledgement:byKey.get(x.key)||null}));
