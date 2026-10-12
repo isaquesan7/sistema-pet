@@ -38,6 +38,11 @@ export default function MonitoringPage() {
     refetchInterval: 60000
   });
   const history = useQuery({ queryKey: ["platform-backup-history"], queryFn: async () => (await api.get("/plataforma/monitoramento/backups")).data, refetchInterval: 60000 });
+  const incidents = useQuery({
+    queryKey:["platform-incidents"],
+    queryFn:async()=> (await api.get("/plataforma/monitoramento/incidentes")).data,
+    refetchInterval:60000,
+  });
   const infrastructure = useQuery({
     queryKey:["platform-monitoring-infrastructure"],
     queryFn:async()=> (await api.get("/plataforma/monitoramento/infraestrutura")).data.dados,
@@ -67,7 +72,7 @@ export default function MonitoringPage() {
     <section className="panel">
       <div className="panel__heading">
         <div><span>Saúde da plataforma</span><h2>Verificações do PointVet</h2></div>
-        <button className="ghost-button" type="button" disabled={query.isFetching} onClick={() => { query.refetch(); history.refetch(); infrastructure.refetch(); }}>
+        <button className="ghost-button" type="button" disabled={query.isFetching} onClick={() => { query.refetch(); history.refetch(); infrastructure.refetch(); incidents.refetch(); }}>
           <RefreshCw size={16}/> {query.isFetching ? "Verificando..." : "Verificar agora"}
         </button>
       </div>
@@ -92,6 +97,19 @@ export default function MonitoringPage() {
         {infrastructure.data.checks.map(service=><article className="platform-metric" key={service.id}><span><Server size={20}/></span><div><small>{service.label}</small><strong>{service.status==="healthy"?"Conectividade OK":"Falha de conectividade"}</strong><em>{service.detail} · {service.latencyMs} ms</em><em>Verificado às {new Date(service.checkedAt).toLocaleTimeString("pt-BR",{timeZone:"America/Bahia"})}</em></div></article>)}
       </div>}
       <p style={{opacity:.72}}>Incidentes históricos e métricas do Railway serão integrados após existir uma coleta recorrente com armazenamento auditável.</p>
+    </section>
+    <section className="panel">
+      <div className="panel__heading"><div><span>Ocorrências registradas</span><h2>Histórico de incidentes</h2></div></div>
+      <p>Falhas e recuperações registradas somente pelas verificações automáticas autenticadas. Consultas manuais não criam incidentes.</p>
+      {incidents.isError && <div className="alert alert--error">Não foi possível consultar incidentes: {getApiErrorMessage(incidents.error)}</div>}
+      {incidents.data && !incidents.data.collectionConfigured && <p>Coleta automática ainda não configurada. A ausência de incidentes não comprova disponibilidade histórica.</p>}
+      {incidents.data?.collectionConfigured && !incidents.data.dados?.length && <p>Nenhum incidente registrado desde a ativação da coleta.</p>}
+      {incidents.data?.dados?.length > 0 && <div className="monitoring-scroll"><table className="monitoring-table"><thead><tr><th>Serviço</th><th>Início</th><th>Situação</th><th>Observações de falha</th><th>Último motivo</th></tr></thead><tbody>{incidents.data.dados.map(item=><tr key={item.id}>
+        <td>{item.serviceKey==="admin"?"Console administrativo":"Portal do cliente"}</td>
+        <td>{new Date(item.openedAt).toLocaleString("pt-BR",{timeZone:"America/Bahia"})}</td>
+        <td>{item.recoveredAt?"Recuperado em "+new Date(item.recoveredAt).toLocaleString("pt-BR",{timeZone:"America/Bahia"}):"Aberto"}</td>
+        <td>{item.failureCount}</td><td>{item.lastReason}</td>
+      </tr>)}</tbody></table></div>}
     </section>
     <section className="panel">
       <div className="panel__heading"><div><span>Proteção de dados</span><h2>Backups e recuperação</h2></div></div>
