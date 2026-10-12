@@ -48,5 +48,5 @@ jobs:
             EXCEPTION WHEN check_violation THEN NULL;
             END;
           END $$;
-          SELECT CASE WHEN count(*) = 1 THEN 1 ELSE 1/0 END FROM platform_backup_evidence;
+          DO $ BEGIN IF (SELECT count(*) FROM platform_backup_evidence) <> 1 THEN RAISE EXCEPTION 'Incorrect evidence count'; END IF; END $;
           SQL
