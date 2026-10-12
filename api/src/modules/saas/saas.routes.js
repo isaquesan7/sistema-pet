@@ -2,6 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { autenticarUsuario, selecionarEmpresaParaAssinatura, exigirGestorOrganizacao, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 import * as controller from "./saas.controller.js";
+import { organizationDetail } from "./organization-detail.js";
 import { auditPlatformMutation, auditPlatformList } from "./platform-audit.js";
 
 const router = Router();
@@ -21,6 +22,7 @@ router.post("/onboarding", onboardingLimiter, controller.onboarding);
 router.get("/plataforma/auditoria", autenticarUsuario, exigirSuperAdmin, auditPlatformList);
 router.get("/plataforma/painel", autenticarUsuario, exigirSuperAdmin, controller.painelPlataforma);
 router.get("/plataforma/organizacoes", autenticarUsuario, exigirSuperAdmin, controller.organizacoesPlataforma);
+router.get("/plataforma/organizacoes/:organizacaoId/detalhes", autenticarUsuario, exigirSuperAdmin, organizationDetail);
 router.get("/plataforma/planos", autenticarUsuario, exigirSuperAdmin, controller.planosPlataforma);
 router.post("/plataforma/planos", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.criarPlano);
 router.patch("/plataforma/planos/:id", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.atualizarPlano);
