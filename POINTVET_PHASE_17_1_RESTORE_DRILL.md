@@ -30,3 +30,16 @@ O script: valida ferramentas, descriptografa temporariamente **no Windows local*
 
 ## Estado
 Script de restauração preparado no GitHub. Ainda **não executado** na máquina do usuário. Restore drill com backup real é pendência aberta; agendamento de backup continua desativado.
+
+## Verificação adicional — 12/10/2026
+O usuário confirmou em PowerShell a restauração de 84 tabelas, sem erros, em contêiner PostgreSQL 18 isolado. O contêiner foi removido ao final. O script foi ampliado para informar agregados de `clientes`, `assinaturas_saas`, `atendimentos_clinicos` e `_prisma_migrations` numa nova execução.
+
+Comparar com o banco original (somente leitura):
+```sql
+SELECT
+ (SELECT count(*) FROM public.clientes) AS clientes,
+ (SELECT count(*) FROM public.assinaturas_saas) AS assinaturas_saas,
+ (SELECT count(*) FROM public.atendimentos_clinicos) AS atendimentos_clinicos,
+ (SELECT count(*) FROM public._prisma_migrations) AS prisma_migrations;
+```
+Contagens históricas: 2, 1, 1 e 15. Não presumir que o banco atual seja idêntico; comparar com os dados na data do backup. Não habilitar cron antes de revisar resultados.
