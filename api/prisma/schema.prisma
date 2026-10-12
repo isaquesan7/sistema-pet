@@ -2951,3 +2951,22 @@ model PlatformBackupEvidence {
   @@index([completedAt(sort: Desc)], map: "platform_backup_evidence_completed_idx")
   @@map("platform_backup_evidence")
 }
+
+
+/// Platform-level administrative actions; separate from tenant-scoped Auditoria.
+model PlatformAdminAudit {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId      String   @map("actor_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  httpMethod   String   @map("http_method")
+  httpStatus   Int      @map("http_status")
+  result       String
+  ip           String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)], map: "platform_admin_audit_created_idx")
+  @@index([actorId, createdAt(sort: Desc)], map: "platform_admin_audit_actor_idx")
+  @@map("platform_admin_audit")
+}
