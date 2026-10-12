@@ -71,6 +71,22 @@ aws --endpoint-url "$R2_ENDPOINT" s3api put-object --bucket "$R2_BUCKET" --key "
 aws --endpoint-url "$R2_ENDPOINT" s3api head-object --bucket "$R2_BUCKET" --key "$OBJECT" --query ContentLength --output text > "$TMPDIR/remote-size"
 test "$(cat "$TMPDIR/remote-size")" = "$(wc -c < "$FILE" | tr -d ' ')" || { echo "Encrypted backup upload size mismatch" >&2; exit 1; }
 echo "Encrypted backup uploaded and size verified: $OBJECT"
+# Optional independent evidence publication; configured only after PointVet API 17.2 is live.
+if [ -n "${BACKUP_EVIDENCE_API_URL:-}" ] || [ -n "${BACKUP_EVIDENCE_INGEST_TOKEN:-}" ]; then
+  if [ -z "${BACKUP_EVIDENCE_API_URL:-}" ] || [ -z "${BACKUP_EVIDENCE_INGEST_TOKEN:-}" ]; then
+    echo "Backup evidence integration misconfigured" >&2; exit 1
+  fi
+  case "$BACKUP_EVIDENCE_API_URL" in https://*) ;; *) echo "Backup evidence endpoint requires HTTPS" >&2; exit 1;; esac
+  export POINTVET_BACKUP_KEY="$OBJECT"
+  export POINTVET_BACKUP_SIZE="$(wc -c < "$FILE" | tr -d ' ')"
+  PAYLOAD=$(python3 -c 'import json,os,datetime; print(json.dumps({"objectKey":os.environ["POINTVET_BACKUP_KEY"],"sizeBytes":int(os.environ["POINTVET_BACKUP_SIZE"]),"completedAt":datetime.datetime.now(datetime.timezone.utc).isoformat()}))')
+  curl --fail --silent --show-error --max-time 20 --retry 2 \
+    --header "Content-Type: application/json" \
+    --header "x-pointvet-backup-token: $BACKUP_EVIDENCE_INGEST_TOKEN" \
+    --data "$PAYLOAD" --output /dev/null "$BACKUP_EVIDENCE_API_URL" ||
+    { echo "Backup uploaded, but evidence publication failed" >&2; exit 1; }
+  echo "Backup evidence accepted by PointVet"
+fi
 # A heartbeat is sent only after the R2 HEAD verification succeeds.
 # Missing heartbeats are detected by a separately hosted monitoring provider.
 if [ -n "${BACKUP_HEARTBEAT_URL:-}" ]; then
