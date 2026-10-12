@@ -138,33 +138,52 @@ router.get("/infraestrutura", async (_req, res) => {
     note: "Testes HTTP sob demanda. Não representam o status interno nem as métricas do Railway." } });
 });
 
-router.get("/resumo", async (_req, res) => {
+// Summary derives states from observed evidence, never from configured schedules alone.
+router.get("/resumo", async (_req, res, next) => {
   const checkedAt = new Date().toISOString();
   let database = { status: "unknown", detail: "Verificação não executada" };
+  let backup = {
+    status: "unverified",
+    detail: "Nenhuma evidência recebida do worker atualizado.",
+    scheduledLocalTime: "03:00", timeZone: "America/Bahia", retentionDays: 90
+  };
   try {
     await prisma.$queryRaw`SELECT 1`;
     database = { status: "healthy", detail: "Consulta SELECT 1 executada" };
-  } catch {
-    database = { status: "error", detail: "Falha na consulta de conectividade" };
-  }
-  res.set("Cache-Control", "no-store");
-  res.status(200).json({
-    success: true,
-    dados: {
-      checkedAt,
-      api: { status: "healthy", detail: "API respondeu ao endpoint autenticado" },
-      database,
-      backup: {
-        status: "unverified",
-        detail: "O histórico registra declarações autenticadas do worker após o upload; não substitui verificação independente do R2.",
-        scheduledLocalTime: "03:00",
-        timeZone: "America/Bahia",
-        retentionDays: 90
-      },
-      infrastructure: { status: "unverified", detail: "Estado dos serviços Railway ainda não integrado" },
-      security: { status: "unverified", detail: "Auditorias automatizadas ainda não integradas" }
+    const rows = await prisma.$queryRaw`
+      SELECT completed_at AS "completedAt" FROM platform_backup_evidence
+      ORDER BY completed_at DESC LIMIT 1
+    `;
+    if (rows.length) {
+      const at = new Date(rows[0].completedAt);
+      const hours = (Date.now() - at.getTime()) / 3600000;
+      const fresh = hours >= 0 && hours <= 26;
+      backup = { ...backup, status: fresh ? "healthy" : "error",
+        detail: fresh
+          ? "Upload criptografado reportado pelo worker; restauração não testada nesta verificação."
+          : "Última evidência tem mais de 26 horas; verifique Railway, R2 e Healthchecks.",
+        completedAt: at.toISOString() };
     }
-  });
+  } catch (error) {
+    if (database.status !== "healthy") database = { status: "error", detail: "Falha de conectividade com PostgreSQL" };
+    else if (error?.meta?.code !== "42P01") return next(error);
+  }
+  const checks = await Promise.all(publicChecks.map(probe));
+  const infraHealthy = checks.every(x => x.status === "healthy");
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({ success: true, dados: {
+    checkedAt,
+    api: { status: "healthy", detail: "API respondeu ao endpoint autenticado" },
+    database, backup,
+    infrastructure: {
+      status: infraHealthy ? "healthy" : "error",
+      detail: infraHealthy
+        ? "Console e Portal responderam por HTTPS; não inclui estado interno do Railway."
+        : "Falha na conectividade HTTPS de pelo menos um serviço; veja detalhes abaixo.",
+      checks
+    },
+    security: { status: "unverified", detail: "Auditorias automatizadas ainda não integradas" }
+  }});
 });
 
 export default router;
