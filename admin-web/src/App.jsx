@@ -22,6 +22,7 @@ import OnboardingPage from "./pages/OnboardingPage.jsx";
 import SubscriptionPage from "./pages/SubscriptionPage.jsx";
 import PlatformAdminPage from "./pages/PlatformAdminPage.jsx";
 import SecurityPage from "./pages/SecurityPage.jsx";
+import SupportPage from "./pages/SupportPage.jsx";
 
 export default function App() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="fiscal" element={<FiscalPage />} />
             <Route path="relatorios" element={<ReportsPage />} />
             <Route path="assinatura" element={<SubscriptionPage />} />
+            <Route path="suporte" element={<SupportPage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
             <Route path="seguranca" element={<SecurityPage />} />
           </Route>
