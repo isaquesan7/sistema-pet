@@ -9,13 +9,14 @@ export default function PlatformAlertsPage(){
  const [filter,setFilter]=useState("active");
  const qc=useQueryClient();
  const q=useQuery({queryKey:["platform-alerts"],queryFn:async()=>(await api.get("/plataforma/monitoramento/alertas")).data,refetchInterval:60000});
+ const history=useQuery({queryKey:["platform-alert-history"],queryFn:async()=>(await api.get("/plataforma/monitoramento/alertas/historico")).data.dados,refetchInterval:60000});
  const acknowledge=useMutation({mutationFn:async key=>api.post("/plataforma/monitoramento/alertas/reconhecer",{key}),onSuccess:()=>qc.invalidateQueries({queryKey:["platform-alerts"]})});
  const all=q.data?.dados||[];
  const displayed=all.filter(x=>filter==="all"||(filter==="active"?!x.acknowledgement:!!x.acknowledgement));
  const date=x=>x?new Date(x).toLocaleString("pt-BR",{timeZone:"America/Bahia"}):"Aguardando evidência";
  return <div className="page-stack"><section className="panel">
   <div className="panel__heading"><div><span>Operações da plataforma</span><h2><BellRing size={21} style={{verticalAlign:"middle",marginRight:8}}/>Central de Alertas</h2></div>
-    <button className="ghost-button" onClick={()=>q.refetch()} disabled={q.isFetching}><RefreshCw size={16}/>Atualizar</button></div>
+    <button className="ghost-button" onClick={()=>{q.refetch();history.refetch();}} disabled={q.isFetching}><RefreshCw size={16}/>Atualizar</button></div>
   <p>Alertas gerados apenas por incidentes registrados e evidências recebidas do worker. Reconhecer não resolve o problema. Ainda não há envio de notificações por e-mail, WhatsApp ou push.</p>
   <div className="monitoring-filters"><label>Exibir <select value={filter} onChange={e=>setFilter(e.target.value)}><option value="active">Não reconhecidos</option><option value="acknowledged">Reconhecidos</option><option value="all">Todos os alertas atuais</option></select></label></div>
   {q.isLoading&&<p>Buscando alertas...</p>}
@@ -29,5 +30,12 @@ export default function PlatformAlertsPage(){
     <small>{date(a.detectedAt)}{a.acknowledgement?" · Reconhecido em "+date(a.acknowledgement.acknowledgedAt):""}</small>
     {!a.acknowledgement&&<button type="button" className="ghost-button" disabled={acknowledge.isPending} onClick={()=>acknowledge.mutate(a.key)}><Check size={16}/>Reconhecer</button>}
    </div></article>)}
+ </section><section className="panel">
+  <div className="panel__heading"><div><span>Histórico confirmado pelo coletor</span><h2>Incidentes recuperados</h2></div></div>
+  <p>Somente incidentes com recuperação registrada. A lista não inclui histórico de alertas de backup nem períodos anteriores à ativação do coletor.</p>
+  {history.isLoading&&<p>Consultando histórico...</p>}
+  {history.isError&&<div className="alert alert--error">{getApiErrorMessage(history.error)}</div>}
+  {history.data?.length===0&&<p>Nenhum incidente recuperado registrado até o momento.</p>}
+  {history.data?.length>0&&<div className="monitoring-scroll"><table className="monitoring-table"><thead><tr><th>Serviço</th><th>Abertura</th><th>Recuperação</th><th>Falhas registradas</th><th>Reconhecido por</th></tr></thead><tbody>{history.data.map(x=><tr key={x.id}><td>{x.serviceKey==="admin"?"Console":"Portal"}</td><td>{date(x.openedAt)}</td><td>{date(x.recoveredAt)}</td><td>{x.failureCount}</td><td>{x.acknowledgedByName||"Não reconhecido"}</td></tr>)}</tbody></table></div>}
  </section></div>;
 }

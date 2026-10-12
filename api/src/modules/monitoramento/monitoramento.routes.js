@@ -126,6 +126,26 @@ router.get("/alertas",async(_req,res,next)=>{
       note:"Alertas baseados em incidentes persistidos e evidências de backup. Não inclui métricas internas do Railway."});}
   catch(error){next(error);}
 });
+
+// Resolved incident history is sourced from the collector's persisted transitions.
+// Backup warning history is not available until separate state transitions are persisted.
+router.get("/alertas/historico", async (_req,res,next)=>{
+ try {
+  const incidents=await prisma.$queryRaw`
+    SELECT i.id::text, i.service_key AS "serviceKey",i.opened_at AS "openedAt",
+      i.recovered_at AS "recoveredAt",i.failure_count AS "failureCount",
+      a.acknowledged_at AS "acknowledgedAt",u.nome AS "acknowledgedByName"
+    FROM platform_service_incidents i
+    LEFT JOIN platform_alert_acknowledgements a ON a.alert_key=('incident:' || i.id::text)
+    LEFT JOIN usuarios u ON u.id=a.acknowledged_by
+    WHERE i.recovered_at IS NOT NULL
+    ORDER BY i.recovered_at DESC LIMIT 100
+  `;
+  res.set("Cache-Control","no-store");
+  return res.json({success:true,dados:incidents,scope:"resolved-incidents-only"});
+ } catch(error){next(error);}
+});
+
 router.post("/alertas/reconhecer",async(req,res,next)=>{
   const key=req.body?.key;
   if(typeof key!=="string"||key.length>160||!(/^(incident:[0-9a-f-]{36}|backup:(no-evidence|stale:.*))$/.test(key)))
