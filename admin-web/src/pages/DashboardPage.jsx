@@ -37,6 +37,7 @@ export default function DashboardPage() {
 
   return (
     <div className="page-stack">
+      {["PROPRIETARIO","ADMINISTRADOR"].includes(selectedOrganization?.papel) && <section className="panel"><div className="panel__heading"><div><span>Configuração inicial</span><h2>Primeiros passos no PointVet</h2></div><Link className="primary-button" to="/primeiros-passos">Abrir guia</Link></div><p>Acompanhe a preparação da sua empresa, equipe, primeiros tutores e pets com dados reais.</p></section>}
       <section className="page-heading page-heading--hero">
         <div>
           <span className="page-kicker">Visão geral</span>
