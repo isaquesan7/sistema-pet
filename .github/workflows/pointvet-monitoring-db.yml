@@ -1,0 +1,53 @@
+name: PointVet 17.2 backup evidence migration
+on:
+  pull_request:
+    paths:
+      - "api/prisma/migrations/20261012120000_platform_backup_evidence/**"
+      - ".github/workflows/pointvet-monitoring-db.yml"
+  workflow_dispatch:
+jobs:
+  migration-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: synthetic
+          POSTGRES_DB: railway
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d railway"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: synthetic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply evidence migration to isolated synthetic database
+        run: psql -h localhost -U postgres -d railway -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261012120000_platform_backup_evidence/migration.sql
+      - name: Verify append-only key uniqueness and data constraints
+        run: |
+          psql -h localhost -U postgres -d railway -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO platform_backup_evidence (object_key, completed_at, size_bytes)
+          VALUES ('postgres/daily/pointvet-synthetic-1.dump.age', now(), 12345);
+          DO $$
+          BEGIN
+            BEGIN
+              INSERT INTO platform_backup_evidence (object_key, completed_at, size_bytes)
+              VALUES ('postgres/daily/pointvet-synthetic-1.dump.age', now(), 12345);
+              RAISE EXCEPTION 'Expected unique violation';
+            EXCEPTION WHEN unique_violation THEN NULL;
+            END;
+            BEGIN
+              INSERT INTO platform_backup_evidence (object_key, completed_at, size_bytes)
+              VALUES ('postgres/daily/pointvet-synthetic-2.dump.age', now(), -1);
+              RAISE EXCEPTION 'Expected check violation';
+            EXCEPTION WHEN check_violation THEN NULL;
+            END;
+          END $$;
+          SQL
+          count=$(psql -h localhost -U postgres -d railway -tA -c 'SELECT count(*) FROM platform_backup_evidence')
+          test "$count" = "1"

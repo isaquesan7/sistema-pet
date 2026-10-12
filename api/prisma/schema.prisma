@@ -2936,3 +2936,18 @@ model SessaoUsuario {
   @@index([revokedAt])
   @@map("sessoes_usuario")
 }
+
+
+/// Metadata of an encrypted backup reported after a verified R2 upload.
+model PlatformBackupEvidence {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  objectKey   String   @unique @map("object_key")
+  completedAt DateTime @map("completed_at") @db.Timestamptz(6)
+  sizeBytes   BigInt   @map("size_bytes")
+  status      String   @default("confirmed")
+  source      String   @default("worker-r2-head")
+  recordedAt  DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([completedAt(sort: Desc)], map: "platform_backup_evidence_completed_idx")
+  @@map("platform_backup_evidence")
+}
