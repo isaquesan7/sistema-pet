@@ -3,12 +3,12 @@
  * Never trusts or exposes Railway/R2 secrets and never fabricates backup statuses.
  */
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 
 import prisma from "../../config/prisma.js";
 import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
-import { timingSafeEqual } from "node:crypto";
 
 function tokenMatches(input, expected) {
   if (typeof input !== "string" || !expected) return false;
@@ -23,6 +23,7 @@ router.post("/backup-evidence", async (req, res, next) => {
     return res.status(401).json({ success: false, message: "Não autorizado" });
   }
   const { objectKey, completedAt, sizeBytes } = req.body || {};
+  // A valid worker token authorizes a report, not independent proof that R2 is reachable.
   if (typeof objectKey !== "string" || !/^postgres\/daily\/pointvet-[a-zA-Z0-9-]+\.dump\.age$/.test(objectKey) || objectKey.length > 240) {
     return res.status(400).json({ success: false, message: "Objeto inválido" });
   }
@@ -79,7 +80,7 @@ router.get("/resumo", async (_req, res) => {
       database,
       backup: {
         status: "unverified",
-        detail: "Integração com histórico de execução do worker ainda pendente. Consulte Railway, R2 e Healthchecks.io.",
+        detail: "O histórico registra declarações autenticadas do worker após o upload; não substitui verificação independente do R2.",
         scheduledLocalTime: "03:00",
         timeZone: "America/Bahia",
         retentionDays: 90
