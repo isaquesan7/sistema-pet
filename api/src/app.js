@@ -24,6 +24,7 @@ import fiscalRoutes from "./modules/fiscal/fiscal.routes.js";
 import relatoriosRoutes from "./modules/relatorios/relatorios.routes.js";
 import saasRoutes from "./modules/saas/saas.routes.js";
 import segurancaRoutes from "./modules/seguranca/seguranca.routes.js";
+import monitoramentoRoutes from "./modules/monitoramento/monitoramento.routes.js";
 
 const app = express();
 
@@ -159,6 +160,7 @@ app.use("/api/fiscal", fiscalRoutes);
 app.use("/api/relatorios", relatoriosRoutes);
 app.use("/api/saas", saasRoutes);
 app.use("/api/seguranca", segurancaRoutes);
+app.use("/api/plataforma/monitoramento", monitoramentoRoutes);
 
 // ======================================================
 // ROTA NÃO ENCONTRADA
