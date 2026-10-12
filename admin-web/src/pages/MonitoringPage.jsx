@@ -38,6 +38,11 @@ export default function MonitoringPage() {
     refetchInterval: 60000
   });
   const history = useQuery({ queryKey: ["platform-backup-history"], queryFn: async () => (await api.get("/plataforma/monitoramento/backups")).data, refetchInterval: 60000 });
+  const infrastructure = useQuery({
+    queryKey:["platform-monitoring-infrastructure"],
+    queryFn:async()=> (await api.get("/plataforma/monitoramento/infraestrutura")).data.dados,
+    refetchInterval:60000,
+  });
   const [period, setPeriod] = useState("30");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -62,7 +67,7 @@ export default function MonitoringPage() {
     <section className="panel">
       <div className="panel__heading">
         <div><span>Saúde da plataforma</span><h2>Verificações do PointVet</h2></div>
-        <button className="ghost-button" type="button" disabled={query.isFetching} onClick={() => { query.refetch(); history.refetch(); }}>
+        <button className="ghost-button" type="button" disabled={query.isFetching} onClick={() => { query.refetch(); history.refetch(); infrastructure.refetch(); }}>
           <RefreshCw size={16}/> {query.isFetching ? "Verificando..." : "Verificar agora"}
         </button>
       </div>
@@ -77,6 +82,16 @@ export default function MonitoringPage() {
         <Indicator name="Infraestrutura" type="infrastructure" item={d.infrastructure}/>
         <Indicator name="Segurança" type="security" item={d.security}/>
       </div>
+    </section>
+    <section className="panel">
+      <div className="panel__heading"><div><span>Conectividade externa</span><h2>Serviços do PointVet</h2></div></div>
+      <p>Verificações HTTP do Console Interno e do Portal do Cliente. Esses resultados não substituem o estado dos deployments ou métricas de CPU/memória no Railway.</p>
+      {infrastructure.isLoading && <p>Verificando conectividade...</p>}
+      {infrastructure.isError && <div className="alert alert--error">Não foi possível consultar a infraestrutura: {getApiErrorMessage(infrastructure.error)}</div>}
+      {infrastructure.data?.checks?.length > 0 && <div className="platform-metrics">
+        {infrastructure.data.checks.map(service=><article className="platform-metric" key={service.id}><span><Server size={20}/></span><div><small>{service.label}</small><strong>{service.status==="healthy"?"Conectividade OK":"Falha de conectividade"}</strong><em>{service.detail} · {service.latencyMs} ms</em><em>Verificado às {new Date(service.checkedAt).toLocaleTimeString("pt-BR",{timeZone:"America/Bahia"})}</em></div></article>)}
+      </div>}
+      <p style={{opacity:.72}}>Incidentes históricos e métricas do Railway serão integrados após existir uma coleta recorrente com armazenamento auditável.</p>
     </section>
     <section className="panel">
       <div className="panel__heading"><div><span>Proteção de dados</span><h2>Backups e recuperação</h2></div></div>
