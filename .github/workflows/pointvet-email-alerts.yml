@@ -1,0 +1,20 @@
+name: PointVet email delivery contracts
+on:
+  pull_request:
+    paths:
+      - "api/src/modules/monitoramento/email-delivery.js"
+      - "api/src/modules/monitoramento/monitoramento.routes.js"
+      - "api/tests/email-delivery.contract.test.mjs"
+      - ".github/workflows/pointvet-email-alerts.yml"
+  workflow_dispatch:
+jobs:
+  email-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check api/src/modules/monitoramento/email-delivery.js
+      - run: node --check api/src/modules/monitoramento/monitoramento.routes.js
+      - run: node --test api/tests/email-delivery.contract.test.mjs
