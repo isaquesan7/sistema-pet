@@ -3,6 +3,7 @@
  * to superadministrators. Aggregate counts are scoped via tenant relations.
  */
 import prisma from "../../config/prisma.js";
+import {calculatePlanUsage} from "./plan-usage.js";
 
 export async function organizationDetail(req,res,next){
  try{
@@ -30,6 +31,6 @@ export async function organizationDetail(req,res,next){
    empresas:organization._count.empresas,usuarios:organization._count.usuarios,
    usuariosAtivos:activeUsers,clientes:organization._count.clientes,
    pets,funcionarios:organization._count.funcionarios
-  }}});
+  },consumoPlano:calculatePlanUsage({empresas:organization._count.empresas,usuarios:organization._count.usuarios,clientes:organization._count.clientes,pets,funcionarios:organization._count.funcionarios},organization.assinaturaSaaS?.plano)}});
  }catch(error){next(error);}
 }
