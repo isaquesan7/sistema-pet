@@ -42,6 +42,38 @@ router.post("/backup-evidence", async (req, res, next) => {
   } catch (err) { return next(err); }
 });
 
+
+/**
+ * Persist observations only when called by a separate authenticated collector.
+ * Manual dashboard refreshes never create incidents or change their state.
+ */
+router.post("/incident-observations", async (req, res, next) => {
+  if (!tokenMatches(req.get("x-pointvet-monitor-token"), process.env.MONITOR_INGEST_TOKEN)) {
+    return res.status(401).json({success:false,message:"Não autorizado"});
+  }
+  const {serviceKey, status, detail} = req.body || {};
+  if (!["admin","portal"].includes(serviceKey) || !["healthy","error"].includes(status)) {
+    return res.status(400).json({success:false,message:"Observação inválida"});
+  }
+  const reason=typeof detail==="string" ? detail.slice(0,200) : "Falha de conectividade";
+  try {
+    if(status==="error") {
+      await prisma.$executeRaw`
+        INSERT INTO platform_service_incidents(service_key,last_reason)
+        VALUES (${serviceKey},${reason})
+        ON CONFLICT (service_key) WHERE recovered_at IS NULL
+        DO UPDATE SET last_failed_at=now(),failure_count=platform_service_incidents.failure_count+1,last_reason=EXCLUDED.last_reason
+      `;
+    } else {
+      await prisma.$executeRaw`
+        UPDATE platform_service_incidents SET recovered_at=now()
+        WHERE service_key=${serviceKey} AND recovered_at IS NULL
+      `;
+    }
+    return res.status(202).json({success:true});
+  } catch(err) { if(err?.meta?.code==="42P01") return res.status(503).json({success:false,message:"Migração pendente"}); return next(err); }
+});
+
 router.use(autenticarUsuario, exigirSuperAdmin);
 
 router.get("/backups", async (_req, res, next) => {
@@ -85,6 +117,19 @@ async function probe(entry) {
       detail: "Falha ou tempo limite no teste de conectividade" };
   }
 }
+
+router.get("/incidentes", async (_req,res,next)=>{
+  try{
+    const rows=await prisma.$queryRaw`
+      SELECT id::text, service_key AS "serviceKey",opened_at AS "openedAt",
+      recovered_at AS "recoveredAt",last_failed_at AS "lastFailedAt",
+      failure_count AS "failureCount",last_reason AS "lastReason"
+      FROM platform_service_incidents ORDER BY opened_at DESC LIMIT 100
+    `;
+    res.set("Cache-Control","no-store");
+    return res.json({success:true,dados:rows,collectionConfigured:Boolean(process.env.MONITOR_INGEST_TOKEN)});
+  }catch(err){return next(err)}
+});
 
 router.get("/infraestrutura", async (_req, res) => {
   const probes = await Promise.all(publicChecks.map(probe));
