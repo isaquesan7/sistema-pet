@@ -1,0 +1,19 @@
+name: PointVet financial metrics contracts
+on:
+  pull_request:
+    paths:
+      - "api/src/modules/saas/financial-indicators.js"
+      - "api/src/modules/saas/saas.routes.js"
+      - "api/tests/financial-indicators.contract.test.mjs"
+      - ".github/workflows/pointvet-financial-metrics.yml"
+  workflow_dispatch:
+jobs:
+  finance-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check api/src/modules/saas/financial-indicators.js
+      - run: node --test api/tests/financial-indicators.contract.test.mjs
