@@ -112,6 +112,12 @@ export default function MonitoringPage() {
       </tr>)}</tbody></table></div>}
     </section>
     <section className="panel">
+      <div className="panel__heading"><div><span>Controles de acesso</span><h2>Verificações básicas de segurança</h2></div></div>
+      <p>Os testes abaixo verificam configurações e a recusa de acesso anônimo. Não equivalem a pentest, revisão de permissões entre tenants nem auditoria LGPD.</p>
+      {d.security?.checks?.length > 0 && <div className="monitoring-scroll"><table className="monitoring-table"><thead><tr><th>Controle</th><th>Situação</th><th>Evidência</th></tr></thead><tbody>{d.security.checks.map(check=><tr key={check.id}><td>{check.label}</td><td>{check.status==="healthy"?"Aprovado":check.status==="error"?"Falhou":"Não verificado"}</td><td>{check.detail}</td></tr>)}</tbody></table></div>}
+      {!d.security?.checks && <p>Controles ainda não consultados.</p>}
+    </section>
+    <section className="panel">
       <div className="panel__heading"><div><span>Proteção de dados</span><h2>Backups e recuperação</h2></div></div>
       <p><Clock3 size={16} style={{ verticalAlign: "middle", marginRight: 6 }}/>Agendamento esperado: <strong>03h (Salvador)</strong> — retenção prevista: <strong>90 dias</strong>.</p>
       {history.isError && <div className="alert alert--error">Erro ao consultar histórico: {getApiErrorMessage(history.error)}</div>}

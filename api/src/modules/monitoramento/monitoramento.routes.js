@@ -138,6 +138,43 @@ router.get("/infraestrutura", async (_req, res) => {
     note: "Testes HTTP sob demanda. Não representam o status interno nem as métricas do Railway." } });
 });
 
+
+// Security checks verify limited, observable controls, not full penetration testing.
+// Never return secret values or diagnostic responses from protected routes.
+async function verifySecurityControls() {
+  const checks = [
+    { id: "jwt-config", label: "Assinatura de sessões", status:
+      (process.env.JWT_ACCESS_SECRET || "").length >= 32 ? "healthy" : "error",
+      detail: "Presença de chave de assinatura com comprimento mínimo (valor não exposto)" },
+    { id: "worker-ingest", label: "Credencial de backups", status:
+      (process.env.BACKUP_EVIDENCE_INGEST_TOKEN || "").length >= 32 ? "healthy" : "error",
+      detail: "Segredo privado configurado com comprimento mínimo (valor não exposto)" },
+    { id: "incident-ingest", label: "Credencial de incidentes", status:
+      (process.env.MONITOR_INGEST_TOKEN || "").length >= 32 ? "healthy" : "error",
+      detail: "Segredo privado configurado com comprimento mínimo (valor não exposto)" }
+  ];
+  try {
+    const response = await fetch("https://petrise-api-production.up.railway.app/api/plataforma/monitoramento/incidentes", {
+      signal: AbortSignal.timeout(5000), redirect: "error", cache: "no-store"
+    });
+    checks.push({ id:"admin-boundary", label:"Bloqueio de acesso anônimo", status:response.status===401?"healthy":"error",
+      detail: response.status===401 ? "Rota administrativa recusou acesso sem autenticação" : "Resposta inesperada no controle de acesso" });
+  } catch {
+    checks.push({ id:"admin-boundary", label:"Bloqueio de acesso anônimo", status:"unknown",
+      detail:"Não foi possível verificar a proteção da rota remotamente" });
+  }
+  const failed = checks.some(x=>x.status==="error");
+  return { status:failed?"error":checks.every(x=>x.status==="healthy")?"healthy":"unverified",
+    detail:failed?"Falha em um dos controles básicos; conferir detalhes.":checks.every(x=>x.status==="healthy")
+      ?"Quatro controles básicos verificados; não representa auditoria completa de segurança."
+      :"Algum controle não pôde ser verificado.", checks };
+}
+router.get("/seguranca", async (_req,res) => {
+  const security=await verifySecurityControls();
+  res.set("Cache-Control","no-store");
+  return res.json({success:true,dados:{checkedAt:new Date().toISOString(), ...security}});
+});
+
 // Summary derives states from observed evidence, never from configured schedules alone.
 router.get("/resumo", async (_req, res, next) => {
   const checkedAt = new Date().toISOString();
@@ -168,7 +205,7 @@ router.get("/resumo", async (_req, res, next) => {
     if (database.status !== "healthy") database = { status: "error", detail: "Falha de conectividade com PostgreSQL" };
     else if (error?.meta?.code !== "42P01") return next(error);
   }
-  const checks = await Promise.all(publicChecks.map(probe));
+  const [checks, security] = await Promise.all([Promise.all(publicChecks.map(probe)),verifySecurityControls()]);
   const infraHealthy = checks.every(x => x.status === "healthy");
   res.set("Cache-Control", "no-store");
   res.status(200).json({ success: true, dados: {
@@ -182,7 +219,7 @@ router.get("/resumo", async (_req, res, next) => {
         : "Falha na conectividade HTTPS de pelo menos um serviço; veja detalhes abaixo.",
       checks
     },
-    security: { status: "unverified", detail: "Auditorias automatizadas ainda não integradas" }
+    security
   }});
 });
 
