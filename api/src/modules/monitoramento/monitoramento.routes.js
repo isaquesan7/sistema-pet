@@ -6,7 +6,7 @@ import { Router } from "express";
 import { timingSafeEqual } from "node:crypto";
 
 import prisma from "../../config/prisma.js";
-import { authenticateAlertDispatcher, dispatchAlertEmails, configured as emailConfigured } from "./email-delivery.js";
+import { authenticateAlertDispatcher, dispatchAlertEmails, testAlertEmail, configured as emailConfigured } from "./email-delivery.js";
 import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
@@ -83,6 +83,7 @@ router.post("/incident-observations", async (req, res, next) => {
 });
 
 router.post("/alertas/despachar-email", authenticateAlertDispatcher, dispatchAlertEmails);
+router.post("/alertas/testar-email", authenticateAlertDispatcher, testAlertEmail);
 
 router.use(autenticarUsuario, exigirSuperAdmin);
 
