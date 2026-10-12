@@ -9,6 +9,24 @@ import { autenticarUsuario, exigirSuperAdmin } from "../../middlewares/auth.midd
 const router = Router();
 router.use(autenticarUsuario, exigirSuperAdmin);
 
+router.get("/backups", async (_req, res, next) => {
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT id::text, object_key AS "objectKey", completed_at AS "completedAt",
+             size_bytes::text AS "sizeBytes", status, source
+      FROM platform_backup_evidence
+      ORDER BY completed_at DESC LIMIT 90
+    `;
+    res.set("Cache-Control", "no-store");
+    return res.json({ success: true, dados: rows, integrationReady: true });
+  } catch (error) {
+    if (error?.meta?.code === "42P01") {
+      return res.json({ success: true, dados: [], integrationReady: false });
+    }
+    return next(error);
+  }
+});
+
 router.get("/resumo", async (_req, res) => {
   const checkedAt = new Date().toISOString();
   let database = { status: "unknown", detail: "Verificação não executada" };
