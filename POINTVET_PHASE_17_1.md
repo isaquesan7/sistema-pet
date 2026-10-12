@@ -51,3 +51,19 @@ A ferramenta rejeita identidade de banco igual (host, porta e nome), nome fora d
 - Execução aprovada: https://github.com/isaquesan7/sistema-pet/actions/runs/38156625635
 - Este ensaio NÃO restaurou o snapshot real da Pet King e NÃO valida ainda recuperação da base PostgreSQL 18 do Railway.
 - No Railway Pro, o usuário confirmou visualmente um snapshot de volume, agendamento de backup e PITR habilitado. Um teste real de restauração desses backups permanece pendente em serviço/banco isolado.
+
+## Ensaio Railway PITR com banco real — 11/10/2026
+- Origem: serviço Postgres, volume postgres-volume; recuperação PITR criou serviço separado Postgres-restored-20261011-2306, volume postgres-restored.
+- Ambos os serviços ficaram online; app (API, admin, portal) continuou online.
+- A interface Database do serviço restaurado exibiu tabelas, incluindo clientes, atendimentos_clinicos, assinaturas_saas e _prisma_migrations.
+- Contagens consultadas pelo usuário via psql (somente leitura), comparadas em ambos os bancos:
+
+| Tabela | Original | Restaurado |
+| --- | ---: | ---: |
+| clientes | 2 | 2 |
+| assinaturas_saas | 1 | 1 |
+| atendimentos_clinicos | 1 | 1 |
+| _prisma_migrations | 15 | 15 |
+
+- Resultado: restauração real disponível e quatro contagens coincidentes. NÃO equivale a verificação integral de todas as tabelas, integridade referencial nem backup externo.
+- Após registrar evidências, serviço e volume temporários podem ser excluídos; nunca excluir o Postgres original, postgres-volume nem bucket Postgres-PITR.
