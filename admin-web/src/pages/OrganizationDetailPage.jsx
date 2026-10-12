@@ -2,7 +2,6 @@
 import {useQuery} from "@tanstack/react-query";
 import {Building2,UsersRound,PawPrint,ContactRound} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
-const limits=[["empresas","limiteEmpresas","Empresas"],["usuarios","limiteUsuarios","Usuários"],["clientes","limiteClientes","Clientes"],["pets","limitePets","Pets"],["funcionarios","limiteFuncionarios","Funcionários"]];
 export default function OrganizationDetailPage({id,onClose}){
  const q=useQuery({queryKey:["platform-organization-detail",id],enabled:!!id,queryFn:async()=>(await api.get(`/saas/plataforma/organizacoes/${encodeURIComponent(id)}/detalhes`)).data.dados});
  const org=q.data;
@@ -14,7 +13,8 @@ export default function OrganizationDetailPage({id,onClose}){
    <p><strong>Identificador:</strong> {org.slug} · <strong>Status:</strong> {org.ativo?"Ativa":"Inativa"} · <strong>Plano:</strong> {org.assinaturaSaaS?.plano?.nome||"Não contratado"} · <strong>Assinatura:</strong> {org.assinaturaSaaS?.status||"Ausente"} · <strong>Ciclo:</strong> {org.assinaturaSaaS?.ciclo||"—"}</p>
    <section className="platform-metrics">{[[Building2,"Empresas",org.metricas.empresas],[UsersRound,"Usuários",org.metricas.usuarios],[ContactRound,"Clientes",org.metricas.clientes],[PawPrint,"Pets",org.metricas.pets]].map(([Icon,label,value])=><article className="platform-metric" key={label}><span><Icon size={20}/></span><div><small>{label}</small><strong>{value}</strong></div></article>)}</section>
    <h3>Consumo do plano</h3>
-   <div className="table-scroll"><table className="data-table"><thead><tr><th>Recurso</th><th>Em uso</th><th>Limite</th><th>Ocupação</th></tr></thead><tbody>{limits.map(([key,limit,label])=>{const count=org.metricas[key];const max=org.assinaturaSaaS?.plano?.[limit];return <tr key={key}><td>{label}</td><td>{count}</td><td>{max==null?"Sem limite definido":max}</td><td>{max>0?`${Math.round(count/max*100)}%`:"—"}</td></tr>})}</tbody></table></div>
+   <p>Alertas informativos: 80% atenção, 90% alto consumo e 100% limite atingido. Nenhum cadastro ou atendimento é bloqueado por esta tela.</p>
+   <div className="table-scroll"><table className="data-table"><thead><tr><th>Recurso</th><th>Em uso</th><th>Limite</th><th>Ocupação</th></tr></thead><tbody>{org.consumoPlano?.map(item=><tr key={item.key}><td>{item.label}</td><td>{item.used}</td><td>{item.limit===null?"Sem limite definido":item.limit}</td><td><strong>{item.percent===null?"—":`${item.percent}%`}</strong> · {({NORMAL:"Normal",WARNING:"Atenção (80%)",HIGH:"Alto consumo (90%)",LIMIT:"Limite atingido (100%)",UNLIMITED:"Sem limite",UNDEFINED:"Limite não configurado"})[item.level]||"—"}</td></tr>)}</tbody></table></div>
    <p>Usuários com vínculo ativo: <strong>{org.metricas.usuariosAtivos}</strong>. Contagens incluem registros ativos e inativos, exceto quando indicado.</p>
    <h3>Empresas vinculadas</h3>
    <div className="table-scroll"><table className="data-table"><thead><tr><th>Empresa</th><th>Localidade</th><th>Situação</th></tr></thead><tbody>{org.empresas.map(e=><tr key={e.id}><td>{e.nomeFantasia}</td><td>{[e.cidade,e.estado].filter(Boolean).join(" / ")||"—"}</td><td>{e.ativo?"Ativa":"Inativa"}</td></tr>)}{!org.empresas.length&&<tr><td colSpan="3">Nenhuma empresa vinculada.</td></tr>}</tbody></table></div>
