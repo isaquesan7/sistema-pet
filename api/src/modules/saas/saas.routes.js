@@ -2,6 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { autenticarUsuario, selecionarEmpresaParaAssinatura, exigirGestorOrganizacao, exigirSuperAdmin } from "../../middlewares/auth.middleware.js";
 import * as controller from "./saas.controller.js";
+import { auditPlatformMutation, auditPlatformList } from "./platform-audit.js";
 
 const router = Router();
 const onboardingLimiter = rateLimit({
@@ -17,16 +18,17 @@ router.get("/publico/planos", controller.planosPublicos);
 router.post("/onboarding", onboardingLimiter, controller.onboarding);
 
 // PetRise platform console. Does not require a tenant/company selection.
+router.get("/plataforma/auditoria", autenticarUsuario, exigirSuperAdmin, auditPlatformList);
 router.get("/plataforma/painel", autenticarUsuario, exigirSuperAdmin, controller.painelPlataforma);
 router.get("/plataforma/organizacoes", autenticarUsuario, exigirSuperAdmin, controller.organizacoesPlataforma);
 router.get("/plataforma/planos", autenticarUsuario, exigirSuperAdmin, controller.planosPlataforma);
-router.post("/plataforma/planos", autenticarUsuario, exigirSuperAdmin, controller.criarPlano);
-router.patch("/plataforma/planos/:id", autenticarUsuario, exigirSuperAdmin, controller.atualizarPlano);
-router.patch("/plataforma/organizacoes/:organizacaoId/assinatura", autenticarUsuario, exigirSuperAdmin, controller.atualizarAssinatura);
+router.post("/plataforma/planos", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.criarPlano);
+router.patch("/plataforma/planos/:id", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.atualizarPlano);
+router.patch("/plataforma/organizacoes/:organizacaoId/assinatura", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.atualizarAssinatura);
 router.get("/plataforma/faturas", autenticarUsuario, exigirSuperAdmin, controller.faturasPlataforma);
-router.post("/plataforma/faturas", autenticarUsuario, exigirSuperAdmin, controller.criarFaturaManual);
-router.post("/plataforma/faturas/:id/pagar", autenticarUsuario, exigirSuperAdmin, controller.liquidarFatura);
-router.post("/plataforma/faturas/:id/cancelar", autenticarUsuario, exigirSuperAdmin, controller.cancelarFatura);
+router.post("/plataforma/faturas", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.criarFaturaManual);
+router.post("/plataforma/faturas/:id/pagar", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.liquidarFatura);
+router.post("/plataforma/faturas/:id/cancelar", autenticarUsuario, exigirSuperAdmin, auditPlatformMutation, controller.cancelarFatura);
 
 // Tenant subscription/billing area.
 router.get("/assinatura", autenticarUsuario, selecionarEmpresaParaAssinatura, exigirGestorOrganizacao, controller.minhaAssinatura);

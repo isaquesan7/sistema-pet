@@ -1,0 +1,47 @@
+name: PointVet platform audit migration
+on:
+  pull_request:
+    paths:
+      - "api/prisma/migrations/20261012150000_platform_admin_audit/**"
+      - ".github/workflows/pointvet-platform-audit.yml"
+  workflow_dispatch:
+jobs:
+  platform-audit-migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: synthetic
+          POSTGRES_DB: testdb
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: synthetic
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply audit migration
+        run: psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261012150000_platform_admin_audit/migration.sql
+      - name: Verify recorded metadata and constraints
+        run: |
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO platform_admin_audit(actor_id,action,resource_type,resource_id,http_method,http_status,result)
+          VALUES ('synthetic-admin','PLAN_CREATED','PLAN','synthetic-id','POST',201,'SUCCESS');
+          DO $$
+          BEGIN
+            BEGIN
+              INSERT INTO platform_admin_audit(actor_id,action,resource_type,http_method,http_status,result)
+              VALUES ('synthetic-admin','PLAN_UPDATED','PLAN','PATCH',999,'SUCCESS');
+              RAISE EXCEPTION 'Expected HTTP status constraint';
+            EXCEPTION WHEN check_violation THEN NULL;
+            END;
+          END $$;
+          SQL
+          count=$(psql -h localhost -U postgres -d testdb -tA -c 'SELECT count(*) FROM platform_admin_audit')
+          test "$count" = "1"
