@@ -3,6 +3,7 @@
  * Never trusts or exposes Railway/R2 secrets and never fabricates backup statuses.
  */
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { timingSafeEqual } from "node:crypto";
 
 import prisma from "../../config/prisma.js";
@@ -86,6 +87,8 @@ router.post("/alertas/despachar-email", authenticateAlertDispatcher, dispatchAle
 router.post("/alertas/testar-email", authenticateAlertDispatcher, testAlertEmail);
 
 router.use(autenticarUsuario, exigirSuperAdmin);
+// Explicit superadmin action: max 2 provider tests per hour per requester.
+router.post("/alertas/testar-email-console", rateLimit({windowMs:3600000,limit:2,standardHeaders:true,legacyHeaders:false}), testAlertEmail);
 
 
 // PointVet 17.7 — alerts are derived from persisted incidents and worker evidence.
