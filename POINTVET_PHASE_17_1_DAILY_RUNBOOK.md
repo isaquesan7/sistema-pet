@@ -23,3 +23,10 @@
 
 ## Confirmação operacional — 12/10/2026
 O responsável confirmou que salvou no painel Cloudflare R2 a regra de lifecycle `pointvet-daily-90d`, prefixo `postgres/daily/`, exclusão após 90 dias. A configuração foi previamente conferida por captura de tela; leitura por API Cloudflare ainda não realizada. Permanecem pendentes concessões futuras e alertas antes da ativação do cron.
+
+## Notificações e heartbeat — configuração em progresso
+- Usuário confirmou que salvou override Railway para projeto Pet King DEV com `Deployment Failed`, `Deployment Crashed`, `Deployment OOM Killed`, via Email & In-App.
+- Novo suporte opcional `BACKUP_HEARTBEAT_URL`: somente após R2 reportar sucesso e HEAD confirmar o tamanho do backup cifrado, worker emite ping HTTPS para Healthchecks.io. A URL deve ser configurada secretamente **somente no Railway**, nunca em GitHub/chat.
+- Configurar check do provedor externo: nome PointVet Backup Diário; cron `0 6 * * *` UTC; tolerância (grace) de **2 horas**, e integração de alerta por e-mail validada. Isso sinaliza falta de sucesso após 05:00 de Salvador, mais de 26 horas desde a execução anterior prevista.
+- Heartbeat mede execução confirmada; **não** substitui teste independente de leitura/restauração nem prova por si só a existência de objeto em data posterior.
+- Monitoramento ainda **não ativado**: usuário deve criar check e cadastrar `BACKUP_HEARTBEAT_URL` no Railway. Só então implantar o commit com suporte a heartbeat e ativar cron.
