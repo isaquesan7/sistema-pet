@@ -71,3 +71,11 @@ aws --endpoint-url "$R2_ENDPOINT" s3api put-object --bucket "$R2_BUCKET" --key "
 aws --endpoint-url "$R2_ENDPOINT" s3api head-object --bucket "$R2_BUCKET" --key "$OBJECT" --query ContentLength --output text > "$TMPDIR/remote-size"
 test "$(cat "$TMPDIR/remote-size")" = "$(wc -c < "$FILE" | tr -d ' ')" || { echo "Encrypted backup upload size mismatch" >&2; exit 1; }
 echo "Encrypted backup uploaded and size verified: $OBJECT"
+# A heartbeat is sent only after the R2 HEAD verification succeeds.
+# Missing heartbeats are detected by a separately hosted monitoring provider.
+if [ -n "${BACKUP_HEARTBEAT_URL:-}" ]; then
+  case "$BACKUP_HEARTBEAT_URL" in https://hc-ping.com/*) ;; *) echo "Invalid monitoring endpoint" >&2; exit 2 ;; esac
+  curl --fail --silent --show-error --max-time 15 --retry 2 --output /dev/null "$BACKUP_HEARTBEAT_URL" ||
+    { echo "Backup uploaded but monitoring acknowledgement failed" >&2; exit 1; }
+  echo "External backup heartbeat acknowledged"
+fi
