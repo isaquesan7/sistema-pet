@@ -86,3 +86,15 @@ export async function dispatchAlertEmails(req,res,next){
   return res.json({success:true,processed:rows.length,sent,failed});
  }catch(error){next(error);}
 }
+
+/** Explicit opt-in smoke test: one real provider request, never consumes queued alerts. */
+export async function testAlertEmail(req,res,next){
+ if(!configured())return res.status(503).json({success:false,message:"Canal incompleto"});
+ try{
+  await sendEmail({eventKey:"manual-test:"+new Date().toISOString(),category:"TEST",title:"Teste da integração de e-mail",createdAt:new Date()});
+  return res.json({success:true,message:"Provedor aceitou o e-mail de teste; entrega na caixa de entrada não confirmada"});
+ }catch(error){
+  console.error("Falha no teste de e-mail PointVet",{message:error.message});
+  return res.status(502).json({success:false,message:"O provedor não aceitou o e-mail de teste"});
+ }
+}
