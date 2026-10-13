@@ -13,7 +13,7 @@ export default function UnifiedPdvPreviewPage(){
  const [search,setSearch]=useState(""),[lines,setLines]=useState([]);
  const eligibility=useQuery({queryKey:["unified-eligibility",selectedOrganization?.id],queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados});
  const enabled=Boolean(eligibility.data?.preferenciaUnificado);
- const clients=useQuery({queryKey:["unified-clients",clientSearch],enabled,queryFn:async()=>(await api.get("/clientes",{params:{busca:clientSearch,limite:30}})).data.clientes||[]});
+ const clients=useQuery({queryKey:["unified-clients",clientSearch],enabled,queryFn:async()=>(await api.get("/clientes",{params:{busca:clientSearch,limite:30}})).data.dados||[]});
  const catalog=useQuery({queryKey:["unified-catalog",search],enabled,queryFn:async()=>(await api.get("/pdv-unificado/catalogo",{params:{busca:search}})).data.dados||[]});
  const preview=useMutation({mutationFn:async()=>(await api.post("/pdv-unificado/simulacao",{clienteId,itens:lines.map(x=>({empresaId:x.empresaId,itemCatalogoId:x.itemCatalogoId,quantidade:x.quantidade,petId:null}))})).data.dados});
  function add(item){setLines(rows=>{const i=rows.findIndex(r=>r.itemCatalogoId===item.id);if(i>=0)return rows.map((r,j)=>j===i?{...r,quantidade:r.quantidade+1}:r);return [...rows,{itemCatalogoId:item.id,empresaId:item.empresaId,nome:item.nome,empresa:item.empresa?.nomeFantasia,quantidade:1,preco:item.precoVenda}];});preview.reset();}
