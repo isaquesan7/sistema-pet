@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "api/src/modules/clientes/client-finance.*"
+      - "api/tests/client-quotes-credit.contract.test.mjs"
       - "api/src/app.js"
       - "admin-web/src/components/ClientQuotesTab.jsx"
       - "admin-web/src/components/ClientCreditTab.jsx"
@@ -45,6 +46,7 @@ jobs:
           node --check api/src/modules/clientes/client-finance.routes.js
           node --check api/src/modules/clientes/client-finance.service.js
           node --check api/src/app.js
+          node --test api/tests/client-quotes-credit.contract.test.mjs
       - name: Build admin
         working-directory: admin-web
         run: |
