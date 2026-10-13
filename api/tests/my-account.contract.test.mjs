@@ -52,3 +52,20 @@ test("access tokens bind to revocable sessions",()=>{
  assert.match(middleware,/if \(payload.sid\)/);
  assert.match(middleware,/sessao\.revokedAt/);
 });
+
+test("email change is two-step, authenticated, expires and revokes sessions",()=>{
+ const flow=source("../src/modules/auth/email-change.controller.js");
+ assert.match(routes,/\/me\/email\/solicitar.*autenticarUsuario,accountMutationLimiter,requestEmailChange/);
+ assert.match(routes,/\/me\/email\/confirmar.*autenticarUsuario,accountMutationLimiter,confirmEmailChange/);
+ assert.match(ctrl,/if\(changingEmail\)return res\.status\(409\)/);
+ assert.match(flow,/bcrypt\.compare/);
+ assert.match(flow,/crypto\.randomInt/);
+ assert.match(flow,/10\*60\*1000/);
+ assert.match(flow,/timingSafeEqual/);
+ assert.match(flow,/tentativas:\{lt:5\}/);
+ assert.match(flow,/sessaoUsuario\.updateMany/);
+ assert.match(flow,/process\.env\.RESEND_API_KEY/);
+ const page=source("../../admin-web/src/pages/MyAccountPage.jsx");
+ assert.match(page,/\/auth\/me\/email\/solicitar/);
+ assert.match(page,/\/auth\/me\/email\/confirmar/);
+});
