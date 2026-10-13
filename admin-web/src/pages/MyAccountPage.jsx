@@ -15,6 +15,7 @@ export default function MyAccountPage(){
  const [message,setMessage]=useState(""),[error,setError]=useState("");
  const [profile,setProfile]=useState({nome:"",nomeExibicao:"",email:"",telefone:"",fotoUrl:"",senhaAtual:""});
  const [password,setPassword]=useState({senhaAtual:"",novaSenha:"",confirmarSenha:""});
+ const [emailChange,setEmailChange]=useState({emailNovo:"",senhaAtual:"",codigo:"",sent:false});
  useEffect(()=>{let alive=true;api.get("/auth/me/perfil").then(({data})=>{if(alive){setProfile({...data.usuario,senhaAtual:""});setLoading(false);}}).catch(e=>{if(alive){setError(getApiErrorMessage(e));setLoading(false);}});return()=>{alive=false;};},[]);
  function update(k,v){setProfile(p=>({...p,[k]:v}));}
  async function saveProfile(event){
@@ -38,6 +39,18 @@ export default function MyAccountPage(){
    setPassword({senhaAtual:"",novaSenha:"",confirmarSenha:""});
    await logout();navigate("/login",{replace:true});
   }catch(e){setError(getApiErrorMessage(e));}finally{setBusy(false);}
+ }
+ async function requestEmail(event){
+  event.preventDefault();setError("");setMessage("");setBusy(true);
+  try{
+   const {data}=await api.post("/auth/me/email/solicitar",{emailNovo:emailChange.emailNovo,senhaAtual:emailChange.senhaAtual});
+   setEmailChange(p=>({...p,senhaAtual:"",sent:true}));setMessage(data.message);
+  }catch(e){setError(getApiErrorMessage(e));}finally{setBusy(false);}
+ }
+ async function confirmEmail(event){
+  event.preventDefault();setError("");setMessage("");setBusy(true);
+  try{await api.post("/auth/me/email/confirmar",{codigo:emailChange.codigo});await logout();navigate("/login",{replace:true});}
+  catch(e){setError(getApiErrorMessage(e));}finally{setBusy(false);}
  }
  async function uploadAvatar(event){
   const file=event.target.files?.[0];
@@ -72,19 +85,26 @@ export default function MyAccountPage(){
    <div className="account-fields">
     <label>Nome completo<input required maxLength={120} value={profile.nome||""} onChange={e=>update("nome",e.target.value)}/></label>
     <label>Nome de exibição<input maxLength={80} value={profile.nomeExibicao||""} onChange={e=>update("nomeExibicao",e.target.value)}/></label>
-    <label>E-mail de acesso<input required type="email" value={profile.email||""} onChange={e=>update("email",e.target.value)}/></label>
+    <label>E-mail de acesso<input required type="email" value={profile.email||""} readOnly title="Altere o e-mail na aba Segurança e senha."/></label>
     <label>Telefone<input maxLength={40} value={profile.telefone||""} onChange={e=>update("telefone",e.target.value)}/></label>
     <label className="account-wide"><Camera size={17}/> Foto de perfil (JPEG, PNG ou WebP, até 250 KB)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadAvatar}/><small>Escolha uma imagem e salve as alterações. Ela aparecerá no menu superior.</small></label>
-    <label className="account-wide">Senha atual (necessária para alterar e-mail)<input type="password" autoComplete="current-password" value={profile.senhaAtual||""} onChange={e=>update("senhaAtual",e.target.value)}/></label>
+
    </div><button className="primary-button" type="submit" disabled={busy}>{busy?"Salvando...":"Salvar alterações"}</button>
-  </form>:tab==="seguranca"?<form className="panel account-form" onSubmit={changePassword}>
+  </form>:tab==="seguranca"?<div className="page-stack"><form className="panel account-form" onSubmit={changePassword}>
    <div><h2>Alterar senha</h2><p>Por segurança, sua senha atual é obrigatória. Após a alteração, todas as sessões serão encerradas.</p></div>
    <div className="account-fields">
     <label className="account-wide">Senha atual<input type="password" required autoComplete="current-password" value={password.senhaAtual} onChange={e=>setPassword(p=>({...p,senhaAtual:e.target.value}))}/></label>
     <label>Nova senha<input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={password.novaSenha} onChange={e=>setPassword(p=>({...p,novaSenha:e.target.value}))}/></label>
     <label>Confirmar nova senha<input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={password.confirmarSenha} onChange={e=>setPassword(p=>({...p,confirmarSenha:e.target.value}))}/></label>
    </div><button className="primary-button" type="submit" disabled={busy}>{busy?"Atualizando...":"Alterar senha"}</button>
-  </form>:<section className="panel account-form">
+  </form><form className="panel account-form" onSubmit={emailChange.sent?confirmEmail:requestEmail}>
+   <div><h2>Alterar e-mail</h2><p>Confirme sua senha atual e depois digite o código recebido no novo endereço. Seu e-mail atual continua funcionando até a confirmação.</p></div>
+   {!emailChange.sent?<div className="account-fields">
+    <label>Novo e-mail<input type="email" required value={emailChange.emailNovo} onChange={e=>setEmailChange(p=>({...p,emailNovo:e.target.value}))}/></label>
+    <label>Senha atual<input type="password" required autoComplete="current-password" value={emailChange.senhaAtual} onChange={e=>setEmailChange(p=>({...p,senhaAtual:e.target.value}))}/></label>
+   </div>:<label>Código de seis dígitos<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={emailChange.codigo} onChange={e=>setEmailChange(p=>({...p,codigo:e.target.value}))}/></label>}
+   <button className="primary-button" type="submit" disabled={busy}>{busy?"Aguarde...":emailChange.sent?"Confirmar novo e-mail":"Enviar código"}</button>
+  </form></div>:<section className="panel account-form">
    <h2>Meus acessos</h2><p>O acesso a estabelecimentos e ao Console Interno é definido por seus vínculos e permissões, não pode ser concedido pelo próprio perfil.</p>
    {(user?.empresas||[]).map(c=><div className="account-company" key={c.id}><strong>{c.nomeFantasia}</strong><span>{c.cargo?.nome||"Usuário"}</span></div>)}
    {user?.superAdmin&&<p><ShieldCheck size={15}/> Acesso ao Console Interno do PointVet</p>}
