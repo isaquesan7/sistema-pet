@@ -197,3 +197,19 @@ export async function atualizarCliente(organizacaoId, id, dados) {
     include: { pets: { where: { ativo: true } } },
   });
 }
+
+/**
+ * Explicit hard deletion for empty records only. Prisma referential constraints protect
+ * transactional and clinical records, and the tenant scope prevents cross-organization access.
+ */
+export async function excluirCliente(organizacaoId,id){
+ const cliente=await prisma.cliente.findFirst({where:{id,organizacaoId},select:{id:true,pets:{select:{id:true},take:1}}});
+ if(!cliente)throw new Error("CLIENTE_NAO_ENCONTRADO");
+ if(cliente.pets.length)throw new Error("CLIENTE_COM_VINCULOS");
+ try{
+   return await prisma.cliente.delete({where:{id,organizacaoId}});
+ }catch(error){
+   if(error.code==="P2003"||error.code==="P2014")throw new Error("CLIENTE_COM_VINCULOS");
+   throw error;
+ }
+}
