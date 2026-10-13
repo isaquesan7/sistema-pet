@@ -184,6 +184,6 @@ export async function relacionados(req,res,next){
   const dados=await clientesService.detalhesRelacionados(req.organizacao.id,req.params.id);
   // Financial figures must not be exposed to users without financial access.
   const financeiro=req.permissoes?.includes("financeiro.visualizar");
-  return res.json({success:true,dados:{vendas:financeiro?dados.vendas:[],titulos:financeiro?dados.titulos:[],agendamentos:dados.agendamentos},permissoes:{financeiro}});
+  return res.json({success:true,dados:{vendas:financeiro?dados.vendas:[],titulos:financeiro?dados.titulos:[],agendamentos:req.permissoes?.includes("agenda.visualizar")?dados.agendamentos:[],consultas:req.permissoes?.includes("consultorio.acessar")?dados.consultas:[]},permissoes:{financeiro}});
  }catch(error){responderErro(error,res,next);}
 }
