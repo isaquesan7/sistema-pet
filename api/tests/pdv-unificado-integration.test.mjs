@@ -4,7 +4,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
-import {salvarRascunho,listarRascunhos,simularComanda} from "../src/modules/pdv/pdv-unificado.service.js";
+import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -33,6 +33,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const draft=await salvarRascunho(args);
  assert.equal(draft.total,"320.00");
  assert.equal(draft.versao,1);
+ const review=await conferirPreFechamento({...args,id:draft.id,versao:1});
+ assert.equal(review.total,"320.00");
+ assert.equal(review.empresas.length,2);
+ assert.equal(review.checkoutHabilitado,false);
+ assert.equal(review.pendencias.length,0);
+ await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"75.00"}});
+ const changed=await conferirPreFechamento({...args,id:draft.id,versao:1});
+ assert(changed.pendencias.some(i=>i.codigo==="PRECO_ALTERADO"));
+ await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"70.00"}});
  const entries=await listarRascunhos(args);
  assert(entries.some(x=>x.id===draft.id));
  assert.equal(await prisma.venda.count(),0,"Draft must not create sales");
@@ -40,6 +49,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const updated=await salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:2}]},{id:draft.id,versao:1});
  assert.equal(updated.total,"360.00");
  assert.equal(updated.versao,2);
+ await assert.rejects(()=>conferirPreFechamento({...args,id:draft.id,versao:1}),/RASCUNHO_DESATUALIZADO/);
  const beforeFailure=await prisma.comandaItem.findMany({where:{comandaId:draft.id},select:{id:true,itemCatalogoId:true}});
  await assert.rejects(()=>salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it2,quantidade:1}]},{id:draft.id,versao:2}),/ITEM_INVALIDO/);
  const afterFailure=await prisma.comandaItem.findMany({where:{comandaId:draft.id},select:{id:true,itemCatalogoId:true}});
