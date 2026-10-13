@@ -1,0 +1,29 @@
+name: PointVet Quotes Credit Foundation
+on:
+  pull_request:
+    paths:
+      - "api/prisma/schema.prisma"
+      - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
+      - "POINTVET_QUOTES_CREDIT_FOUNDATION.md"
+      - ".github/workflows/pointvet-quotes-credit-foundation.yml"
+  workflow_dispatch:
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Install API dependencies
+        working-directory: api
+        run: npm ci
+      - name: Prisma schema validation
+        working-directory: api
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+        run: npx prisma validate
+      - name: Verify ledger and proposal policies
+        run: |
+          grep -q 'model OrcamentoCliente' api/prisma/schema.prisma
+          grep -q 'model CreditoClienteMovimento' api/prisma/schema.prisma
+          grep -q 'CHECK ("valor" > 0)' api/prisma/migrations/20261013213000_client_quotes_credit_foundation/migration.sql
