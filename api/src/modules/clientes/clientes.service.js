@@ -216,10 +216,11 @@ export async function excluirCliente(organizacaoId,id){
 export async function detalhesRelacionados(organizacaoId,id){
  const cliente=await prisma.cliente.findFirst({where:{id,organizacaoId},select:{id:true}});
  if(!cliente)throw new Error("CLIENTE_NAO_ENCONTRADO");
- const [vendas,titulos,agendamentos]=await Promise.all([
+ const [vendas,titulos,agendamentos,consultas]=await Promise.all([
   prisma.venda.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,numero:true,status:true,createdAt:true,finalizadaEm:true,valorTotal:true,pagamentos:{select:{valor:true,status:true,forma:true,pagoEm:true}},itens:{select:{descricao:true,quantidade:true,petId:true,valorTotal:true}}},orderBy:{createdAt:"desc"},take:50}),
   prisma.tituloFinanceiro.findMany({where:{clienteId:id,organizacaoId},select:{id:true,descricao:true,status:true,tipo:true,valorOriginal:true,valorPago:true,vencimentoEm:true,createdAt:true},orderBy:{createdAt:"desc"},take:50}),
-  prisma.agendamentoBanhoTosa.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,status:true,inicio:true,fim:true,pet:{select:{nome:true}}},orderBy:{inicio:"desc"},take:50}),
+  prisma.agendamentoBanhoTosa.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,status:true,inicio:true,fim:true,pet:{select:{id:true,nome:true}}},orderBy:{inicio:"desc"},take:50}),
+  prisma.atendimentoClinico.findMany({where:{clienteId:id,empresa:{organizacaoId},agendadoPara:{not:null}},select:{id:true,status:true,agendadoPara:true,agendamentoFim:true,pet:{select:{id:true,nome:true}}},orderBy:{agendadoPara:"desc"},take:50}),
  ]);
- return {vendas:vendas.map(v=>({...v,valorTotal:Number(v.valorTotal),valorPago:v.pagamentos.filter(p=>p.status==="APROVADO").reduce((sum,p)=>sum+Number(p.valor),0)})),titulos:titulos.map(t=>({...t,valorOriginal:Number(t.valorOriginal),valorPago:Number(t.valorPago)})),agendamentos};
+ return {vendas:vendas.map(v=>({...v,valorTotal:Number(v.valorTotal),valorPago:v.pagamentos.filter(p=>p.status==="APROVADO").reduce((sum,p)=>sum+Number(p.valor),0)})),titulos:titulos.map(t=>({...t,valorOriginal:Number(t.valorOriginal),valorPago:Number(t.valorPago)})),agendamentos,consultas};
 }
