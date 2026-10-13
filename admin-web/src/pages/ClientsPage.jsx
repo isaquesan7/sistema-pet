@@ -55,7 +55,7 @@ function normalizeForm(client) {
 }
 
 export default function ClientsPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission,selectedOrganization } = useAuth();
   const navigate=useNavigate();
   const location=useLocation();
   const [page,setPage]=useState(1);
@@ -99,7 +99,7 @@ export default function ClientsPage() {
   const clients = query.data?.dados || [];
   const canCreate = hasPermission("clientes.criar");
   const canEdit = hasPermission("clientes.editar");
-  const canDelete = hasPermission("clientes.editar");
+  const canDelete = hasPermission("clientes.editar") && ["PROPRIETARIO","ADMINISTRADOR"].includes(selectedOrganization?.papel);
 
   useEffect(()=>{
     const target=location.state?.editClientId;
