@@ -40,6 +40,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const updated=await salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:2}]},{id:draft.id,versao:1});
  assert.equal(updated.total,"360.00");
  assert.equal(updated.versao,2);
+ const beforeFailure=await prisma.comandaItem.findMany({where:{comandaId:draft.id},select:{id:true,itemCatalogoId:true}});
+ await assert.rejects(()=>salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it2,quantidade:1}]},{id:draft.id,versao:2}),/ITEM_INVALIDO/);
+ const afterFailure=await prisma.comandaItem.findMany({where:{comandaId:draft.id},select:{id:true,itemCatalogoId:true}});
+ assert.deepEqual(afterFailure,beforeFailure,"Failed draft update must preserve original item rows");
+ const revisionAfterFailure=await prisma.comanda.findUnique({where:{id:draft.id},select:{versaoRascunho:true}});
+ assert.equal(revisionAfterFailure.versaoRascunho,2,"Failed update must preserve revision");
  await assert.rejects(()=>salvarRascunho(args,{id:draft.id,versao:1}),/RASCUNHO_DESATUALIZADO/);
  // Revocation invalidates any stale authorization to a participating company.
  await prisma.usuarioEmpresa.update({where:{usuarioId_empresaId:{usuarioId:ids.user,empresaId:ids.co2}},data:{ativo:false}});
