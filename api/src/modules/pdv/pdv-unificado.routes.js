@@ -1,5 +1,6 @@
 /** Phase 20.1: read-only eligibility; no payment, sale or stock mutation. */
 import {Router} from "express";
+import {z} from "zod";
 import prisma from "../../config/prisma.js";
 import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
@@ -51,7 +52,7 @@ r.post("/rascunhos",async(req,res,next)=>{try{
 }catch(e){erroRascunho(e,res,next);}});
 r.put("/rascunhos/:id",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
- const parsed=previewSchema.extend({versao:previewSchema.shape.itens.element.shape.quantidade.int().positive()}).safeParse(req.body);
+ const parsed=previewSchema.extend({versao:z.number().int().positive()}).safeParse(req.body);
  if(!parsed.success)return res.status(400).json({success:false,message:"Rascunho ou revisão inválida."});
  const {versao,...dados}=parsed.data;
  return res.json({success:true,dados:await salvarRascunho({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,...dados},{id:req.params.id,versao})});
