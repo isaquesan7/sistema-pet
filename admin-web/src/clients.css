@@ -62,3 +62,21 @@
 .pv-pet-grooming-sections{display:grid;gap:16px}
 @media(max-width:800px){.pv-pet-identity-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.pv-client-filters{grid-template-columns:1fr}.pv-pet-card-actions{display:grid;grid-template-columns:1fr 1fr}.pv-pet-card-actions button{justify-content:center}}
+
+/* Financial filters: identical baseline, 3 columns where space allows. */
+.pv-client-financial .pv-client-filters,.pv-client-appointments .pv-client-filters,.pv-client-quote-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:8px 0 20px;align-items:end}
+.pv-client-financial .pv-client-filters label,.pv-client-appointments .pv-client-filters label,.pv-client-quote-filters label{min-width:0;display:grid;gap:8px;font-size:14px;line-height:1.4;font-weight:750}
+.pv-client-financial .pv-client-filters .form-control,.pv-client-appointments .pv-client-filters .form-control,.pv-client-quote-filters .form-control{min-height:45px;width:100%;font-size:15px}
+.pv-client-financial{display:grid;gap:18px}
+.pv-client-finance-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.pv-client-finance-cards>div{min-width:0;display:grid;gap:9px;padding:17px;border:1px solid #dee4ed;border-radius:13px;background:#fff}
+.pv-client-finance-cards>div:nth-child(1){border-left:4px solid #6d60d5}
+.pv-client-finance-cards>div:nth-child(2){border-left:4px solid #347ed6}
+.pv-client-finance-cards>div:nth-child(3){border-left:4px solid #10a980}
+.pv-client-finance-cards>div:nth-child(4){border-left:4px solid #d9525f}
+.pv-client-finance-cards span{font-size:14px;font-weight:650;color:#536178}
+.pv-client-finance-cards strong{font-size:clamp(19px,1.9vw,25px);line-height:1.2;color:#26364f;overflow-wrap:anywhere}
+.pv-detail-section-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pv-detail-section-actions h3{margin:0;font-size:19px}
+@media(max-width:900px){.pv-client-finance-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:750px){.pv-client-financial .pv-client-filters,.pv-client-appointments .pv-client-filters,.pv-client-quote-filters{grid-template-columns:1fr}.pv-client-finance-cards{grid-template-columns:1fr}}
