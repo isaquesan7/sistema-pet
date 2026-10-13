@@ -168,3 +168,13 @@ export async function atualizarRaca(req, res, next) {
     responderErro(error, res, next);
   }
 }
+
+export async function excluir(req,res,next){
+ try{
+  await petsService.excluirPet(req.organizacao.id,req.params.id);
+  return res.json({success:true,message:"Pet excluído."});
+ }catch(error){
+  if(error.message==="PET_COM_HISTORICO")return res.status(409).json({success:false,message:"Pet com histórico clínico, banho e tosa, financeiro ou pesagens. Exclusão definitiva bloqueada para preservar registros."});
+  responderErro(error,res,next);
+ }
+}
