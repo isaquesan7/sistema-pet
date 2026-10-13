@@ -27,3 +27,10 @@
 
 ## Estado
 **Homologação parcial**: contratos automatizados disponíveis. E2E isolado, login real, fluxo clínico e checagem pós-deploy exigem evidências específicas antes de declarar a Fase 19.3 completa.
+
+## Evidências verificadas em 13/10/2026
+- CI do PR #26: `PointVet 19.3 onboarding operational contracts` = success; `PointVet 16.1 validation` = success.
+- Railway: projeto `Pet King DEV` possui apenas ambiente listado como `production` (ID `22eed117-8061-4178-b098-6342cafac6fb`). Existem serviços `Postgres`, `petrise-api`, `petrise-admin`, `petrise-portal` e workers de backup, incidentes e e-mails.
+- Últimos deployments listados da API, painel e portal: `SUCCESS` para o commit `4521bff` (Fase 19.2). O PR #26 não foi implantado.
+- **Bloqueio para testes com gravação:** não foi identificado banco de homologação separado. Não executar cadastros sintéticos, migrations, seeds nem testes destrutivos no ambiente atual.
+- Próxima ação segura: provisionar e verificar PostgreSQL descartável com credenciais próprias e apontamento exclusivo de serviços de homologação; só então executar os passos 1–11. Não compartilhar `DATABASE_URL` entre ambientes.
