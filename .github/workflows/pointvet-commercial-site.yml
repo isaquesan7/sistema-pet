@@ -1,0 +1,26 @@
+name: PointVet commercial site
+on:
+  pull_request:
+    paths:
+      - "landing-web/**"
+      - "admin-web/src/pages/OnboardingPage.jsx"
+      - ".github/workflows/pointvet-commercial-site.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate static site scripts
+        run: |
+          node --check landing-web/main.js
+          node --check landing-web/server.mjs
+          node --check landing-web/config.js
+      - name: Verify HTML entry, API and checkout links
+        run: |
+          node --input-type=module -e "import{readFileSync as read}from'node:fs';import assert from'node:assert/strict';const h=read('landing-web/index.html','utf8'),m=read('landing-web/main.js','utf8'),o=read('admin-web/src/pages/OnboardingPage.jsx','utf8');for(const s of ['id=\"planos\"','id=\"recursos\"','name=\"description\"','data-start-link'])assert.ok(h.includes(s),s);for(const s of ['/saas/publico/planos','/comecar','/login'])assert.ok(m.includes(s),s);assert.ok(o.includes('searchParams.get(\"plano\")'))"
