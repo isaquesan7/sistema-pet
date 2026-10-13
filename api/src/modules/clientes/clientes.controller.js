@@ -174,3 +174,12 @@ export async function excluir(req,res,next){
   responderErro(error,res,next);
  }
 }
+
+export async function relacionados(req,res,next){
+ try{
+  const dados=await clientesService.detalhesRelacionados(req.organizacao.id,req.params.id);
+  // Financial figures must not be exposed to users without financial access.
+  const financeiro=req.permissoes?.includes("financeiro.visualizar");
+  return res.json({success:true,dados:{vendas:financeiro?dados.vendas:[],titulos:financeiro?dados.titulos:[],agendamentos:dados.agendamentos},permissoes:{financeiro}});
+ }catch(error){responderErro(error,res,next);}
+}
