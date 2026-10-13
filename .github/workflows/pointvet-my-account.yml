@@ -5,6 +5,7 @@ on:
       - "api/src/modules/auth/**"
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013050000_user_profile/**"
+      - "api/prisma/migrations/20261013060000_email_change_verification/**"
       - "api/tests/my-account.contract.test.mjs"
       - "admin-web/src/**"
       - ".github/workflows/pointvet-my-account.yml"
@@ -23,3 +24,36 @@ jobs:
         run: |
           npm ci
           npm run build
+
+  isolated-sql-migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci_only
+          POSTGRES_USER: pointvet_ci
+          POSTGRES_DB: pointvet_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pointvet_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: ci_only
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: pointvet_ci
+      PGDATABASE: pointvet_ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install isolated database client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Apply user profile SQL on disposable database
+        run: |
+          psql -v ON_ERROR_STOP=1 -c 'CREATE TABLE "usuarios" ("id" TEXT PRIMARY KEY);'
+          psql -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261013050000_user_profile/migration.sql
+          psql -v ON_ERROR_STOP=1 -f api/prisma/migrations/20261013060000_email_change_verification/migration.sql
+          psql -v ON_ERROR_STOP=1 -At -c "SELECT column_name FROM information_schema.columns WHERE table_name='usuarios' AND column_name IN ('nomeExibicao','fotoUrl')" | grep -q nomeExibicao
+          psql -v ON_ERROR_STOP=1 -At -c "SELECT to_regclass('alteracoes_email_pendentes') IS NOT NULL" | grep -q t
