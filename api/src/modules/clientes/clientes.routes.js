@@ -12,6 +12,7 @@ import {
   buscarPorId,
   atualizar,
   excluir,
+  relacionados,
 } from "./clientes.controller.js";
 
 const router = Router();
@@ -26,6 +27,8 @@ router.get(
   exigirPermissao("clientes.visualizar"),
   listar
 );
+
+router.get("/:id/relacionados",exigirPermissao("clientes.visualizar"),relacionados);
 
 router.get(
   "/:id",
