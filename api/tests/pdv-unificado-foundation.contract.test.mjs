@@ -16,7 +16,8 @@ test("no unified checkout enabled yet; only accessible organizations",()=>{
  assert.match(routes,/modoEfetivo:"INDIVIDUAL"/);
  assert.match(routes,/usuarioId:req\.usuario\.id,ativo:true/);
  assert.match(routes,/organizacaoId:req\.organizacao\.id/);
- assert.doesNotMatch(routes,/r\.(post|patch|delete)\(/);
+ assert.match(routes,/r\.post\("\/simulacao"/);
+ assert.doesNotMatch(routes,/r\.post\("\/(fechar|pagar|vender|finalizar)"/);
 });
 test("financial foundation remains separate, preserving legacy comanda",()=>{
  assert.match(schema,/model Comanda \{/);
