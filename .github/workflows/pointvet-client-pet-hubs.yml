@@ -11,6 +11,7 @@ on:
       - "api/src/modules/pets/**"
       - "api/src/modules/clientes/**"
       - "api/src/modules/banho-tosa/**"
+      - "api/tests/client-pet-hubs.contract.test.mjs"
       - ".github/workflows/pointvet-client-pet-hubs.yml"
   workflow_dispatch:
 jobs:
@@ -30,6 +31,7 @@ jobs:
           node --check api/src/modules/banho-tosa/banho-tosa.service.js
           node --check api/src/modules/banho-tosa/banho-tosa.controller.js
           node --check api/src/modules/banho-tosa/banho-tosa.routes.js
+      - run: node --test api/tests/client-pet-hubs.contract.test.mjs
       - name: Build frontend
         working-directory: admin-web
         run: |
