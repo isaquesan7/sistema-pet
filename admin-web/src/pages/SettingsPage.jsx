@@ -66,7 +66,7 @@ export default function SettingsPage() {
       {activeTab === "especies" && <SpeciesSettings canManage={canManageAux} />}
       {activeTab === "racas" && <BreedsSettings canManage={canManageAux} />}
       {activeTab === "categorias" && <CategoriesSettings canManage={canManageCatalog} />}
-      {activeTab === "modulos" && <ModulesSettings canManage={canManageOrg} organizationId={selectedOrganization?.id} onModulesChanged={updateOrganizationModules} />}
+      {activeTab === "modulos" && <><ModulesSettings canManage={canManageOrg} organizationId={selectedOrganization?.id} onModulesChanged={updateOrganizationModules} /><UnifiedPdvPreference canManage={canManageOrg} organization={organizationQuery.data}/></>}
     </div>
   );
 }
@@ -220,3 +220,20 @@ function SettingsRow({ title, meta, onEdit }) {
 }
 
 function MiniEmpty({ text }) { return <div className="mini-empty">{text}</div>; }
+
+/** Organization preference only. The legacy PDV remains active while 20.x is under development. */
+function UnifiedPdvPreference({canManage,organization}){
+ const qc=useQueryClient();
+ const [error,setError]=useState("");
+ const mutation=useMutation({
+  mutationFn:async enabled=>(await api.patch("/organizacao/configuracao",{pdvUnificadoHabilitado:enabled})).data,
+  onSuccess:()=>{setError("");qc.invalidateQueries({queryKey:["organization"]});},
+  onError:e=>setError(getApiErrorMessage(e))
+ });
+ const preferred=Boolean(organization?.configuracao?.pdvUnificadoHabilitado);
+ return <section className="panel settings-section"><div className="panel__heading"><div><span>Fase 20.1 · PDV</span><h2>Preferência de PDV por organização</h2><p>Escolha antecipadamente o modo desejado. Durante a homologação, todos os recebimentos permanecem no PDV tradicional.</p></div></div>
+ {error&&<div className="alert alert--error" role="alert">{error}</div>}
+ <label className="module-toggle"><div><strong>Preferir PDV Unificado Multiempresa</strong><span>Opcional: pode permanecer desativado para organizações que preferem apenas PDVs individuais.</span></div><input type="checkbox" checked={preferred} disabled={!canManage||mutation.isPending||!organization} onChange={e=>mutation.mutate(e.target.checked)} aria-label="Preferir PDV Unificado Multiempresa"/></label>
+ <p style={{fontSize:14,lineHeight:1.6,marginTop:12}}>O modo unificado ainda não processa vendas. A preferência não altera caixa, estoque, notas fiscais nem o modo de fechamento atual.</p>
+ </section>;
+}
