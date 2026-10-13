@@ -1142,3 +1142,16 @@ tbody tr:hover { background: #fcfcfd; }
 .account-company{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid #e7eaf1;border-radius:10px}
 .account-company span{font-size:12px;color:#77849a}
 @media(max-width:760px){.account-switcher__identity{display:none}.account-switcher__trigger{padding:6px}.account-fields{grid-template-columns:1fr}.account-hero{align-items:flex-start}.account-photo{width:72px;height:72px}}
+
+/* Hide decorative scrollbars across management and console while retaining
+   touch, wheel, keyboard and pointer scrolling. Do not set overflow:hidden. */
+html,body,#root,.sidebar,.sidebar__nav,.app-main,.page-container,.platform-sidebar,.platform-main,.modal-card__body,.pv-drawer .modal-card__body,.pv-detail-tabs{
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+html::-webkit-scrollbar,body::-webkit-scrollbar,#root::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,.sidebar__nav::-webkit-scrollbar,
+.app-main::-webkit-scrollbar,.page-container::-webkit-scrollbar,
+.platform-sidebar::-webkit-scrollbar,.platform-main::-webkit-scrollbar,
+.modal-card__body::-webkit-scrollbar,.pv-drawer .modal-card__body::-webkit-scrollbar,
+.pv-detail-tabs::-webkit-scrollbar{width:0;height:0;display:none}
