@@ -217,7 +217,7 @@ export async function detalhesRelacionados(organizacaoId,id){
  const cliente=await prisma.cliente.findFirst({where:{id,organizacaoId},select:{id:true}});
  if(!cliente)throw new Error("CLIENTE_NAO_ENCONTRADO");
  const [vendas,titulos,agendamentos]=await Promise.all([
-  prisma.venda.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,numero:true,status:true,createdAt:true,finalizadaEm:true,valorTotal:true,pagamentos:{select:{valor:true,status:true,pagoEm:true}}},orderBy:{createdAt:"desc"},take:50}),
+  prisma.venda.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,numero:true,status:true,createdAt:true,finalizadaEm:true,valorTotal:true,pagamentos:{select:{valor:true,status:true,forma:true,pagoEm:true}},itens:{select:{descricao:true,quantidade:true,petId:true,valorTotal:true}}},orderBy:{createdAt:"desc"},take:50}),
   prisma.tituloFinanceiro.findMany({where:{clienteId:id,organizacaoId},select:{id:true,descricao:true,status:true,tipo:true,valorOriginal:true,valorPago:true,vencimentoEm:true,createdAt:true},orderBy:{createdAt:"desc"},take:50}),
   prisma.agendamentoBanhoTosa.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,status:true,inicio:true,fim:true,pet:{select:{nome:true}}},orderBy:{inicio:"desc"},take:50}),
  ]);
