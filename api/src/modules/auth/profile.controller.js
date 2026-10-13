@@ -6,12 +6,22 @@ import bcrypt from "bcryptjs";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
 
+const imageDataSchema=z.string().max(350000).refine(value=>{
+  const match=/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if(!match)return false;
+  const body=Buffer.from(match[2],"base64");
+  if(!body.length||body.length>250*1024)return false;
+  const jpeg=body.subarray(0,3).equals(Buffer.from([255,216,255]));
+  const png=body.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  const webp=body.length>12&&body.toString("ascii",0,4)==="RIFF"&&body.toString("ascii",8,12)==="WEBP";
+  return match[1]==="jpeg"?jpeg:match[1]==="png"?png:webp;
+},"Foto inválida ou maior que 250 KB.");
 const schema=z.object({
   nome:z.string().trim().min(2).max(120),
   nomeExibicao:z.string().trim().max(80).nullable().optional(),
   email:z.email().max(254).transform(v=>v.trim().toLowerCase()),
   telefone:z.string().trim().max(40).nullable().optional(),
-  fotoUrl:z.union([z.string().url().startsWith("https://").max(2000),z.literal("")]).nullable().optional(),
+  fotoUrl:z.union([imageDataSchema,z.string().url().startsWith("https://").max(2000),z.literal("")]).nullable().optional(),
   senhaAtual:z.string().optional()
 }).strict();
 const passwordSchema=z.object({
@@ -41,10 +51,14 @@ export async function editMyProfile(req,res,next){
     }
     const duplicate=changingEmail?await prisma.usuario.findUnique({where:{email:data.email},select:{id:true}}):null;
     if(duplicate)return res.status(409).json({success:false,message:"E-mail já está em uso."});
-    const updated=await prisma.usuario.update({where:{id:current.id},data:{
-      nome:data.nome,nomeExibicao:data.nomeExibicao||null,email:data.email,
-      telefone:data.telefone||null,fotoUrl:data.fotoUrl||null
-    }});
+    const updated=await prisma.$transaction(async tx=>{
+      const user=await tx.usuario.update({where:{id:current.id},data:{
+        nome:data.nome,nomeExibicao:data.nomeExibicao||null,email:data.email,
+        telefone:data.telefone||null,fotoUrl:data.fotoUrl||null
+      }});
+      if(changingEmail)await tx.sessaoUsuario.updateMany({where:{usuarioId:current.id,revokedAt:null},data:{revokedAt:new Date()}});
+      return user;
+    });
     return res.json({success:true,usuario:summary(updated),reloginRequired:changingEmail});
   }catch(e){if(e.code==="P2002")return res.status(409).json({success:false,message:"E-mail já está em uso."});next(e);}
 }
