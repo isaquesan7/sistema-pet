@@ -1,0 +1,33 @@
+name: PointVet Client Pet Hubs
+on:
+  pull_request:
+    paths:
+      - "admin-web/src/pages/ClientDetailPage.jsx"
+      - "admin-web/src/pages/PetServiceHubPage.jsx"
+      - "admin-web/src/components/ClientEditDrawer.jsx"
+      - "admin-web/src/pages/ClientsPage.jsx"
+      - "admin-web/src/clients.css"
+      - "admin-web/src/App.jsx"
+      - "api/src/modules/pets/**"
+      - "api/src/modules/clientes/**"
+      - ".github/workflows/pointvet-client-pet-hubs.yml"
+  workflow_dispatch:
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Check API syntax
+        run: |
+          node --check api/src/modules/pets/pets.service.js
+          node --check api/src/modules/pets/pets.controller.js
+          node --check api/src/modules/pets/pets.routes.js
+          node --check api/src/modules/clientes/clientes.service.js
+          node --check api/src/modules/clientes/clientes.controller.js
+      - name: Build frontend
+        working-directory: admin-web
+        run: |
+          npm ci
+          npm run build
