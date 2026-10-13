@@ -36,3 +36,10 @@ test("optional avatar and display name fields exist",()=>{
  assert.match(profile,/Senha atual/);
  assert.match(layout,/Meu Usuário/);
 });
+
+test("email changes revoke sessions, and avatar upload checks file signatures",()=>{
+ assert.match(ctrl,/if\(changingEmail\)await tx\.sessaoUsuario\.updateMany/);
+ assert.match(ctrl,/imageDataSchema/);
+ assert.match(ctrl,/body\.subarray\(0,3\)/);
+ assert.match(ctrl,/250\*1024/);
+});
