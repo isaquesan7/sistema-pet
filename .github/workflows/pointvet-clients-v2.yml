@@ -1,0 +1,31 @@
+name: PointVet Clientes V2
+on:
+  pull_request:
+    paths:
+      - "admin-web/src/clients.css"
+      - "admin-web/src/pages/ClientsPage.jsx"
+      - "admin-web/src/pages/ClientDetailPage.jsx"
+      - "admin-web/src/components/Modal.jsx"
+      - "admin-web/src/App.jsx"
+      - "api/src/modules/clientes/**"
+      - "api/tests/clients-v2.contract.test.mjs"
+      - ".github/workflows/pointvet-clients-v2.yml"
+  workflow_dispatch:
+jobs:
+  clients:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Backend syntax validation
+        run: |
+          node --check api/src/modules/clientes/clientes.service.js
+          node --check api/src/modules/clientes/clientes.controller.js
+          node --check api/src/modules/clientes/clientes.routes.js
+      - run: node --test api/tests/clients-v2.contract.test.mjs
+      - name: Build admin
+        working-directory: admin-web
+        run: |
+          npm ci
+          npm run build

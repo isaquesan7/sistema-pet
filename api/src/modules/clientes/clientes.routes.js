@@ -11,6 +11,8 @@ import {
   listar,
   buscarPorId,
   atualizar,
+  excluir,
+  relacionados,
 } from "./clientes.controller.js";
 
 const router = Router();
@@ -25,6 +27,8 @@ router.get(
   exigirPermissao("clientes.visualizar"),
   listar
 );
+
+router.get("/:id/relacionados",exigirPermissao("clientes.visualizar"),relacionados);
 
 router.get(
   "/:id",
@@ -43,5 +47,10 @@ router.patch(
   exigirPermissao("clientes.editar"),
   atualizar
 );
+
+router.delete("/:id",exigirPermissao("clientes.editar"),(req,res,next)=>{
+  if(!["PROPRIETARIO","ADMINISTRADOR"].includes(req.vinculoOrganizacao?.papel))return res.status(403).json({success:false,message:"Somente proprietário ou administrador pode excluir clientes."});
+  next();
+},excluir);
 
 export default router;

@@ -197,3 +197,31 @@ export async function atualizarCliente(organizacaoId, id, dados) {
     include: { pets: { where: { ativo: true } } },
   });
 }
+
+/**
+ * Explicit hard deletion for empty records only. Prisma referential constraints protect
+ * transactional and clinical records, and the tenant scope prevents cross-organization access.
+ */
+export async function excluirCliente(organizacaoId,id){
+ const cliente=await prisma.cliente.findFirst({where:{id,organizacaoId},select:{id:true,pets:{select:{id:true},take:1}}});
+ if(!cliente)throw new Error("CLIENTE_NAO_ENCONTRADO");
+ if(cliente.pets.length)throw new Error("CLIENTE_COM_VINCULOS");
+ try{
+   return await prisma.cliente.delete({where:{id,organizacaoId}});
+ }catch(error){
+   if(error.code==="P2003"||error.code==="P2014")throw new Error("CLIENTE_COM_VINCULOS");
+   throw error;
+ }
+}
+
+/** Read-only tenant-scoped recent financial and appointment activity for a client. */
+export async function detalhesRelacionados(organizacaoId,id){
+ const cliente=await prisma.cliente.findFirst({where:{id,organizacaoId},select:{id:true}});
+ if(!cliente)throw new Error("CLIENTE_NAO_ENCONTRADO");
+ const [vendas,titulos,agendamentos]=await Promise.all([
+  prisma.venda.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,numero:true,status:true,createdAt:true,finalizadaEm:true,valorTotal:true,pagamentos:{select:{valor:true,status:true,pagoEm:true}}},orderBy:{createdAt:"desc"},take:50}),
+  prisma.tituloFinanceiro.findMany({where:{clienteId:id,organizacaoId},select:{id:true,descricao:true,status:true,tipo:true,valorOriginal:true,valorPago:true,vencimentoEm:true,createdAt:true},orderBy:{createdAt:"desc"},take:50}),
+  prisma.agendamentoBanhoTosa.findMany({where:{clienteId:id,empresa:{organizacaoId}},select:{id:true,status:true,inicio:true,fim:true,pet:{select:{nome:true}}},orderBy:{inicio:"desc"},take:50}),
+ ]);
+ return {vendas:vendas.map(v=>({...v,valorTotal:Number(v.valorTotal),valorPago:v.pagamentos.filter(p=>p.status==="APROVADO").reduce((sum,p)=>sum+Number(p.valor),0)})),titulos:titulos.map(t=>({...t,valorOriginal:Number(t.valorOriginal),valorPago:Number(t.valorPago)})),agendamentos};
+}
