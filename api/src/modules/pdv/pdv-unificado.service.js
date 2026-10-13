@@ -9,7 +9,7 @@ const cents=v=>Math.round(Number(v)*100);
 const serialize=amount=>(amount/100).toFixed(2);
 async function empresasAutorizadas({organizacaoId,usuarioId,empresaId},db=prisma){
  const vinculos=await db.usuarioEmpresa.findMany({where:{usuarioId,ativo:true,empresa:{organizacaoId,ativo:true}},include:{empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},cargo:{include:{permissoes:{include:{permissao:true}}}}}});
- return vinculos.filter(v=>v.empresaId===empresaId||v.cargo?.permissoes?.some(p=>p.permissao.codigo==="pdv.acessar")).map(v=>v.empresa);
+ return vinculos.filter(v=>v.cargo?.ativo&&v.cargo?.permissoes?.some(p=>p.permissao.codigo==="pdv.acessar") || v.empresaId===empresaId).map(v=>v.empresa);
 }
 export async function buscarCatalogo({organizacaoId,usuarioId,empresaId,busca=""}){
  const companies=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
