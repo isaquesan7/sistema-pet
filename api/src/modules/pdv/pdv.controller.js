@@ -46,6 +46,7 @@ function mapError(error, res, next) {
     VENDA_POSSUI_DOCUMENTO_FISCAL: [409, "Esta venda possui documento fiscal autorizado. Cancele o documento no módulo Fiscal antes de cancelar a venda."],
     COMANDA_NAO_ENCONTRADA: [404, "Comanda não encontrada."],
     COMANDA_FECHADA: [409, "Esta comanda está fechada ou cancelada."],
+    COMANDA_RASCUNHO_UNIFICADO: [409, "Rascunho multiempresa: o fechamento só estará disponível após homologação."],
     ITEM_COMANDA_NAO_ENCONTRADO: [404, "Item ativo da comanda não encontrado para esta empresa."],
     COMANDA_SEM_ITENS_EMPRESA: [409, "A comanda não possui itens pendentes do CNPJ selecionado."],
     PACOTE_NAO_ENCONTRADO_PDV: [404, "Pacote pendente de recebimento não encontrado neste CNPJ."],
