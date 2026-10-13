@@ -1,3 +1,4 @@
+import { POINTVET_VERSION } from "../lib/version.js";
 import { useMemo, useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -176,7 +177,7 @@ export default function AppLayout() {
             </div>
           </div>
 
-          <div className="pv-shell-meta"><strong>v16.3.0</strong><time dateTime={clock.toISOString()}>{clock.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</time></div>
+          <div className="pv-shell-meta"><strong>{POINTVET_VERSION}</strong><time dateTime={clock.toISOString()}>{clock.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</time></div>
           <label className="company-switcher">
             <span>Empresa atual</span>
             <div className="company-switcher__field">
