@@ -99,7 +99,7 @@ export default function ClientsPage() {
   const clients = query.data?.dados || [];
   const canCreate = hasPermission("clientes.criar");
   const canEdit = hasPermission("clientes.editar");
-  const canDelete = hasPermission("clientes.excluir");
+  const canDelete = hasPermission("clientes.editar");
 
   useEffect(()=>{
     const target=location.state?.editClientId;
