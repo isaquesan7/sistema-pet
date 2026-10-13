@@ -1,11 +1,11 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit3, Eye, Trash2, ChevronLeft, ChevronRight, Plus, Search, UsersRound } from "lucide-react";
 import api, { getApiErrorMessage } from "../lib/api.js";
 import { formatDocument, formatPhone } from "../lib/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
-import {useNavigate} from "react-router-dom";
+import {useNavigate,useLocation} from "react-router-dom";
 import "../clients.css";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
@@ -57,6 +57,7 @@ function normalizeForm(client) {
 export default function ClientsPage() {
   const { hasPermission } = useAuth();
   const navigate=useNavigate();
+  const location=useLocation();
   const [page,setPage]=useState(1);
   const [deletion,setDeletion]=useState(null);
   const [deleteStep,setDeleteStep]=useState(1);
@@ -100,6 +101,12 @@ export default function ClientsPage() {
   const canEdit = hasPermission("clientes.editar");
   const canDelete = hasPermission("clientes.excluir");
 
+  useEffect(()=>{
+    const target=location.state?.editClientId;
+    if(!target)return;
+    api.get(`/clientes/${target}`).then(({data})=>{setEditingClient(data.cliente);setForm(normalizeForm(data.cliente));setFormError("");setModalOpen(true);}).catch(e=>setFormError(getApiErrorMessage(e)));
+    navigate(location.pathname,{replace:true,state:null});
+  },[location.state?.editClientId]);
   const modalTitle = useMemo(
     () => (editingClient ? "Editar cliente" : "Novo cliente"),
     [editingClient]
