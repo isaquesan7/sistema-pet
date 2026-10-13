@@ -23,3 +23,13 @@
 7. Homologar em banco descartável, testar backup e recuperação e liberar por flag de rollout independente da preferência da organização.
 
 **Não efetuar deploy dessas migrations na Pet King até a trilha de homologação.**
+
+## Incremento 20.1.2 — Rascunho multiempresa persistente (branch)
+- Reutiliza `Comanda` e `ComandaItem` existentes, com `rascunhoUnificado` (padrão false) e `versaoRascunho`.
+- `POST /api/pdv-unificado/rascunhos` salva preços recotados, origem/empresa e pet validado dentro da mesma transação serializável.
+- `PUT /api/pdv-unificado/rascunhos/:id` exige versão exata, refaz cálculos e permissões, substitui apenas itens de rascunho; conflito gera HTTP 409.
+- `GET /api/pdv-unificado/rascunhos` retorna somente rascunhos cujas empresas sejam todas acessíveis.
+- As rotas antigas de editar/remover/fechar comandas bloqueiam explicitamente `rascunhoUnificado` e a listagem/contagem antiga não exibe esses rascunhos.
+- Os novos campos e validações exigem migration testada e rollback planejado; não mesclar sem homologação PostgreSQL isolada.
+- Nem essa nova comanda nem sua atualização executam pagamento, venda, estoque, nota fiscal ou split.
+- **Orçamentos e Crédito do Cliente permanecem no PR #35**, devendo ser integrados ao mesmo catálogo/comanda antes do fechamento multiempresa.
