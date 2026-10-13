@@ -11,7 +11,7 @@ const schema=z.object({
   nomeExibicao:z.string().trim().max(80).nullable().optional(),
   email:z.email().max(254).transform(v=>v.trim().toLowerCase()),
   telefone:z.string().trim().max(40).nullable().optional(),
-  fotoUrl:z.union([z.url().startsWith("https://").max(2000),z.literal("")]).nullable().optional(),
+  fotoUrl:z.union([z.string().url().startsWith("https://").max(2000),z.literal("")]).nullable().optional(),
   senhaAtual:z.string().optional()
 }).strict();
 const passwordSchema=z.object({
