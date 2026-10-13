@@ -471,6 +471,7 @@ export async function resumo(empresaId) {
     prisma.comanda.count({
       where: {
         status: { in: ["ABERTA", "PARCIALMENTE_FECHADA"] },
+        rascunhoUnificado: false,
         itens: { some: { empresaId, status: "ATIVO" } },
       },
     }),
@@ -681,6 +682,7 @@ export async function listarComandas({ organizacaoId, busca, status }) {
   return prisma.comanda.findMany({
     where: {
       cliente: { organizacaoId },
+      rascunhoUnificado: false,
       ...(status ? { status } : {}),
       ...(busca ? {
         OR: [
