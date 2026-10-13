@@ -43,3 +43,12 @@ test("email changes revoke sessions, and avatar upload checks file signatures",(
  assert.match(ctrl,/body\.subarray\(0,3\)/);
  assert.match(ctrl,/250\*1024/);
 });
+
+test("access tokens bind to revocable sessions",()=>{
+ const service=source("../src/modules/auth/auth.service.js");
+ const middleware=source("../src/middlewares/auth.middleware.js");
+ assert.match(service,/sid: sessaoId/);
+ assert.match(service,/gerarAccessToken\(usuario, sessao.id\)/);
+ assert.match(middleware,/if \(payload.sid\)/);
+ assert.match(middleware,/sessao\.revokedAt/);
+});
