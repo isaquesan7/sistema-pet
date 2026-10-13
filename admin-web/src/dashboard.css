@@ -60,3 +60,19 @@
 @media(max-width:1100px){.pv-primary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pv-inline-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pv-chart-grid{grid-template-columns:1fr}.pv-shell-meta{display:none}}
 @media(max-width:760px){.app-shell.pv-collapsed{grid-template-columns:minmax(0,1fr)}.pv-collapse-toggle{display:none !important}.pv-primary-grid,.pv-inline-grid{grid-template-columns:1fr}.pv-dashboard-head{align-items:stretch}.pv-month-controls>div>*{flex:1}.pv-report-panel{padding:17px}.pv-kpi{min-height:140px}}
 @media print{.sidebar,.topbar,.pv-month-controls,.pv-section-head>a,.platform-sidebar{display:none!important}.app-shell,.app-shell.pv-collapsed{display:block}.page-container{padding:0!important}.pv-primary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pv-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pv-kpi,.pv-report-panel,.pv-inline-stat{break-inside:avoid;box-shadow:none}.pv-dashboard{color:#111}}
+
+/* Console Interno navigation mirrors the management shell without changing admin privileges. */
+.platform-admin.pv-console-collapsed{grid-template-columns:78px minmax(0,1fr)}
+.pv-console-collapsed .platform-sidebar{padding-left:10px;padding-right:10px}
+.pv-console-collapsed .pv-console-brand,.pv-console-collapsed .platform-badge,.pv-console-collapsed .platform-sidebar footer{display:none}
+.pv-console-collapsed .platform-sidebar nav button{justify-content:center;font-size:0;gap:0;padding:13px 0}
+.pv-console-collapsed .platform-sidebar nav button svg{flex-shrink:0}
+.platform-topbar{align-items:center;flex-wrap:wrap}
+.pv-console-actions{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pv-console-clock{display:grid;gap:4px;white-space:nowrap;color:#535f78;font-size:13px}
+.pv-console-clock strong{color:#6257c5;font-size:14px}
+.pv-console-account{display:flex;align-items:center;gap:10px;padding:7px 11px;background:white;border:1px solid #e1e5ee;border-radius:12px;color:#273552;font-size:14px;max-width:240px}
+.pv-console-account img,.pv-console-account span{display:grid;place-items:center;width:34px;height:34px;object-fit:cover;border-radius:9px;background:#edebfc;color:#5c4dc1}
+.pv-console-account strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-console-toggle{flex:none}
+@media(max-width:760px){.platform-admin.pv-console-collapsed{grid-template-columns:1fr}.pv-console-clock{display:none}.pv-console-actions{width:100%;justify-content:flex-end}}
