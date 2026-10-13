@@ -745,6 +745,7 @@ export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId
       where: { id: comandaId, cliente: { organizacaoId } },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
+    if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     if (["FECHADA", "CANCELADA"].includes(comanda.status)) throw new Error("COMANDA_FECHADA");
 
     const [linha] = await prepararItens(tx, {
@@ -784,6 +785,8 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
       },
     });
     if (!item) throw new Error("ITEM_COMANDA_NAO_ENCONTRADO");
+    const origem = await tx.comanda.findUnique({where:{id:comandaId},select:{rascunhoUnificado:true}});
+    if (origem?.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     return tx.comandaItem.update({ where: { id: item.id }, data: { status: "CANCELADO" } });
   });
 }
@@ -803,6 +806,7 @@ export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId
       },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
+    if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     if (!comanda.itens.length) throw new Error("COMANDA_SEM_ITENS_EMPRESA");
 
     const preparados = comanda.itens.map((item) => ({
