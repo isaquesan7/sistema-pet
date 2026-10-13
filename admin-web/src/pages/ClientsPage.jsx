@@ -27,9 +27,9 @@ const emptyForm = {
   observacoes: "",
 };
 
-async function loadClients(search,page=1) {
+async function loadClients(search,page=1,tipoBusca="TODOS",situacao="ATIVOS") {
   const { data } = await api.get("/clientes", {
-    params: { busca: search || undefined, limite: 20, pagina: page },
+    params: { busca: search || undefined, limite: 20, pagina: page,tipoBusca,situacao },
   });
   return data;
 }
@@ -65,6 +65,8 @@ export default function ClientsPage() {
   const [deleteError,setDeleteError]=useState("");
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [tipoBusca,setTipoBusca]=useState("TODOS");
+  const [situacao,setSituacao]=useState("ATIVOS");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -72,8 +74,8 @@ export default function ClientsPage() {
   const deferredSearch = useDeferredValue(search);
 
   const query = useQuery({
-    queryKey: ["clients", deferredSearch,page],
-    queryFn: () => loadClients(deferredSearch,page),
+    queryKey: ["clients", deferredSearch,page,tipoBusca,situacao],
+    queryFn: () => loadClients(deferredSearch,page,tipoBusca,situacao),
   });
 
   const deleteMutation=useMutation({
@@ -189,6 +191,7 @@ export default function ClientsPage() {
       </section>
 
       <section className="panel table-panel">
+        <div className="pv-client-filters"><label>Pesquisar por<select className="form-control" value={tipoBusca} onChange={e=>{setTipoBusca(e.target.value);setPage(1);}}><option value="TODOS">Todos os campos</option><option value="NOME">Nome do cliente</option><option value="DOCUMENTO">CPF/CNPJ</option><option value="TELEFONE">Telefone/WhatsApp</option><option value="EMAIL">E-mail</option><option value="PET">Nome do pet</option></select></label><label>Situação<select className="form-control" value={situacao} onChange={e=>{setSituacao(e.target.value);setPage(1);}}><option value="ATIVOS">Ativos</option><option value="INATIVOS">Inativos</option><option value="TODOS">Todos</option></select></label></div>
         <div className="toolbar">
           <label className="search-box">
             <Search size={18} />
