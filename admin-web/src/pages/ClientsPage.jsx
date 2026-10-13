@@ -227,6 +227,7 @@ export default function ClientsPage() {
                   <th>Documento</th>
                   <th>Contato</th>
                   <th>Pets</th>
+                  <th>Situação</th>
                   <th>Conta</th>
                   <th className="table-actions-col">Ações</th>
                 </tr>
@@ -250,6 +251,7 @@ export default function ClientsPage() {
                         {client.pets?.length ? client.pets.map((pet) => <span key={pet.id}>{pet.nome}</span>) : <em>Sem pets</em>}
                       </div>
                     </td>
+                    <td><span className={`badge ${client.ativo ? "badge--success" : "badge--muted"}`}>{client.ativo ? "Ativo" : "Inativo"}</span></td>
                     <td>
                       <span className={`badge ${client.conta ? "badge--success" : "badge--muted"}`}>
                         {client.conta ? "Portal ativo" : "Sem conta"}
