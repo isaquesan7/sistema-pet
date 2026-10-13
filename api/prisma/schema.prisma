@@ -465,6 +465,8 @@ model Organizacao {
   empresas        Empresa[]
   usuarios        UsuarioOrganizacao[]
   clientes        Cliente[]
+  orcamentosCliente OrcamentoCliente[]
+  movimentosCredito CreditoClienteMovimento[]
   contasCliente   ContaCliente[]
   sessoesCliente  SessaoCliente[]
   transacoesOnline TransacaoOnline[]
@@ -596,6 +598,8 @@ model Empresa {
   transacoesOnline      TransacaoOnline[]
   contasFinanceiras     ContaFinanceira[]
   titulosFinanceiros    TituloFinanceiro[]
+  orcamentosCliente    OrcamentoCliente[]
+  movimentosCredito    CreditoClienteMovimento[]
   conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias        Auditoria[]
   arquivos           ArquivoPetRise[]
@@ -796,6 +800,8 @@ model Cliente {
   titulosFinanceiros    TituloFinanceiro[]
   arquivos              ArquivoPetRise[]
   solicitacoesLGPD      SolicitacaoLGPD[]
+  orcamentosCliente    OrcamentoCliente[]
+  movimentosCredito    CreditoClienteMovimento[]
 
   @@unique([organizacaoId, cpfCnpj])
   @@index([organizacaoId])
@@ -2985,4 +2991,79 @@ model AlteracaoEmailPendente {
   createdAt DateTime @default(now())
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   @@map("alteracoes_email_pendentes")
+}
+
+/**
+ * Client quotes are commercial proposals, not invoices or receivables.
+ * Amounts and approval remain separate from actual sales.
+ */
+enum StatusOrcamentoCliente {
+  RASCUNHO
+  ENVIADO
+  APROVADO
+  REJEITADO
+  CANCELADO
+  EXPIRADO
+}
+model OrcamentoCliente {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  clienteId String
+  numero Int @unique @default(autoincrement())
+  status StatusOrcamentoCliente @default(RASCUNHO)
+  validade DateTime? @db.Date
+  observacoes String? @db.Text
+  subtotal Decimal @default(0) @db.Decimal(12,2)
+  desconto Decimal @default(0) @db.Decimal(12,2)
+  total Decimal @default(0) @db.Decimal(12,2)
+  aprovadoEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organizacao Organizacao @relation(fields:[organizacaoId], references:[id],onDelete:Restrict)
+  empresa Empresa @relation(fields:[empresaId], references:[id],onDelete:Restrict)
+  cliente Cliente @relation(fields:[clienteId], references:[id],onDelete:Restrict)
+  itens OrcamentoClienteItem[]
+  @@index([organizacaoId,clienteId,status])
+  @@index([empresaId,createdAt])
+  @@map("orcamentos_clientes")
+}
+model OrcamentoClienteItem {
+  id String @id @default(cuid())
+  orcamentoId String
+  petId String?
+  descricao String
+  quantidade Decimal @db.Decimal(12,3)
+  valorUnitario Decimal @db.Decimal(12,2)
+  total Decimal @db.Decimal(12,2)
+  orcamento OrcamentoCliente @relation(fields:[orcamentoId],references:[id],onDelete:Cascade)
+  @@index([orcamentoId])
+  @@map("orcamentos_cliente_itens")
+}
+
+/**
+ * Append-only prepaid credit ledger. Money cannot be altered by editing
+ * a customer profile; debit/credit entries are not a cash receipt by themselves.
+ */
+enum TipoCreditoClienteMovimento {
+  ENTRADA
+  UTILIZACAO
+  ESTORNO
+}
+model CreditoClienteMovimento {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  clienteId String
+  tipo TipoCreditoClienteMovimento
+  valor Decimal @db.Decimal(12,2)
+  referenciaId String?
+  motivo String?
+  idempotencia String? @unique
+  createdAt DateTime @default(now())
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  empresa Empresa @relation(fields:[empresaId],references:[id],onDelete:Restrict)
+  cliente Cliente @relation(fields:[clienteId],references:[id],onDelete:Restrict)
+  @@index([organizacaoId,clienteId,createdAt])
+  @@map("creditos_cliente_movimentos")
 }

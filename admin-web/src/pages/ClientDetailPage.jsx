@@ -11,6 +11,8 @@ import Modal from "../components/Modal.jsx";
 import ClientEditDrawer from "../components/ClientEditDrawer.jsx";
 import ClientFinanceTab from "../components/ClientFinanceTab.jsx";
 import ClientAppointmentsTab from "../components/ClientAppointmentsTab.jsx";
+import ClientQuotesTab from "../components/ClientQuotesTab.jsx";
+import ClientCreditTab from "../components/ClientCreditTab.jsx";
 import "../clients.css";
 export default function ClientDetailPage(){
  const {id}=useParams(),navigate=useNavigate(),qc=useQueryClient();
@@ -46,7 +48,7 @@ export default function ClientDetailPage(){
 <button className="ghost-button" type="button" disabled={!hasPermission("pets.editar")} onClick={()=>{setPetError("");setPetEdit({...p,cor:p.cor||"",microchip:p.microchip||"",observacoes:p.observacoes||"",alergias:p.alergias||"",doencasPreexistentes:p.doencasPreexistentes||"",dataNascimento:p.dataNascimento?.slice(0,10)||"",sexo:p.sexo||"NAO_INFORMADO",castrado:p.castrado===null?"":String(p.castrado)});}}><Edit3 size={16}/> Editar dados</button>
 <button className="ghost-button pv-danger-action" type="button" disabled={!canDeletePet} onClick={()=>{setPetDelete(p);setPetDeleteStage(1);setPetDeleteText("");setPetDeleteError("");}}><Trash2 size={16}/> Excluir</button>
 </div></div>)}</div>:<p className="pv-empty">Nenhum pet cadastrado para este tutor.</p>}</section></div>:<section className="panel pv-detail-panel"><h2>{({financeiro:"Histórico financeiro",agenda:"Agendamentos",orcamentos:"Orçamentos",credito:"Crédito do cliente"})[tab]}</h2>
-   {related.isLoading?<p>Carregando registros...</p>:related.isError?<div className="alert alert--error">{getApiErrorMessage(related.error)}</div>:tab==="financeiro"&&!related.data?.permissoes?.financeiro?<p className="pv-empty">Seu perfil não tem acesso ao histórico financeiro.</p>:tab==="financeiro"?<ClientFinanceTab sales={related.data?.dados?.vendas||[]} pets={c.pets||[]}/>:tab==="agenda"?<ClientAppointmentsTab grooming={related.data?.dados?.agendamentos||[]} clinical={related.data?.dados?.consultas||[]} pets={c.pets||[]}/>:tab==="credito"&&!related.data?.permissoes?.financeiro?<p className="pv-empty">Acesso financeiro necessário.</p>:tab==="credito"?<div className="pv-detail-ledger">{(related.data?.dados?.titulos||[]).filter(t=>t.tipo==="RECEBER").map(t=><div key={t.id}><strong>{t.descricao}</strong><span>{t.status}</span><strong>{formatCurrency(t.valorOriginal-t.valorPago)} em aberto</strong></div>)}<p className="pv-empty">Esta lista apresenta títulos a receber, não uma carteira de crédito pré-pago.</p></div>:<p className="pv-empty">Ainda não há módulo de orçamentos integrado ao cadastro do cliente.</p>}
+   {related.isLoading?<p>Carregando registros...</p>:related.isError?<div className="alert alert--error">{getApiErrorMessage(related.error)}</div>:tab==="financeiro"&&!related.data?.permissoes?.financeiro?<p className="pv-empty">Seu perfil não tem acesso ao histórico financeiro.</p>:tab==="financeiro"?<ClientFinanceTab sales={related.data?.dados?.vendas||[]} pets={c.pets||[]}/>:tab==="agenda"?<ClientAppointmentsTab grooming={related.data?.dados?.agendamentos||[]} clinical={related.data?.dados?.consultas||[]} pets={c.pets||[]}/>:tab==="credito"&&!related.data?.permissoes?.financeiro?<p className="pv-empty">Acesso financeiro necessário.</p>:tab==="credito"?<ClientCreditTab clientId={id}/>:<ClientQuotesTab clientId={id} pets={c.pets||[]}/>}
   </section>}
   </>}
   {editClientOpen&&c&&<ClientEditDrawer client={c} onClose={()=>setEditClientOpen(false)} onSaved={()=>setEditClientOpen(false)}/>}
