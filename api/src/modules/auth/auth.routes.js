@@ -1,5 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import {requestEmailChange,confirmEmailChange} from "./email-change.controller.js";
 import { login, renovar, sair, me, contexto } from "./auth.controller.js";
 import {
   autenticarUsuario,
@@ -22,6 +23,8 @@ router.get("/me", autenticarUsuario, me);
 router.get("/me/perfil",autenticarUsuario,getMyProfile);
 router.patch("/me/perfil",autenticarUsuario,accountMutationLimiter,editMyProfile);
 router.post("/me/senha",autenticarUsuario,accountMutationLimiter,changeMyPassword);
+router.post("/me/email/solicitar",autenticarUsuario,accountMutationLimiter,requestEmailChange);
+router.post("/me/email/confirmar",autenticarUsuario,accountMutationLimiter,confirmEmailChange);
 router.get("/contexto", autenticarUsuario, selecionarEmpresa, contexto);
 
 export default router;
