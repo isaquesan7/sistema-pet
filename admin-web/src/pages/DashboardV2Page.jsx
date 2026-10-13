@@ -55,7 +55,7 @@ export default function DashboardPage(){
      <InlineStat title="Vendas finalizadas" value={display(v?.vendas,n=>Number(n||0).toLocaleString("pt-BR"))}/>
      <InlineStat title="Faturamento finalizado" value={display(v?.faturamento)}/>
      <InlineStat title="Recebimentos registrados" value={display(f?.recebimentos)}/>
-     <InlineStat title="Vendas canceladas" value={r?.vendas?.canceladas!==undefined?display(v?.canceladas,n=>Number(n||0).toLocaleString("pt-BR")):"Não disponível"} detail="Sem totalização na API atual"/>
+     <InlineStat title="Vendas canceladas" value={display(v?.canceladas,n=>Number(n||0).toLocaleString("pt-BR"))} detail="Canceladas ou estornadas no período"/>
     </div>
    </section>
    <div className="pv-chart-grid">
