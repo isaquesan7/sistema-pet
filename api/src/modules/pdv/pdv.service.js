@@ -720,7 +720,7 @@ export async function criarComanda({ organizacaoId, dados }) {
 
 export async function buscarComanda({ organizacaoId, id }) {
   const comanda = await prisma.comanda.findFirst({
-    where: { id, cliente: { organizacaoId } },
+    where: { id, cliente: { organizacaoId }, rascunhoUnificado: false },
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
