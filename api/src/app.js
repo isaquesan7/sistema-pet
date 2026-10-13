@@ -35,6 +35,17 @@ const corsOrigins = (
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+// Official PointVet domains, additive to the existing Railway CORS_ORIGINS.
+// Keep legacy Railway origins available while DNS and clients are migrated.
+for (const origin of [
+  "https://pointvet.com.br",
+  "https://www.pointvet.com.br",
+  "https://app.pointvet.com.br",
+  "https://portal.pointvet.com.br",
+]) {
+  if (!corsOrigins.includes(origin)) corsOrigins.push(origin);
+}
+
 // ======================================================
 // SEGURANÇA
 // ======================================================
