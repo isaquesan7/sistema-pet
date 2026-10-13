@@ -1,0 +1,23 @@
+name: PointVet 19.3 onboarding operational contracts
+on:
+  pull_request:
+    paths:
+      - "api/tests/onboarding-operational.contract.test.mjs"
+      - "api/src/modules/saas/**"
+      - "admin-web/src/App.jsx"
+      - "admin-web/src/pages/ActivationPage.jsx"
+      - "admin-web/src/pages/PlatformAdminPage.jsx"
+      - ".github/workflows/pointvet-onboarding-operational.yml"
+  workflow_dispatch:
+jobs:
+  onboarding-contracts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check api/tests/onboarding-operational.contract.test.mjs
+      - run: node --test api/tests/onboarding-operational.contract.test.mjs api/tests/activation.contract.test.mjs
