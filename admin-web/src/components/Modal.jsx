@@ -1,13 +1,13 @@
 import { X } from "lucide-react";
 
-export default function Modal({ open, title, subtitle, children, onClose, footer, size = "md" }) {
+export default function Modal({ open, title, subtitle, children, onClose, footer, size = "md", drawer = false }) {
   if (!open) return null;
 
   return (
     <div className="modal-layer" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose?.();
     }}>
-      <section className={`modal-card modal-card--${size}`} role="dialog" aria-modal="true" aria-label={title}>
+      <section className={`modal-card modal-card--${size} ${drawer ? "pv-drawer" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className="modal-card__header">
           <div>
             <h2>{title}</h2>
