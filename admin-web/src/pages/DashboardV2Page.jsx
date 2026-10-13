@@ -10,6 +10,7 @@ import {ArrowDownRight,ArrowUpRight,CalendarDays,Printer,RefreshCw,TrendingUp,Wa
 import api from "../lib/api.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import {formatCurrency} from "../lib/formatters.js";
+import LegacyDashboardPage from "./DashboardPage.jsx";
 
 const initialMonth=()=>new Date().toLocaleDateString("sv-SE",{year:"numeric",month:"2-digit"});
 function period(month){const [year,m]=month.split("-").map(Number);const last=new Date(year,m,0).getDate();return {dataInicio:`${month}-01`,dataFim:`${month}-${String(last).padStart(2,"0")}`};}
@@ -35,8 +36,10 @@ export default function DashboardPage(){
  const [month,setMonth]=useState(initialMonth);
  const query=useQuery({queryKey:["dashboard-v2",selectedCompany?.id,month],enabled:canReports,queryFn:async()=>(await api.get("/relatorios/painel",{params:{escopo:"empresa",...period(month)}})).data.dados,staleTime:60000});
  const r=query.data,v=r?.vendas,f=r?.financeiro,e=r?.estoque;
+ // Keep the original permission-safe overview for users without reporting access.
  const display=(n,converter=money)=>query.isLoading?"Carregando...":query.isError||!r?"—":converter(n);
  function printReport(){window.print();}
+ if(!canReports)return <LegacyDashboardPage/>;
  return <div className="pv-dashboard page-stack">
   <section className="pv-dashboard-head">
    <div><span className="page-kicker">Visão geral · {selectedCompany?.nomeFantasia||"Empresa"}</span><h1>{greeting()}, {(user?.nomeExibicao||user?.nome||"usuário").split(" ")[0]}!</h1><p>Veja os resultados da sua operação com informações reais e organizadas.</p></div>
