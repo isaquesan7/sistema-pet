@@ -24,6 +24,7 @@ import PlatformAdminPage from "./pages/PlatformAdminPage.jsx";
 import SecurityPage from "./pages/SecurityPage.jsx";
 import SupportPage from "./pages/SupportPage.jsx";
 import ActivationPage from "./pages/ActivationPage.jsx";
+import MyAccountPage from "./pages/MyAccountPage.jsx";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
         <Route element={<RequireCompany />}>
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
+            <Route path="minha-conta" element={<MyAccountPage />} />
             <Route path="primeiros-passos" element={<ActivationPage />} />
             <Route path="clientes" element={<ClientsPage />} />
             <Route path="pets" element={<PetsPage />} />
