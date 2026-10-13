@@ -165,3 +165,12 @@ export async function atualizar(
     responderErro(error, res, next);
   }
 }
+export async function excluir(req,res,next){
+ try{
+  await clientesService.excluirCliente(req.organizacao.id,req.params.id);
+  return res.json({success:true,message:"Cadastro excluído definitivamente."});
+ }catch(error){
+  if(error.message==="CLIENTE_COM_VINCULOS")return res.status(409).json({success:false,message:"Este cliente possui pets ou registros associados. A exclusão definitiva foi bloqueada para preservar históricos clínicos, financeiros e fiscais."});
+  responderErro(error,res,next);
+ }
+}
