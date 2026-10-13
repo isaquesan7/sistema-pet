@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, RequireCompany, RequirePlatformAdmin } from "./components/ProtectedRoute.jsx";
 import AppLayout from "./layout/AppLayout.jsx";
 import ClientsPage from "./pages/ClientsPage.jsx";
+import ClientDetailPage from "./pages/ClientDetailPage.jsx";
 import CompanySelectPage from "./pages/CompanySelectPage.jsx";
 import CatalogPage from "./pages/CatalogPage.jsx";
 import DashboardV2Page from "./pages/DashboardV2Page.jsx";
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="minha-conta" element={<MyAccountPage />} />
             <Route path="primeiros-passos" element={<ActivationPage />} />
             <Route path="clientes" element={<ClientsPage />} />
+            <Route path="clientes/:id" element={<ClientDetailPage />} />
             <Route path="pets" element={<PetsPage />} />
             <Route path="catalogo" element={<CatalogPage />} />
             <Route path="pdv" element={<PdvPage />} />
