@@ -48,6 +48,9 @@ router.patch(
   atualizar
 );
 
-router.delete("/:id",exigirPermissao("clientes.editar"),excluir);
+router.delete("/:id",exigirPermissao("clientes.editar"),(req,res,next)=>{
+  if(!["PROPRIETARIO","ADMINISTRADOR"].includes(req.vinculoOrganizacao?.papel))return res.status(403).json({success:false,message:"Somente proprietário ou administrador pode excluir clientes."});
+  next();
+},excluir);
 
 export default router;
