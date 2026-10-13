@@ -38,3 +38,9 @@
 .pv-pet-form label{display:grid;gap:8px;font-size:14px;font-weight:750;color:#34425b}
 @media(max-width:900px){.pv-detail-columns{grid-template-columns:1fr}}
 @media(max-width:560px){.pv-detail-panel dl>div{grid-template-columns:1fr;gap:4px}.pv-drawer .form-grid--4,.pv-drawer .form-grid--3{grid-template-columns:1fr}.modal-card.pv-drawer{border-radius:0}}
+
+.pv-detail-ledger{display:grid;gap:10px}
+.pv-detail-ledger>div{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto;gap:8px 15px;align-items:center;padding:14px;border:1px solid #e8ebf2;border-radius:12px}
+.pv-detail-ledger strong{font-size:15px;color:#29374e}
+.pv-detail-ledger span,.pv-detail-ledger small{font-size:13px;color:#66758b}
+@media(max-width:720px){.pv-detail-ledger>div{grid-template-columns:1fr}}
