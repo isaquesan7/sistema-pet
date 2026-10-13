@@ -11,8 +11,8 @@ const layout=source("../../admin-web/src/layout/AppLayout.jsx");
 test("self service endpoints always authenticate and never receive a target user id",()=>{
  for(const endpoint of ["/me/perfil","/me/senha"])assert.ok(routes.includes('"'+endpoint+'"'));
  assert.match(routes,/autenticarUsuario,getMyProfile/);
- assert.match(routes,/autenticarUsuario,editMyProfile/);
- assert.match(routes,/autenticarUsuario,changeMyPassword/);
+ assert.match(routes,/autenticarUsuario,accountMutationLimiter,editMyProfile/);
+ assert.match(routes,/autenticarUsuario,accountMutationLimiter,changeMyPassword/);
  assert.match(ctrl,/where:\{id:req\.usuario\.id\}/);
 });
 test("email update requires current password and duplicate protection",()=>{
