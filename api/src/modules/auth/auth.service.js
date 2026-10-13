@@ -3,9 +3,9 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import prisma from "../../config/prisma.js";
 
-function gerarAccessToken(usuario) {
+function gerarAccessToken(usuario, sessaoId) {
   return jwt.sign(
-    { sub: usuario.id, email: usuario.email },
+    { sub: usuario.id, email: usuario.email, sid: sessaoId },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: process.env.JWT_ACCESS_EXPIRES || "15m" }
   );
@@ -98,6 +98,8 @@ function montarUsuarioResposta(usuario) {
   return {
     id: usuario.id,
     nome: usuario.nome,
+    nomeExibicao: usuario.nomeExibicao,
+    fotoUrl: usuario.fotoUrl,
     email: usuario.email,
     superAdmin: Boolean(usuario.superAdmin),
     organizacoes,
@@ -143,7 +145,7 @@ export async function login({ email, senha, ip, userAgent, manterConectado = fal
     },
   });
 
-  const accessToken = gerarAccessToken(usuario);
+  const accessToken = gerarAccessToken(usuario, sessao.id);
   const refreshToken = gerarRefreshToken(
     usuario.id,
     sessao.id,
@@ -198,7 +200,7 @@ export async function refresh({ refreshToken, ip, userAgent }) {
     throw new Error("REFRESH_TOKEN_INVALIDO");
   }
 
-  const novoAccessToken = gerarAccessToken(usuario);
+  const novoAccessToken = gerarAccessToken(usuario, sessao.id);
   const novoRefreshToken = gerarRefreshToken(
     usuario.id,
     sessao.id,

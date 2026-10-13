@@ -24,6 +24,7 @@ import {
   UsersRound,
   Warehouse,
   X,
+  ChevronsUpDown,
 } from "lucide-react";
 import BrandMark from "../components/BrandMark.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -53,6 +54,7 @@ const navItems = [
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountOpen,setAccountOpen]=useState(false);
   const navigate = useNavigate();
   const {
     user,
@@ -147,16 +149,7 @@ export default function AppLayout() {
               <ShieldCheck size={16}/> Administração PointVet
             </button>
           )}
-          <div className="sidebar-user">
-            <div className="sidebar-user__avatar">{user?.nome?.slice(0, 1).toUpperCase()}</div>
-            <div className="sidebar-user__text">
-              <strong>{user?.nome}</strong>
-              <span>{user?.email}</span>
-            </div>
-            <button className="icon-button" type="button" onClick={handleLogout} title="Sair">
-              <LogOut size={18} />
-            </button>
-          </div>
+
         </div>
       </aside>
 
@@ -174,6 +167,22 @@ export default function AppLayout() {
             </div>
           </div>
 
+          <div className="account-switcher">
+            <button type="button" className="account-switcher__trigger" aria-expanded={accountOpen} aria-haspopup="true" onClick={()=>setAccountOpen(v=>!v)}>
+              <div className="account-switcher__avatar">{user?.fotoUrl?<img src={user.fotoUrl} alt=""/>:(user?.nomeExibicao||user?.nome||"U").slice(0,1).toUpperCase()}</div>
+              <div className="account-switcher__identity"><strong>{user?.nomeExibicao||user?.nome||"Meu perfil"}</strong><small>{selectedCompany?.nomeFantasia||"PointVet"}</small></div>
+              <ChevronsUpDown size={15}/>
+            </button>
+            {accountOpen&&<div className="account-switcher__menu" role="menu">
+              <div className="account-switcher__heading">{user?.email}</div>
+              <button type="button" role="menuitem" onClick={()=>{setAccountOpen(false);navigate("/minha-conta");}}><UserRound size={17}/> Meu Usuário</button>
+              <button type="button" role="menuitem" onClick={()=>{setAccountOpen(false);navigate("/configuracoes");}}><Settings size={17}/> Meu Estabelecimento</button>
+              {["PROPRIETARIO","ADMINISTRADOR"].includes(selectedOrganization?.papel)&&<button type="button" role="menuitem" onClick={()=>{setAccountOpen(false);navigate("/assinatura");}}><CreditCard size={17}/> Meus Planos</button>}
+              {isPlatformAdmin&&<button type="button" role="menuitem" onClick={()=>{setAccountOpen(false);navigate("/plataforma");}}><ShieldCheck size={17}/> Console Interno</button>}
+              <div className="account-switcher__divider"/>
+              <button type="button" role="menuitem" onClick={()=>{setAccountOpen(false);handleLogout();}}><LogOut size={17}/> Sair</button>
+            </div>}
+          </div>
           <label className="company-switcher">
             <span>Empresa atual</span>
             <div className="company-switcher__field">

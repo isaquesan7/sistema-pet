@@ -37,6 +37,19 @@ export async function autenticarUsuario(req, res, next) {
       });
     }
 
+    // Session-bound access tokens become invalid as soon as email/password changes revoke sessions.
+    // Legacy tokens without sid remain valid only until their existing short TTL expires.
+    if (payload.sid) {
+      const sessao = await prisma.sessaoUsuario.findUnique({
+        where: { id: payload.sid },
+        select: { usuarioId: true, revokedAt: true, expiresAt: true },
+      });
+      if (!sessao || sessao.usuarioId !== payload.sub || sessao.revokedAt ||
+          (sessao.expiresAt && sessao.expiresAt.getTime() <= Date.now())) {
+        return res.status(401).json({ success: false, message: "Sessão encerrada. Entre novamente." });
+      }
+    }
+
     const usuario = await prisma.usuario.findUnique({
       where: { id: payload.sub },
       select: {

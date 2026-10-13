@@ -1101,3 +1101,44 @@ tbody tr:hover { background: #fcfcfd; }
    Fase 16 — Segurança, LGPD e Arquivos
    ====================================================== */
 .security-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.security-danger{color:#aa3f4d!important}.security-upload{padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line)}.security-upload input[type=file]{max-width:320px;font-size:9px}.security-policy-grid{padding:0 14px 14px;display:grid;grid-template-columns:1.4fr .8fr .8fr auto;align-items:end;gap:10px}.security-policy-grid .form-field{margin:0}@media(max-width:900px){.security-policy-grid{grid-template-columns:1fr 1fr}.security-policy-grid .primary-button{grid-column:1/-1}.security-actions{align-items:stretch}.security-actions button{flex:1}}
+
+
+/* Account experience: top-right identity dropdown and self-service profile */
+.account-switcher{position:relative;flex-shrink:0;z-index:40}
+.account-switcher__trigger{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e0e4ee;border-radius:14px;padding:7px 12px 7px 7px;cursor:pointer;color:#273451;box-shadow:0 4px 12px #1524470a}
+.account-switcher__avatar,.account-photo{display:grid;place-items:center;overflow:hidden;background:#e9e7fa;color:#6457ca;font-weight:800}
+.account-switcher__avatar{width:38px;height:38px;border-radius:11px}
+.account-switcher__avatar img,.account-photo img{width:100%;height:100%;object-fit:cover}
+.account-switcher__identity{text-align:left;max-width:160px}
+.account-switcher__identity strong,.account-switcher__identity small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-switcher__identity strong{font-size:12px}
+.account-switcher__identity small{color:#77849b;font-size:10px;margin-top:3px}
+.account-switcher__menu{position:absolute;top:calc(100% + 9px);right:0;width:260px;background:#fff;border:1px solid #e1e5f0;border-radius:14px;box-shadow:0 18px 42px #1c294228;padding:9px;z-index:60}
+.account-switcher__heading{font-size:11px;color:#8992a6;padding:10px 12px;overflow-wrap:anywhere}
+.account-switcher__menu button{width:100%;display:flex;align-items:center;gap:12px;padding:12px;text-align:left;border:0;border-radius:9px;background:transparent;color:#253552;font-size:13px;font-weight:600;cursor:pointer}
+.account-switcher__menu button:hover{background:#f4f2fe;color:#6a54c8}
+.account-switcher__divider{border-top:1px solid #e7e9f0;margin:6px 0}
+.account-page{max-width:1050px;margin:auto}
+.account-hero{display:flex;align-items:center;gap:22px;padding:25px}
+.account-photo{width:100px;height:100px;border-radius:18px;flex:none}
+.account-hero h2{margin:0 0 4px;font-size:23px}
+.account-hero p{margin:0 0 7px;color:#657189}
+.account-hero span{color:#8792a5;font-size:12px}
+.account-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #e2e5ef}
+.account-tabs button{display:flex;align-items:center;gap:8px;border:0;border-bottom:3px solid transparent;background:transparent;padding:15px 18px;font:600 13px inherit;color:#69758a;cursor:pointer}
+.account-tabs button.selected{color:#6e56d3;border-bottom-color:#765fe2}
+.account-form{padding:29px;display:grid;gap:22px}
+.account-form h2{margin:0 0 7px;font-size:22px}
+.account-form p{margin:0;color:#78839a;font-size:13px}
+.account-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.account-fields label{display:grid;gap:8px;font-size:12px;color:#394761;font-weight:700}
+.account-fields input{width:100%;min-width:0;border:1px solid #dce2ed;border-radius:11px;padding:13px;font:500 13px inherit;color:#263752;background:#fff}
+.account-fields input:focus{outline:2px solid #8d77ec;border-color:transparent}
+.account-fields small{font-size:11px;color:#8791a2;font-weight:400}
+.account-wide{grid-column:1/-1}
+.account-form>.primary-button{justify-self:start}
+.account-feedback{padding:13px;border-radius:10px;font-weight:600;font-size:12px}
+.account-error{color:#9a2525;background:#fff1f1}.account-success{color:#207958;background:#eaf8ee}
+.account-company{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid #e7eaf1;border-radius:10px}
+.account-company span{font-size:12px;color:#77849a}
+@media(max-width:760px){.account-switcher__identity{display:none}.account-switcher__trigger{padding:6px}.account-fields{grid-template-columns:1fr}.account-hero{align-items:flex-start}.account-photo{width:72px;height:72px}}
