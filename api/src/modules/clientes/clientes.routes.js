@@ -11,6 +11,7 @@ import {
   listar,
   buscarPorId,
   atualizar,
+  excluir,
 } from "./clientes.controller.js";
 
 const router = Router();
@@ -43,5 +44,7 @@ router.patch(
   exigirPermissao("clientes.editar"),
   atualizar
 );
+
+router.delete("/:id",exigirPermissao("clientes.excluir"),excluir);
 
 export default router;
