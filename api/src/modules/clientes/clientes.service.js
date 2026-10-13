@@ -74,6 +74,8 @@ export async function criarCliente(organizacaoId, dados) {
 export async function listarClientes({
   organizacaoId,
   busca,
+  tipoBusca = "TODOS",
+  situacao = "ATIVOS",
   pagina = 1,
   limite = 20,
 }) {
@@ -82,20 +84,16 @@ export async function listarClientes({
 
   const where = {
     organizacaoId,
-    ativo: true,
+    ...(situacao === "INATIVOS" ? {ativo:false} : situacao === "TODOS" ? {} : {ativo:true}),
     ...(busca
       ? {
           OR: [
-            { nome: { contains: busca, mode: "insensitive" } },
-            { email: { contains: busca, mode: "insensitive" } },
-            { telefone: { contains: buscaNumerica || busca } },
-            { whatsapp: { contains: buscaNumerica || busca } },
-            { cpfCnpj: { contains: buscaNumerica || busca } },
-            {
-              pets: {
-                some: { nome: { contains: busca, mode: "insensitive" } },
-              },
-            },
+            ...(tipoBusca === "TODOS" || tipoBusca === "NOME" ? [{ nome: { contains: busca, mode: "insensitive" } }] : []),
+            ...(tipoBusca === "TODOS" || tipoBusca === "EMAIL" ? [{ email: { contains: busca, mode: "insensitive" } }] : []),
+            ...(tipoBusca === "TODOS" || tipoBusca === "TELEFONE" ? [{ telefone: { contains: buscaNumerica || busca } }] : []),
+            ...(tipoBusca === "TODOS" || tipoBusca === "TELEFONE" ? [{ whatsapp: { contains: buscaNumerica || busca } }] : []),
+            ...(tipoBusca === "TODOS" || tipoBusca === "DOCUMENTO" ? [{ cpfCnpj: { contains: buscaNumerica || busca } }] : []),
+            ...(tipoBusca === "TODOS" || tipoBusca === "PET" ? [{pets:{some:{nome:{contains:busca,mode:"insensitive"}}}}] : []),
           ],
         }
       : {}),
