@@ -1,10 +1,12 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit3, Plus, Search, UsersRound } from "lucide-react";
+import { Edit3, Eye, Trash2, ChevronLeft, ChevronRight, Plus, Search, UsersRound } from "lucide-react";
 import api, { getApiErrorMessage } from "../lib/api.js";
 import { formatDocument, formatPhone } from "../lib/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
+import {useNavigate} from "react-router-dom";
+import "../clients.css";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
 
@@ -25,9 +27,9 @@ const emptyForm = {
   observacoes: "",
 };
 
-async function loadClients(search) {
+async function loadClients(search,page=1) {
   const { data } = await api.get("/clientes", {
-    params: { busca: search || undefined, limite: 50 },
+    params: { busca: search || undefined, limite: 20, pagina: page },
   });
   return data;
 }
@@ -54,6 +56,12 @@ function normalizeForm(client) {
 
 export default function ClientsPage() {
   const { hasPermission } = useAuth();
+  const navigate=useNavigate();
+  const [page,setPage]=useState(1);
+  const [deletion,setDeletion]=useState(null);
+  const [deleteStep,setDeleteStep]=useState(1);
+  const [deletePhrase,setDeletePhrase]=useState("");
+  const [deleteError,setDeleteError]=useState("");
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -63,10 +71,15 @@ export default function ClientsPage() {
   const deferredSearch = useDeferredValue(search);
 
   const query = useQuery({
-    queryKey: ["clients", deferredSearch],
-    queryFn: () => loadClients(deferredSearch),
+    queryKey: ["clients", deferredSearch,page],
+    queryFn: () => loadClients(deferredSearch,page),
   });
 
+  const deleteMutation=useMutation({
+    mutationFn:async id=>(await api.delete(`/clientes/${id}`)).data,
+    onSuccess:async()=>{setDeletion(null);setDeletePhrase("");setDeleteError("");setPage(1);await queryClient.invalidateQueries({queryKey:["clients"]});await queryClient.invalidateQueries({queryKey:["pets"]});},
+    onError:e=>setDeleteError(getApiErrorMessage(e,"Não foi possível excluir este cadastro."))
+  });
   const mutation = useMutation({
     mutationFn: async (payload) => {
       if (editingClient) {
@@ -85,6 +98,7 @@ export default function ClientsPage() {
   const clients = query.data?.dados || [];
   const canCreate = hasPermission("clientes.criar");
   const canEdit = hasPermission("clientes.editar");
+  const canDelete = hasPermission("clientes.excluir");
 
   const modalTitle = useMemo(
     () => (editingClient ? "Editar cliente" : "Novo cliente"),
@@ -173,7 +187,7 @@ export default function ClientsPage() {
             <Search size={18} />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {setSearch(e.target.value);setPage(1);}}
               placeholder="Buscar por nome, CPF, telefone ou pet..."
             />
           </label>
@@ -232,15 +246,11 @@ export default function ClientsPage() {
                       </span>
                     </td>
                     <td className="table-actions-col">
-                      <button
-                        type="button"
-                        className="icon-button table-action"
-                        onClick={() => openEdit(client)}
-                        disabled={!canEdit}
-                        title="Editar cliente"
-                      >
-                        <Edit3 size={15} />
-                      </button>
+                      <div className="pv-client-actions">
+                        <button type="button" className="icon-button table-action" onClick={()=>navigate(`/clientes/${client.id}`)} title="Ver detalhes" aria-label={`Detalhes de ${client.nome}`}><Eye size={18}/></button>
+                        <button type="button" className="icon-button table-action" onClick={()=>openEdit(client)} disabled={!canEdit} title="Editar cliente" aria-label={`Editar ${client.nome}`}><Edit3 size={18}/></button>
+                        {canDelete&&<button type="button" className="icon-button table-action pv-danger-action" onClick={()=>{setDeletion(client);setDeleteStep(1);setDeletePhrase("");setDeleteError("");}} title="Excluir cliente" aria-label={`Excluir ${client.nome}`}><Trash2 size={18}/></button>}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -248,6 +258,7 @@ export default function ClientsPage() {
             </table>
           </div>
         )}
+        <div className="pv-list-pagination"><span>Página {page} de {Math.max(query.data?.paginacao?.paginas||1,1)} · {query.data?.paginacao?.total??0} clientes</span><div><button type="button" className="ghost-button" disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} aria-label="Página anterior"><ChevronLeft size={18}/></button><button type="button" className="ghost-button" disabled={page>=(query.data?.paginacao?.paginas||1)} onClick={()=>setPage(p=>p+1)} aria-label="Próxima página"><ChevronRight size={18}/></button></div></div>
       </section>
 
       <Modal
@@ -256,6 +267,7 @@ export default function ClientsPage() {
         subtitle={editingClient ? "Atualize os dados do tutor sem perder o histórico." : "Cadastre um novo tutor na organização."}
         onClose={closeModal}
         size="lg"
+        drawer
         footer={
           <>
             <button type="button" className="ghost-button" onClick={closeModal} disabled={mutation.isPending}>Cancelar</button>
@@ -312,6 +324,10 @@ export default function ClientsPage() {
             <textarea className="form-control form-control--textarea" rows={3} value={form.observacoes} onChange={(e) => updateField("observacoes", e.target.value)} />
           </FormField>
         </form>
+      </Modal>
+
+      <Modal open={Boolean(deletion)} title={deleteStep===1?"Excluir cliente?":"Confirmação final"} subtitle={deletion?.nome} onClose={()=>{if(!deleteMutation.isPending)setDeletion(null);}} footer={<><button className="ghost-button" disabled={deleteMutation.isPending} onClick={()=>setDeletion(null)}>Cancelar</button>{deleteStep===1?<button className="primary-button" onClick={()=>setDeleteStep(2)}>Continuar</button>:<button className="primary-button pv-delete-submit" disabled={deletePhrase!==deletion?.nome||deleteMutation.isPending} onClick={()=>deleteMutation.mutate(deletion.id)}>{deleteMutation.isPending?"Excluindo...":"Excluir definitivamente"}</button>}</>}>
+        {deleteStep===1?<p>Esta ação é irreversível. Clientes com pets, vendas ou documentos vinculados não serão apagados automaticamente.</p>:<div className="form-stack"><p>Digite exatamente <strong>{deletion?.nome}</strong> para confirmar a exclusão.</p><input className="form-control" value={deletePhrase} onChange={e=>setDeletePhrase(e.target.value)} autoComplete="off" aria-label="Confirmação por nome"/>{deleteError&&<div className="alert alert--error" role="alert">{deleteError}</div>}</div>}
       </Modal>
     </div>
   );
