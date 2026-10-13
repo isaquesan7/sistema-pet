@@ -39,6 +39,24 @@ export default function MyAccountPage(){
    await logout();navigate("/login",{replace:true});
   }catch(e){setError(getApiErrorMessage(e));}finally{setBusy(false);}
  }
+ async function uploadAvatar(event){
+  const file=event.target.files?.[0];
+  if(!file)return;
+  setError("");
+  if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>250*1024){
+    setError("Selecione JPEG, PNG ou WebP de até 250 KB.");return;
+  }
+  try{
+    const value=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result||""));
+      reader.onerror=reject;
+      reader.readAsDataURL(file);
+    });
+    update("fotoUrl",value);
+    setMessage("Nova foto selecionada. Clique em Salvar alterações.");
+  }catch{setError("Não foi possível ler a foto.");}
+ }
  const avatar=profile.fotoUrl;
  return <div className="page-stack account-page">
   <section className="page-heading"><div><span className="page-kicker">Sua identidade no PointVet</span><h1>Meu Usuário</h1><p>Um perfil pessoal que acompanha você em todas as empresas às quais tem acesso.</p></div></section>
@@ -56,7 +74,7 @@ export default function MyAccountPage(){
     <label>Nome de exibição<input maxLength={80} value={profile.nomeExibicao||""} onChange={e=>update("nomeExibicao",e.target.value)}/></label>
     <label>E-mail de acesso<input required type="email" value={profile.email||""} onChange={e=>update("email",e.target.value)}/></label>
     <label>Telefone<input maxLength={40} value={profile.telefone||""} onChange={e=>update("telefone",e.target.value)}/></label>
-    <label className="account-wide"><Camera size={17}/> URL HTTPS da foto de perfil<input type="url" placeholder="https://..." value={profile.fotoUrl||""} onChange={e=>update("fotoUrl",e.target.value)}/><small>Por enquanto, utilize um endereço HTTPS de imagem. O envio direto de fotos será incluído após a integração com o armazenamento privado.</small></label>
+    <label className="account-wide"><Camera size={17}/> Foto de perfil (JPEG, PNG ou WebP, até 250 KB)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadAvatar}/><small>Escolha uma imagem e salve as alterações. Ela aparecerá no menu superior.</small></label>
     <label className="account-wide">Senha atual (necessária para alterar e-mail)<input type="password" autoComplete="current-password" value={profile.senhaAtual||""} onChange={e=>update("senhaAtual",e.target.value)}/></label>
    </div><button className="primary-button" type="submit" disabled={busy}>{busy?"Salvando...":"Salvar alterações"}</button>
   </form>:tab==="seguranca"?<form className="panel account-form" onSubmit={changePassword}>
