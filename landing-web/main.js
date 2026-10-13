@@ -55,9 +55,8 @@ document.querySelectorAll("[data-cycle]").forEach(button=>button.addEventListene
   renderPlans();
 }));
 async function loadPlans(){
-  if(!apiBase){plansNode.innerHTML='<div class="plans-message">Planos disponíveis em breve. Configure a URL pública da API para exibir o catálogo atualizado. <a href="#perguntas">Saiba mais</a>.</div>';return;}
   try {
-    const response=await fetch(apiBase+"/saas/publico/planos",{headers:{"Accept":"application/json"}});
+    const response=await fetch("/public-plans",{headers:{"Accept":"application/json"}});
     if(!response.ok)throw new Error("http "+response.status);
     const data=await response.json();
     if(!Array.isArray(data.dados))throw new Error("unexpected response");
