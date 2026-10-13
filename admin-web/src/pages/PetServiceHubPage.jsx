@@ -18,7 +18,6 @@ export default function PetServiceHubPage(){
  const pet=useQuery({queryKey:["pet-hub",petId],enabled:allowed,queryFn:async()=>(await api.get(`/pets/${petId}`)).data.pet});
  const history=useQuery({queryKey:["pet-service-hub",petId,area,selectedCompany?.id],enabled:allowed&&pet.data?.clienteId===id,
   queryFn:async()=>clinical?(await api.get(`/consultorio/pets/${petId}/historico`)).data :(await api.get(`/banho-tosa/pets/${petId}/resumo`)).data});
- const related=useQuery({queryKey:["pet-client-related",id],enabled:allowed&&!clinical&&pet.data?.clienteId===id,queryFn:async()=>(await api.get(`/clientes/${id}/relacionados`)).data});
  const p=pet.data;
  const entries=clinical?history.data?.dados||history.data?.historico||history.data?.atendimentos||[]:[];
  const grooming=history.data?.dados||{};
