@@ -82,3 +82,34 @@ export async function listarRascunhos({organizacaoId,usuarioId,empresaId}){
  const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,valorTotal:true,status:true}}},orderBy:{createdAt:"desc"},take:100});
  return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(i=>({...i,quantidade:Number(i.quantidade),valorTotal:Number(i.valorTotal)}))}));
 }
+
+/** Pre-close verification only. Never mutates invoices, stock, credit or payments.
+ * All seller allocations are evaluated from persisted draft rows, not client totals.
+ */
+export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
+ const draft=await prisma.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+  include:{cliente:{select:{id:true,nome:true,ativo:true}},itens:{where:{status:"ATIVO"},include:{itemCatalogo:{select:{id:true,ativo:true,precoVenda:true,empresaId:true,servico:{select:{exigePet:true}}}},pet:{select:{id:true,clienteId:true,ativo:true}}}},vendas:{select:{id:true}}}});
+ if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
+ if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
+ if(draft.status!=="ABERTA"||draft.vendas.length||!draft.cliente.ativo||!draft.itens.length)throw Error("RASCUNHO_BLOQUEADO");
+ const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ const allowed=new Map(acessiveis.map(e=>[e.id,e]));
+ if(draft.itens.some(i=>!allowed.has(i.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
+ const issues=[],totals=new Map();
+ for(const line of draft.itens){
+  const cat=line.itemCatalogo;
+  if(!cat?.ativo||cat.empresaId!==line.empresaId)issues.push({itemId:line.id,codigo:"ITEM_INDISPONIVEL"});
+  if(line.petId&&(!line.pet?.ativo||line.pet.clienteId!==draft.clienteId))issues.push({itemId:line.id,codigo:"PET_INVALIDO"});
+  if(cat?.servico?.exigePet&&!line.petId)issues.push({itemId:line.id,codigo:"PET_OBRIGATORIO"});
+  const unit=cents(line.valorUnitario),qty=Math.round(Number(line.quantidade)*1000);
+  const expected=Math.round(unit*qty/1000)-cents(line.desconto);
+  if(expected!==cents(line.valorTotal)||expected<0)issues.push({itemId:line.id,codigo:"VALOR_DIVERGENTE"});
+  if(cat&&cents(cat.precoVenda)!==unit)issues.push({itemId:line.id,codigo:"PRECO_ALTERADO"});
+  totals.set(line.empresaId,(totals.get(line.empresaId)||0)+cents(line.valorTotal));
+ }
+ const empresas=[...totals.entries()].map(([companyId,value])=>({empresaId:companyId,nome:allowed.get(companyId).nomeFantasia,cnpj:allowed.get(companyId).cnpj,total:serialize(value)}));
+ const total=[...totals.values()].reduce((a,b)=>a+b,0);
+ return {rascunhoId:id,versao,draftStatus:draft.status,cliente:draft.cliente,empresas,total:serialize(total),pendencias:issues,aptoParaFechamentoFuturo:issues.length===0,
+  checkoutHabilitado:false,pagamentosHabilitados:false,emissaoFiscalHabilitada:false,
+  observacao:"Pré-conferência sem cobrança, faturamento, baixa de estoque ou emissão fiscal."};
+}
