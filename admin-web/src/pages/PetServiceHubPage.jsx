@@ -17,13 +17,14 @@ export default function PetServiceHubPage(){
  const allowed=clinical?selectedCompany?.tipo!=="BANHO_TOSA"&&selectedOrganization?.modulos?.includes("CONSULTORIO")&&hasPermission("consultorio.acessar"):selectedCompany?.tipo!=="LOJA_CONSULTORIO"&&selectedOrganization?.modulos?.includes("BANHO_TOSA")&&hasPermission("banho_tosa.acessar");
  const pet=useQuery({queryKey:["pet-hub",petId],enabled:allowed,queryFn:async()=>(await api.get(`/pets/${petId}`)).data.pet});
  const history=useQuery({queryKey:["pet-service-hub",petId,area,selectedCompany?.id],enabled:allowed&&pet.data?.clienteId===id,
-  queryFn:async()=>clinical?(await api.get(`/consultorio/pets/${petId}/historico`)).data:(await api.get(`/banho-tosa/pets/${petId}/ficha`)).data});
+  queryFn:async()=>clinical?(await api.get(`/consultorio/pets/${petId}/historico`)).data :(await api.get(`/banho-tosa/pets/${petId}/resumo`)).data});
  const related=useQuery({queryKey:["pet-client-related",id],enabled:allowed&&!clinical&&pet.data?.clienteId===id,queryFn:async()=>(await api.get(`/clientes/${id}/relacionados`)).data});
  const p=pet.data;
  const entries=clinical?history.data?.dados||history.data?.historico||history.data?.atendimentos||[]:[];
- const appointments=(related.data?.dados?.agendamentos||[]).filter(a=>a.pet?.nome===p?.nome);
+ const grooming=history.data?.dados||{};
+ const appointments=grooming.agendamentos||[];
  const upcoming=appointments.filter(a=>new Date(a.inicio).getTime()>=Date.now());
- const previous=appointments.filter(a=>new Date(a.inicio).getTime()<Date.now());
+ const previous=grooming.ordens||[];
  const isArrayHistory=Array.isArray(entries);
  return <div className="page-stack pv-pet-hub">
   <button className="ghost-button pv-back" onClick={()=>navigate(`/clientes/${id}`)}><ArrowLeft size={17}/> Voltar ao cliente</button>
@@ -33,8 +34,8 @@ export default function PetServiceHubPage(){
     <section className="panel pv-detail-panel"><h2>Atalhos do módulo</h2><p className="pv-empty">Para realizar novos atendimentos ou movimentações, utilize o módulo principal, que aplica as regras de autorização e registro existentes.</p><button className="primary-button" onClick={()=>navigate(clinical?"/consultorio":"/banho-e-tosa")}>{clinical?<HeartPulse size={18}/>:<Scissors size={18}/>} Abrir {clinical?"Consultório":"Banho e Tosa"}</button></section></div>
    {clinical?<section className="panel pv-detail-panel"><h2><ClipboardList size={21}/> Histórico clínico</h2>{history.isLoading?<p>Carregando histórico...</p>:history.isError?<div className="alert alert--error">{getApiErrorMessage(history.error)}</div>:isArrayHistory&&entries.length?<div className="pv-detail-ledger">{entries.map((item,i)=><div key={item.id||i}><strong>{item.status||"Atendimento"}</strong><span>{item.createdAt?new Date(item.createdAt).toLocaleString("pt-BR"):"Data não informada"}</span><span>{item.queixaPrincipal||item.diagnostico||"Ver prontuário no Consultório"}</span></div>)}</div>:<p className="pv-empty">Nenhum atendimento clínico registrado para este pet.</p>}</section>:
     <div className="pv-pet-grooming-sections"><section className="panel pv-detail-panel"><h2><CalendarDays size={21}/> Próximos agendamentos</h2>{related.isLoading?<p>Carregando...</p>:upcoming.length?<div className="pv-detail-ledger">{upcoming.map(a=><div key={a.id}><strong>{new Date(a.inicio).toLocaleString("pt-BR")}</strong><span>{a.status}</span></div>)}</div>:<p className="pv-empty">Nenhum agendamento futuro encontrado.</p>}</section>
-    <section className="panel pv-detail-panel"><h2><Scissors size={21}/> Serviços recentes</h2>{previous.length?<div className="pv-detail-ledger">{previous.slice(0,10).map(a=><div key={a.id}><strong>{new Date(a.inicio).toLocaleString("pt-BR")}</strong><span>{a.status}</span></div>)}</div>:<p className="pv-empty">Nenhum agendamento anterior encontrado.</p>}<small>Lista de agendamentos; histórico de ordens de serviço será conectado separadamente.</small></section>
-    <section className="panel pv-detail-panel"><h2><PackageCheck size={21}/> Pacotes ativos</h2><p className="pv-empty">A consulta de pacotes vinculados ao pet será disponibilizada após integração ao módulo de Pacotes. Não são apresentados saldos estimados.</p></section></div>}
+    <section className="panel pv-detail-panel"><h2><Scissors size={21}/> Serviços recentes</h2>{previous.length?<div className="pv-detail-ledger">{previous.slice(0,10).map(a=><div key={a.id}><strong>OS #{a.numero} · {new Date(a.entrada).toLocaleString("pt-BR")}</strong><span>{a.status}</span><small>{(a.itens||[]).map(i=>i.itemCatalogo?.nome).filter(Boolean).join(", ")||"Serviço não detalhado"}</small></div>)}</div>:<p className="pv-empty">Nenhuma ordem de serviço encontrada.</p>}</section>
+    <section className="panel pv-detail-panel"><h2><PackageCheck size={21}/> Pacotes ativos</h2>{grooming.pacotes?.length?<div className="pv-detail-ledger">{grooming.pacotes.map(pkg=><div key={pkg.id}><strong>{pkg.nome}</strong><span>{pkg.fimValidade?"Até "+new Date(pkg.fimValidade).toLocaleDateString("pt-BR"):"Sem validade definida"}</span><small>{pkg.itens.map(i=>i.nome+": "+(i.total-i.consumida)+" disponível").join(" · ")}</small></div>)}</div>:<p className="pv-empty">Nenhum pacote ativo vinculado a este pet.</p>}</section></div>}
   </>}
  </div>;
 }
