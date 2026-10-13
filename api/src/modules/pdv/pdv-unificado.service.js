@@ -52,7 +52,7 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
   const previa=await simularComanda(args,tx);
   let comanda;
   if(id){
-   const atual=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId:args.organizacaoId}},include:{itens:true}});
+   const atual=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId:args.organizacaoId}},include:{itens:true,vendas:{select:{id:true}}}});
    if(!atual)throw Error("RASCUNHO_NAO_ENCONTRADO");
    if(atual.status!=="ABERTA"||atual.vendas?.length)throw Error("RASCUNHO_BLOQUEADO");
    if(atual.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
@@ -78,5 +78,7 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
 }
 export async function listarRascunhos({organizacaoId,usuarioId,empresaId}){
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
- return prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId},itens:{some:{empresaId:{in:acessiveis.map(a=>a.id)}}}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{empresaId:true,valorTotal:true,status:true}}},orderBy:{createdAt:"desc"},take:50});
+ const allowed=new Set(acessiveis.map(a=>a.id));
+ const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,valorTotal:true,status:true}}},orderBy:{createdAt:"desc"},take:100});
+ return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(i=>({...i,quantidade:Number(i.quantidade),valorTotal:Number(i.valorTotal)}))}));
 }
