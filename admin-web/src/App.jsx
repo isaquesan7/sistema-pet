@@ -3,6 +3,7 @@ import { RequireAuth, RequireCompany, RequirePlatformAdmin } from "./components/
 import AppLayout from "./layout/AppLayout.jsx";
 import ClientsPage from "./pages/ClientsPage.jsx";
 import ClientDetailPage from "./pages/ClientDetailPage.jsx";
+import PetServiceHubPage from "./pages/PetServiceHubPage.jsx";
 import CompanySelectPage from "./pages/CompanySelectPage.jsx";
 import CatalogPage from "./pages/CatalogPage.jsx";
 import DashboardV2Page from "./pages/DashboardV2Page.jsx";
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="primeiros-passos" element={<ActivationPage />} />
             <Route path="clientes" element={<ClientsPage />} />
             <Route path="clientes/:id" element={<ClientDetailPage />} />
+            <Route path="clientes/:id/pets/:petId/:area" element={<PetServiceHubPage />} />
             <Route path="pets" element={<PetsPage />} />
             <Route path="catalogo" element={<CatalogPage />} />
             <Route path="pdv" element={<PdvPage />} />

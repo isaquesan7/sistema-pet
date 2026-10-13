@@ -33,6 +33,7 @@ router.post("/ordens/:id/anexos", exigirPermissao("banho_tosa.gerenciar"), contr
 router.delete("/ordens/:id/anexos/:anexoId", exigirPermissao("banho_tosa.gerenciar"), controller.removerAnexo);
 
 router.get("/creditos", exigirPermissao("banho_tosa.acessar"), controller.creditos);
+router.get("/pets/:petId/resumo", exigirPermissao("banho_tosa.acessar"), controller.resumoPet);
 router.get("/pets/:petId/ficha", exigirPermissao("banho_tosa.acessar"), controller.buscarFicha);
 router.put("/pets/:petId/ficha", exigirPermissao("banho_tosa.gerenciar"), controller.salvarFicha);
 

@@ -44,3 +44,21 @@
 .pv-detail-ledger strong{font-size:15px;color:#29374e}
 .pv-detail-ledger span,.pv-detail-ledger small{font-size:13px;color:#66758b}
 @media(max-width:720px){.pv-detail-ledger>div{grid-template-columns:1fr}}
+
+/* Client and pet hubs: readable, flexible action groups with responsive filters. */
+.pv-client-filters{display:grid;grid-template-columns:repeat(2,minmax(0,250px));gap:14px;padding:16px 20px 0}
+.pv-client-filters label{display:grid;gap:8px;color:#45536d;font-size:14px;font-weight:750}
+.pv-client-filters select{font-size:15px;min-height:43px}
+.pv-detail-pets .pv-pet-card{grid-template-columns:30px minmax(0,1fr)}
+.pv-pet-card-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}
+.pv-pet-card-actions button{font-size:14px;min-height:39px}
+.pv-pet-hub{font-size:15px}
+.pv-pet-hub-title{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.pv-pet-hub-title h1{font-size:clamp(25px,2.7vw,33px);margin:6px 0;color:#28364d}
+.pv-pet-hub-title p{margin:0;color:#67758a}
+.pv-pet-hub-icon{width:62px;height:62px;display:grid;place-items:center;border-radius:16px;background:#edeaff;color:#6153c0}
+.pv-pet-identity-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.pv-pet-identity-grid .pv-detail-panel>h2,.pv-pet-grooming-sections h2{display:flex;align-items:center;gap:10px}
+.pv-pet-grooming-sections{display:grid;gap:16px}
+@media(max-width:800px){.pv-pet-identity-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.pv-client-filters{grid-template-columns:1fr}.pv-pet-card-actions{display:grid;grid-template-columns:1fr 1fr}.pv-pet-card-actions button{justify-content:center}}

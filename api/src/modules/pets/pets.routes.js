@@ -9,6 +9,7 @@ import {
   listar,
   buscarPorId,
   atualizar,
+  excluir,
   adicionarPeso,
   especies,
   criarEspecie,
@@ -35,4 +36,8 @@ router.post("/:id/pesos", exigirPermissao("pets.editar"), adicionarPeso);
 router.get("/:id", exigirPermissao("pets.visualizar"), buscarPorId);
 router.patch("/:id", exigirPermissao("pets.editar"), atualizar);
 
+router.delete("/:id",exigirPermissao("pets.editar"),(req,res,next)=>{
+ if(!["PROPRIETARIO","ADMINISTRADOR"].includes(req.vinculoOrganizacao?.papel))return res.status(403).json({success:false,message:"Somente proprietário ou administrador pode excluir pets."});
+ next();
+},excluir);
 export default router;

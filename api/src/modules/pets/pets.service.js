@@ -339,3 +339,19 @@ export async function atualizarRaca(organizacaoId, id, dados) {
     },
   });
 }
+
+/**
+ * Conservative deletion: only empty pets are eligible. Preserve all clinical,
+ * financial, grooming and vaccination history; even old weight logs block deletion.
+ */
+export async function excluirPet(organizacaoId,id){
+ const pet=await prisma.pet.findFirst({where:{id,cliente:{organizacaoId}},select:{
+  id:true,
+  _count:{select:{pesos:true,comandaItens:true,vendaItens:true,pacotesCliente:true,consumosPacote:true,atendimentosClinicos:true,vacinasAplicadas:true,vermifugacoes:true,agendamentosBanhoTosa:true,ordensBanhoTosa:true,arquivos:true}},
+  fichaBanhoTosa:{select:{id:true}}
+ }});
+ if(!pet)throw new Error("PET_NAO_ENCONTRADO");
+ if(Object.values(pet._count).some(value=>value>0)||pet.fichaBanhoTosa)throw new Error("PET_COM_HISTORICO");
+ try{return await prisma.pet.delete({where:{id}});}
+ catch(error){if(["P2003","P2014"].includes(error.code))throw new Error("PET_COM_HISTORICO");throw error;}
+}

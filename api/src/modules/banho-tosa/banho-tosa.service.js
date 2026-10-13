@@ -586,3 +586,15 @@ export async function removerAnexo({ empresaId, organizacaoId, ordemId, anexoId 
   await prisma.anexoBanhoTosa.delete({ where: { id: anexoId } });
   return true;
 }
+
+/** Per-pet grooming records scoped to the selected establishment. */
+export async function resumoPet({empresaId,organizacaoId,petId}){
+ const pet=await prisma.pet.findFirst({where:{id:petId,cliente:{organizacaoId},ativo:true},select:{id:true}});
+ if(!pet)throw new Error("PET_NAO_ENCONTRADO");
+ const [ordens,pacotes,agendamentos]=await Promise.all([
+  prisma.ordemServicoBanhoTosa.findMany({where:{petId,empresaId},orderBy:{entrada:"desc"},take:30,select:{id:true,numero:true,status:true,entrada:true,saida:true,itens:{select:{itemCatalogo:{select:{nome:true}}}}}}),
+  prisma.pacoteCliente.findMany({where:{petId,empresaId,status:"ATIVO"},orderBy:{createdAt:"desc"},take:30,select:{id:true,nome:true,status:true,inicioValidade:true,fimValidade:true,itens:{select:{quantidadeTotal:true,quantidadeConsumida:true,itemCatalogo:{select:{nome:true}}}}}}),
+  prisma.agendamentoBanhoTosa.findMany({where:{petId,empresaId},orderBy:{inicio:"desc"},take:40,select:{id:true,inicio:true,fim:true,status:true}}),
+ ]);
+ return {ordens,pacotes:pacotes.map(p=>({...p,itens:p.itens.map(i=>({nome:i.itemCatalogo.nome,total:Number(i.quantidadeTotal),consumida:Number(i.quantidadeConsumida)}))})),agendamentos};
+}
