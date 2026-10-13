@@ -23,4 +23,4 @@ jobs:
           node --check landing-web/config.js
       - name: Verify HTML entry, API and checkout links
         run: |
-          node --input-type=module -e "import{readFileSync as read}from'node:fs';import assert from'node:assert/strict';const h=read('landing-web/index.html','utf8'),m=read('landing-web/main.js','utf8'),o=read('admin-web/src/pages/OnboardingPage.jsx','utf8');for(const s of ['id=\"planos\"','id=\"recursos\"','name=\"description\"','data-start-link'])assert.ok(h.includes(s),s);for(const s of ['/saas/publico/planos','/comecar','/login'])assert.ok(m.includes(s),s);assert.ok(o.includes('searchParams.get(\"plano\")'))"
+          node --input-type=module -e "import{readFileSync as read}from'node:fs';import assert from'node:assert/strict';const h=read('landing-web/index.html','utf8'),m=read('landing-web/main.js','utf8'),o=read('admin-web/src/pages/OnboardingPage.jsx','utf8');for(const s of ['id=\"planos\"','id=\"recursos\"','name=\"description\"','data-start-link'])assert.ok(h.includes(s),s);for(const s of ['/public-plans','/comecar','/login'])assert.ok(m.includes(s),s);assert.ok(o.includes('searchParams.get(\"plano\")'))"
