@@ -163,3 +163,8 @@ export async function removerAnexo(req, res, next) {
     res.json({ success: true });
   } catch (error) { mapError(error, res, next); }
 }
+
+export async function resumoPet(req,res,next){
+ try{return res.json({success:true,dados:await service.resumoPet({empresaId:req.empresa.id,organizacaoId:req.organizacao.id,petId:req.params.petId})});}
+ catch(error){mapError(error,res,next);}
+}
