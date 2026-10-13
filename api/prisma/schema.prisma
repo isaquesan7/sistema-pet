@@ -636,6 +636,7 @@ model Usuario {
   inventariosEstoque   InventarioEstoque[]
   vendas               Venda[]
 
+  alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
   sessoesCaixaFechadas SessaoCaixa[] @relation("SessaoCaixaFechamento")
 
@@ -2971,4 +2972,17 @@ model PlatformAdminAudit {
   @@index([createdAt(sort: Desc)], map: "platform_admin_audit_created_idx")
   @@index([actorId, createdAt(sort: Desc)], map: "platform_admin_audit_actor_idx")
   @@map("platform_admin_audit")
+}
+
+/** One-time email verification code per user. Kept separate from login email until verified. */
+model AlteracaoEmailPendente {
+  id String @id @default(cuid())
+  usuarioId String @unique
+  emailNovo String
+  codigoHash String
+  tentativas Int @default(0)
+  expiraEm DateTime
+  createdAt DateTime @default(now())
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  @@map("alteracoes_email_pendentes")
 }
