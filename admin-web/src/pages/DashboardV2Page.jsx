@@ -1,3 +1,4 @@
+import "../dashboard.css";
 /**
  * PointVet Dashboard V2 — business overview from the existing permission-scoped
  * reports endpoint. Never substitutes missing data with invented metrics.
