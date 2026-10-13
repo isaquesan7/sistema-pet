@@ -2,6 +2,7 @@ name: PointVet Dashboard V2
 on:
   pull_request:
     paths:
+      - "api/src/modules/relatorios/relatorios.service.js"
       - "admin-web/src/dashboard.css"
       - "admin-web/src/pages/DashboardV2Page.jsx"
       - "admin-web/src/pages/PlatformAdminPage.jsx"
@@ -21,6 +22,7 @@ jobs:
         run: |
           npm ci
           npm run build
+      - run: node --check api/src/modules/relatorios/relatorios.service.js
       - name: Check report source and readable UI
         run: |
           grep -q '/relatorios/painel' admin-web/src/pages/DashboardV2Page.jsx
