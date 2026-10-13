@@ -616,6 +616,8 @@ model Usuario {
   senhaHash String
 
   telefone String?
+  nomeExibicao String?
+  fotoUrl String? @db.Text
 
   status     StatusUsuario @default(ATIVO)
   superAdmin Boolean       @default(false)
