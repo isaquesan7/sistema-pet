@@ -8,7 +8,9 @@ const ctrl=read("../src/modules/clientes/clientes.controller.js");
 const clients=read("../../admin-web/src/pages/ClientsPage.jsx");
 const details=read("../../admin-web/src/pages/ClientDetailPage.jsx");
 test("deletion requires authorization and is tenant scoped",()=>{
- assert.match(routes,/router.delete\("\/:id",exigirPermissao\("clientes.editar"\),excluir\)/);
+ assert.match(routes,/router.delete\("\/:id",exigirPermissao\("clientes.editar"\)/);
+ assert.match(routes,/PROPRIETARIO/);
+ assert.match(routes,/ADMINISTRADOR/);
  assert.match(service,/where:\{id,organizacaoId\}/);
  assert.match(service,/CLIENTE_COM_VINCULOS/);
  assert.match(ctrl,/status\(409\)/);
