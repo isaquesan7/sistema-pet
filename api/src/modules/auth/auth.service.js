@@ -98,6 +98,8 @@ function montarUsuarioResposta(usuario) {
   return {
     id: usuario.id,
     nome: usuario.nome,
+    nomeExibicao: usuario.nomeExibicao,
+    fotoUrl: usuario.fotoUrl,
     email: usuario.email,
     superAdmin: Boolean(usuario.superAdmin),
     organizacoes,
