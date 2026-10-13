@@ -24,3 +24,15 @@ test("financial foundation remains separate, preserving legacy comanda",()=>{
  assert.match(schema,/model ComandaItem \{/);
  assert.match(schema,/model Venda \{/);
 });
+
+test("unified draft persistence never reaches payments, stock or fiscal",()=>{
+ const svc=get("../src/modules/pdv/pdv-unificado.service.js");
+ const legacy=get("../src/modules/pdv/pdv.service.js");
+ assert.match(svc,/export async function salvarRascunho/);
+ assert.match(svc,/isolationLevel:"Serializable"/);
+ assert.match(svc,/versaoRascunho:versao/);
+ assert.match(svc,/comandaItem.createMany/);
+ assert.doesNotMatch(svc,/tx\.venda\.create|tx\.pagamento\.create|criarDocumentoAutomaticoVenda|baixarEstoque/);
+ assert.match(legacy,/COMANDA_RASCUNHO_UNIFICADO/);
+ assert.match(schema,/rascunhoUnificado Boolean @default\(false\)/);
+});
