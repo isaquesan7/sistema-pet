@@ -502,6 +502,7 @@ model ConfiguracaoOrganizacao {
   timezone String @default("America/Sao_Paulo")
   locale   String @default("pt-BR")
   moeda    String @default("BRL")
+  pdvUnificadoHabilitado Boolean @default(false)
 
   // Fase 16 — governança de dados e retenção.
   lgpdContatoEmail             String?
