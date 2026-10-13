@@ -43,3 +43,11 @@ test("legacy detail view cannot expose multi-company drafts and cross-company ro
  assert.match(legacy,/where: \{ id, cliente: \{ organizacaoId \}, rascunhoUnificado: false \}/);
  assert.match(unified,/v\.cargo\?\.ativo/);
 });
+
+test("pre-closing review cannot issue payments, sales or invoices",()=>{
+ const service=get("../src/modules/pdv/pdv-unificado.service.js");
+ const routes=get("../src/modules/pdv/pdv-unificado.routes.js");
+ assert.match(service,/export async function conferirPreFechamento/);
+ assert.match(routes,/\/rascunhos\/:id\/pre-fechamento/);
+ assert.match(service,/checkoutHabilitado:false,pagamentosHabilitados:false,emissaoFiscalHabilitada:false/);
+});
