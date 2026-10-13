@@ -89,11 +89,15 @@ export async function listar(
 
     const busca =
       req.query.busca?.trim() || "";
+    const tipoBusca=["TODOS","NOME","DOCUMENTO","TELEFONE","EMAIL","PET"].includes(req.query.tipoBusca)?req.query.tipoBusca:"TODOS";
+    const situacao=["ATIVOS","INATIVOS","TODOS"].includes(req.query.situacao)?req.query.situacao:"ATIVOS";
 
     const resultado =
       await clientesService.listarClientes({
         organizacaoId: req.organizacao.id,
         busca,
+        tipoBusca,
+        situacao,
         pagina,
         limite,
       });
