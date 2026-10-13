@@ -1,0 +1,37 @@
+name: PointVet Unified PDV Foundation
+on:
+  pull_request:
+    paths:
+      - "api/prisma/schema.prisma"
+      - "api/prisma/migrations/20261013181500_unified_pdv_org_optin/**"
+      - "api/src/modules/pdv/pdv-unificado.routes.js"
+      - "api/src/modules/organizacoes/organizacoes.schema.js"
+      - "api/src/app.js"
+      - "api/tests/pdv-unificado-foundation.contract.test.mjs"
+      - "admin-web/src/pages/SettingsPage.jsx"
+      - ".github/workflows/pointvet-unified-pdv-foundation.yml"
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Static checks
+        run: |
+          node --check api/src/modules/pdv/pdv-unificado.routes.js
+          node --check api/src/app.js
+          node --test api/tests/pdv-unificado-foundation.contract.test.mjs
+      - name: Prisma schema
+        working-directory: api
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+        run: |
+          npm ci
+          npx prisma validate
+      - name: Admin build
+        working-directory: admin-web
+        run: |
+          npm ci
+          npm run build
