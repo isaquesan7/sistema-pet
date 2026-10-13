@@ -1,0 +1,17 @@
+name: PointVet custom domains
+on:
+  pull_request:
+    paths:
+      - "api/src/app.js"
+      - "api/tests/pointvet-domains.contract.test.mjs"
+      - ".github/workflows/pointvet-domains.yml"
+  workflow_dispatch:
+jobs:
+  domains:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: node --check api/src/app.js
+      - run: node --test api/tests/pointvet-domains.contract.test.mjs
