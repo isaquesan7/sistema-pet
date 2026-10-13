@@ -7,8 +7,8 @@ const itemSchema=z.object({empresaId:z.string().min(1),itemCatalogoId:z.string()
 export const previewSchema=z.object({clienteId:z.string().min(1),itens:z.array(itemSchema).min(1).max(100)}).strict();
 const cents=v=>Math.round(Number(v)*100);
 const serialize=amount=>(amount/100).toFixed(2);
-async function empresasAutorizadas({organizacaoId,usuarioId,empresaId}){
- const vinculos=await prisma.usuarioEmpresa.findMany({where:{usuarioId,ativo:true,empresa:{organizacaoId,ativo:true}},include:{empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},cargo:{include:{permissoes:{include:{permissao:true}}}}}});
+async function empresasAutorizadas({organizacaoId,usuarioId,empresaId},db=prisma){
+ const vinculos=await db.usuarioEmpresa.findMany({where:{usuarioId,ativo:true,empresa:{organizacaoId,ativo:true}},include:{empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},cargo:{include:{permissoes:{include:{permissao:true}}}}}});
  return vinculos.filter(v=>v.empresaId===empresaId||v.cargo?.permissoes?.some(p=>p.permissao.codigo==="pdv.acessar")).map(v=>v.empresa);
 }
 export async function buscarCatalogo({organizacaoId,usuarioId,empresaId,busca=""}){
@@ -17,17 +17,17 @@ export async function buscarCatalogo({organizacaoId,usuarioId,empresaId,busca=""
  const byCompany=new Map(companies.map(c=>[c.id,c]));
  return items.map(x=>({...x,precoVenda:Number(x.precoVenda),empresa:byCompany.get(x.empresaId)}));
 }
-export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteId,itens}){
- const cliente=await prisma.cliente.findFirst({where:{id:clienteId,organizacaoId,ativo:true},select:{id:true,nome:true}});
+export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteId,itens},db=prisma){
+ const cliente=await db.cliente.findFirst({where:{id:clienteId,organizacaoId,ativo:true},select:{id:true,nome:true}});
  if(!cliente)throw Error("CLIENTE_NAO_ENCONTRADO");
- const companies=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ const companies=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},db);
  const allowed=new Map(companies.map(c=>[c.id,c]));
  if(itens.some(x=>!allowed.has(x.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
  const ids=[...new Set(itens.map(x=>x.itemCatalogoId))];
- const found=await prisma.itemCatalogo.findMany({where:{id:{in:ids},empresaId:{in:[...allowed.keys()]},ativo:true,empresa:{organizacaoId,ativo:true}},select:{id:true,empresaId:true,nome:true,tipo:true,precoVenda:true,servico:{select:{exigePet:true}}}});
+ const found=await db.itemCatalogo.findMany({where:{id:{in:ids},empresaId:{in:[...allowed.keys()]},ativo:true,empresa:{organizacaoId,ativo:true}},select:{id:true,empresaId:true,nome:true,tipo:true,precoVenda:true,servico:{select:{exigePet:true}}}});
  const map=new Map(found.map(i=>[i.id,i]));
  const petIds=[...new Set(itens.map(i=>i.petId).filter(Boolean))];
- const pets=petIds.length?await prisma.pet.findMany({where:{id:{in:petIds},clienteId,ativo:true,cliente:{organizacaoId}},select:{id:true}}):[];
+ const pets=petIds.length?await db.pet.findMany({where:{id:{in:petIds},clienteId,ativo:true,cliente:{organizacaoId}},select:{id:true}}):[];
  if(pets.length!==petIds.length)throw Error("PET_INVALIDO");
  const rows=itens.map(input=>{
   const item=map.get(input.itemCatalogoId);
@@ -43,4 +43,40 @@ export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteI
  for(const row of rows){const g=groups.get(row.empresaId)||{empresaId:row.empresaId,empresa:row.empresa,totalCents:0,itens:[]};g.totalCents+=row.totalCents;g.itens.push((({totalCents,...line})=>line)(row));groups.set(row.empresaId,g);}
  const subtotal=rows.reduce((sum,r)=>sum+r.totalCents,0);
  return {modo:"SIMULACAO_SEM_FECHAMENTO",cliente,quantidadeItens:rows.length,total:serialize(subtotal),empresas:[...groups.values()].map(({totalCents,...g})=>({...g,total:serialize(totalCents)})),observacao:"Nenhuma venda, cobrança, estoque ou nota fiscal foi alterada."};
+}
+
+/** Persist and revise unbilled unified drafts. Prices and authorization are recalculated
+ * inside the database transaction; no inventory, sale or payment is created. */
+export async function salvarRascunho(args,{id=null,versao=null}={}){
+ return prisma.$transaction(async tx=>{
+  const previa=await simularComanda(args,tx);
+  let comanda;
+  if(id){
+   const atual=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId:args.organizacaoId}},include:{itens:true}});
+   if(!atual)throw Error("RASCUNHO_NAO_ENCONTRADO");
+   if(atual.status!=="ABERTA"||atual.vendas?.length)throw Error("RASCUNHO_BLOQUEADO");
+   if(atual.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
+   if(atual.clienteId!==args.clienteId)throw Error("RASCUNHO_CLIENTE_IMUTAVEL");
+   const empresaIds=[...new Set(atual.itens.map(x=>x.empresaId))];
+   const acessiveis=await empresasAutorizadas(args,tx);
+   if(empresaIds.some(e=>!acessiveis.some(a=>a.id===e)))throw Error("EMPRESA_SEM_ACESSO");
+   const updated=await tx.comanda.updateMany({where:{id,rascunhoUnificado:true,status:"ABERTA",versaoRascunho:versao},data:{versaoRascunho:{increment:1}}});
+   if(updated.count!==1)throw Error("RASCUNHO_DESATUALIZADO");
+   // Replaced lines are only draft lines. No comanda has been invoiced.
+   await tx.comandaItem.deleteMany({where:{comandaId:id,status:"ATIVO"}});
+   comanda=await tx.comanda.findUnique({where:{id}});
+  }else{
+   comanda=await tx.comanda.create({data:{clienteId:args.clienteId,rascunhoUnificado:true,status:"ABERTA"}});
+  }
+  const linhas=previa.empresas.flatMap(g=>g.itens.map(l=>({
+    comandaId:comanda.id,empresaId:l.empresaId,itemCatalogoId:l.itemCatalogoId,petId:l.petId,
+    descricao:l.descricao,quantidade:l.quantidade,valorUnitario:l.valorUnitario,valorTotal:l.valorTotal,desconto:"0.00"
+  })));
+  await tx.comandaItem.createMany({data:linhas});
+  return {id:comanda.id,numero:comanda.numero,versao:comanda.versaoRascunho,cliente:previa.cliente,empresas:previa.empresas,total:previa.total,estado:"RASCUNHO_SEM_FECHAMENTO"};
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:12000});
+}
+export async function listarRascunhos({organizacaoId,usuarioId,empresaId}){
+ const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ return prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId},itens:{some:{empresaId:{in:acessiveis.map(a=>a.id)}}}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{empresaId:true,valorTotal:true,status:true}}},orderBy:{createdAt:"desc"},take:50});
 }
