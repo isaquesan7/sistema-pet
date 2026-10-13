@@ -678,18 +678,36 @@ export async function gerarPainel({ organizacaoId, empresaId, usuarioId, escopo,
     avisos,
   );
 
-  const canceladas = await safeSection(
+  // Cancellations are counted by creation date (the only consistent existing reporting rule).
+  // Aggregate by day for the Dashboard V2 without exposing tenant-crossing sales.
+  const vendasCanceladas = await safeSection(
     "Vendas canceladas",
-    () => prisma.venda.count({ where: { empresaId: { in: companyIds }, status: { in: ["CANCELADA", "ESTORNADA"] }, createdAt: { gte: inicio, lte: fim } } }),
-    0,
+    () => prisma.venda.findMany({
+      where: { empresaId: { in: companyIds }, status: { in: ["CANCELADA", "ESTORNADA"] }, createdAt: { gte: inicio, lte: fim } },
+      select: { createdAt: true },
+    }),
+    [],
     avisos,
   );
+  const canceladas = vendasCanceladas.length;
+  const cancelByDay = new Map();
+  for (const row of vendasCanceladas) {
+    const key = dateKey(row.createdAt);
+    cancelByDay.set(key, (cancelByDay.get(key) || 0) + 1);
+  }
+  const atividadeDiaria = [...new Set([...vendas.evolucao.map((row) => row.data), ...cancelByDay.keys()])]
+    .sort()
+    .map((data) => ({
+      data,
+      realizadas: vendas.evolucao.find((row) => row.data === data)?.vendas || 0,
+      canceladas: cancelByDay.get(data) || 0,
+    }));
 
   return {
     periodo: { inicio, fim, dias: daysBetween(inicio, fim) },
     escopo: String(escopo).toLowerCase() === "organizacao" ? "organizacao" : "empresa",
     empresas,
-    vendas: { ...vendas, canceladas },
+    vendas: { ...vendas, canceladas, atividadeDiaria },
     clientes,
     operacao,
     estoque,

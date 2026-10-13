@@ -4,7 +4,7 @@ import AppLayout from "./layout/AppLayout.jsx";
 import ClientsPage from "./pages/ClientsPage.jsx";
 import CompanySelectPage from "./pages/CompanySelectPage.jsx";
 import CatalogPage from "./pages/CatalogPage.jsx";
-import DashboardPage from "./pages/DashboardPage.jsx";
+import DashboardV2Page from "./pages/DashboardV2Page.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import PetsPage from "./pages/PetsPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
@@ -38,7 +38,7 @@ export default function App() {
         <Route path="/selecionar-empresa" element={<CompanySelectPage />} />
         <Route element={<RequireCompany />}>
           <Route element={<AppLayout />}>
-            <Route index element={<DashboardPage />} />
+            <Route index element={<DashboardV2Page />} />
             <Route path="minha-conta" element={<MyAccountPage />} />
             <Route path="primeiros-passos" element={<ActivationPage />} />
             <Route path="clientes" element={<ClientsPage />} />

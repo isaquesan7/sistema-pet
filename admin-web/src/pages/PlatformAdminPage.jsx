@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { POINTVET_VERSION } from "../lib/version.js";
+import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, BellRing, BarChart3, Building2, Check, ClipboardList, ChevronLeft, CircleDollarSign, CreditCard, Edit3, FileText, Layers3, LoaderCircle, LogOut, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
+import { Activity, BellRing, BarChart3, Building2, Check, ClipboardList, ChevronLeft, CircleDollarSign, CreditCard, Edit3, FileText, Layers3, LoaderCircle, LogOut, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import BrandMark from "../components/BrandMark.jsx";
 import Modal from "../components/Modal.jsx";
@@ -14,6 +15,7 @@ import PlatformFinancialPage from "./PlatformFinancialPage.jsx";
 import SupportPage from "./SupportPage.jsx";
 import OrganizationDetailPage from "./OrganizationDetailPage.jsx";
 import "../monitoring.css";
+import "../dashboard.css";
 
 const moduleLabels = { PDV:"PDV", ESTOQUE:"Estoque", CONSULTORIO:"Consultório", BANHO_TOSA:"Banho e Tosa", FINANCEIRO:"Financeiro", PORTAL_CLIENTE:"Portal do cliente", PONTO:"Ponto", FISCAL:"Fiscal", RELATORIOS:"Relatórios" };
 const allModules = Object.keys(moduleLabels);
@@ -29,6 +31,11 @@ export default function PlatformAdminPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState("PAINEL");
+  const [consoleAccountOpen,setConsoleAccountOpen]=useState(false);
+  const [consoleCollapsed,setConsoleCollapsed]=useState(()=>localStorage.getItem("pointvet:console-collapsed")==="true");
+  const [clock,setClock]=useState(()=>new Date());
+  useEffect(()=>{const id=setInterval(()=>setClock(new Date()),30000);return()=>clearInterval(id);},[]);
+  useEffect(()=>{localStorage.setItem("pointvet:console-collapsed",String(consoleCollapsed));},[consoleCollapsed]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -56,9 +63,9 @@ export default function PlatformAdminPage() {
 
   async function exit() { await logout(); navigate("/login", {replace:true}); }
 
-  return <div className="platform-admin">
-    <aside className="platform-sidebar"><BrandMark/><div className="platform-badge"><ShieldCheck size={16}/>Console interno</div><nav>{[["PAINEL",BarChart3,"Visão geral"],["ORGANIZACOES",Building2,"Organizações"],["PLANOS",Layers3,"Planos"],["FATURAS",CreditCard,"Faturas"],["FINANCEIRO",CircleDollarSign,"Financeiro SaaS"],["MONITORAMENTO",Activity,"Monitoramento"],["AUDITORIA",ClipboardList,"Auditoria"],["ALERTAS",BellRing,"Alertas"],["SUPORTE",UsersRound,"Suporte"]].map(([id,Icon,label])=><button key={id} className={tab===id?"is-active":""} onClick={()=>setTab(id)}><Icon size={18}/>{label}</button>)}</nav><footer><div><strong>{user?.nome}</strong><span>{user?.email}</span></div><button className="icon-button" onClick={exit}><LogOut size={18}/></button></footer></aside>
-    <main className="platform-main"><header className="platform-topbar"><div><span>Administração da plataforma</span><h1>{tab==="PAINEL"?"PointVet em números":tab==="ORGANIZACOES"?"Organizações e assinaturas":tab==="PLANOS"?"Planos comerciais":tab==="AUDITORIA"?"Central de Auditoria":tab==="MONITORAMENTO"?"Monitoramento do sistema":"Cobranças SaaS"}</h1></div><div><button className="ghost-button" onClick={()=>navigate("/selecionar-empresa")}><ChevronLeft size={16}/>Voltar aos tenants</button><button className="ghost-button" onClick={refresh}><RefreshCw size={16}/>Atualizar</button></div></header>
+  return <div className={`platform-admin ${consoleCollapsed?"pv-console-collapsed":""}`}>
+    <aside className="platform-sidebar"><div className="pv-console-brand"><BrandMark/></div><div className="platform-badge"><ShieldCheck size={16}/>Console interno</div><nav>{[["PAINEL",BarChart3,"Visão geral"],["ORGANIZACOES",Building2,"Organizações"],["PLANOS",Layers3,"Planos"],["FATURAS",CreditCard,"Faturas"],["FINANCEIRO",CircleDollarSign,"Financeiro SaaS"],["MONITORAMENTO",Activity,"Monitoramento"],["AUDITORIA",ClipboardList,"Auditoria"],["ALERTAS",BellRing,"Alertas"],["SUPORTE",UsersRound,"Suporte"]].map(([id,Icon,label])=><button key={id} className={tab===id?"is-active":""} onClick={()=>setTab(id)}><Icon size={18}/>{label}</button>)}</nav><footer><div><strong>{user?.nome}</strong><span>{user?.email}</span></div><button className="icon-button" onClick={exit}><LogOut size={18}/></button></footer></aside>
+    <main className="platform-main"><header className="platform-topbar"><button type="button" className="icon-button pv-console-toggle" title="Recolher ou expandir menu" aria-label="Recolher ou expandir menu do console" onClick={()=>setConsoleCollapsed(v=>!v)}><Menu size={22}/></button><div><span>Administração da plataforma</span><h1>{tab==="PAINEL"?"PointVet em números":tab==="ORGANIZACOES"?"Organizações e assinaturas":tab==="PLANOS"?"Planos comerciais":tab==="AUDITORIA"?"Central de Auditoria":tab==="MONITORAMENTO"?"Monitoramento do sistema":"Cobranças SaaS"}</h1></div><div className="pv-console-actions"><div className="pv-console-clock"><strong>{POINTVET_VERSION}</strong><time dateTime={clock.toISOString()}>{clock.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</time></div><button className="ghost-button" onClick={()=>navigate("/selecionar-empresa")}><ChevronLeft size={16}/>Voltar aos tenants</button><button className="ghost-button" onClick={refresh}><RefreshCw size={16}/>Atualizar</button><div className="pv-console-account-wrap"><button className="pv-console-account" type="button" aria-expanded={consoleAccountOpen} aria-haspopup="true" onClick={()=>setConsoleAccountOpen(v=>!v)}>{user?.fotoUrl?<img src={user.fotoUrl} alt=""/>:<span>{(user?.nomeExibicao||user?.nome||"U").slice(0,1)}</span>}<strong>{user?.nomeExibicao||user?.nome}</strong></button>{consoleAccountOpen&&<div className="pv-console-account-menu"><strong>{user?.email}</strong><button type="button" onClick={()=>{setConsoleAccountOpen(false);navigate("/selecionar-empresa");}}>Meus estabelecimentos e perfil</button><button type="button" onClick={()=>{setConsoleAccountOpen(false);exit();}}>Sair da conta</button></div>}</div></div></header>
     {error && <div className="alert alert--error">{error}</div>}
     {tab === "MONITORAMENTO" && <MonitoringPage />}
     {tab === "AUDITORIA" && <PlatformAuditPage />}

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { POINTVET_VERSION } from "../lib/version.js";
+import { useMemo, useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -25,6 +26,8 @@ import {
   Warehouse,
   X,
   ChevronsUpDown,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import BrandMark from "../components/BrandMark.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -55,6 +58,10 @@ const navItems = [
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen,setAccountOpen]=useState(false);
+  const [collapsed,setCollapsed]=useState(()=>localStorage.getItem("pointvet:sidebar-collapsed")==="true");
+  const [clock,setClock]=useState(()=>new Date());
+  useEffect(()=>{const id=setInterval(()=>setClock(new Date()),30000);return()=>clearInterval(id);},[]);
+  useEffect(()=>{localStorage.setItem("pointvet:sidebar-collapsed",String(collapsed));},[collapsed]);
   const navigate = useNavigate();
   const {
     user,
@@ -98,12 +105,13 @@ export default function AppLayout() {
 
   return (
     <div
-      className="app-shell"
+      className={`app-shell ${collapsed?"pv-collapsed":""}`}
       style={{ "--tenant-primary": primary, "--tenant-secondary": secondary }}
     >
       <aside className={`sidebar ${mobileOpen ? "sidebar--open" : ""}`}>
         <div className="sidebar__top">
-          <BrandMark />
+          <div className="pv-sidebar-brand"><BrandMark /></div>
+          <button className="icon-button pv-collapse-toggle" aria-label={collapsed?"Expandir menu lateral":"Recolher menu lateral"} title={collapsed?"Expandir menu":"Recolher menu"} onClick={()=>setCollapsed(v=>!v)}>{collapsed?<PanelLeftOpen size={21}/>:<PanelLeftClose size={21}/>}</button>
           <button
             className="icon-button sidebar__close"
             type="button"
@@ -135,6 +143,8 @@ export default function AppLayout() {
               to={to}
               end={end}
               onClick={() => setMobileOpen(false)}
+              title={collapsed?label:undefined}
+              aria-label={label}
               className={({ isActive }) => `nav-item ${isActive ? "nav-item--active" : ""}`}
             >
               <Icon size={19} strokeWidth={2} />
@@ -167,6 +177,20 @@ export default function AppLayout() {
             </div>
           </div>
 
+          <div className="pv-shell-meta"><strong>{POINTVET_VERSION}</strong><time dateTime={clock.toISOString()}>{clock.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</time></div>
+          <label className="company-switcher">
+            <span>Empresa atual</span>
+            <div className="company-switcher__field">
+              <select value={selectedCompany?.id || ""} onChange={handleCompanyChange}>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.nomeFantasia}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} aria-hidden="true" />
+            </div>
+          </label>
           <div className="account-switcher">
             <button type="button" className="account-switcher__trigger" aria-expanded={accountOpen} aria-haspopup="true" onClick={()=>setAccountOpen(v=>!v)}>
               <div className="account-switcher__avatar">{user?.fotoUrl?<img src={user.fotoUrl} alt=""/>:(user?.nomeExibicao||user?.nome||"U").slice(0,1).toUpperCase()}</div>
@@ -183,19 +207,7 @@ export default function AppLayout() {
               <button type="button" role="menuitem" onClick={()=>{setAccountOpen(false);handleLogout();}}><LogOut size={17}/> Sair</button>
             </div>}
           </div>
-          <label className="company-switcher">
-            <span>Empresa atual</span>
-            <div className="company-switcher__field">
-              <select value={selectedCompany?.id || ""} onChange={handleCompanyChange}>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.nomeFantasia}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} aria-hidden="true" />
-            </div>
-          </label>
+
         </header>
 
         <main className="page-container">
