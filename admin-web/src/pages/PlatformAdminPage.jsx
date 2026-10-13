@@ -14,6 +14,7 @@ import PlatformFinancialPage from "./PlatformFinancialPage.jsx";
 import SupportPage from "./SupportPage.jsx";
 import OrganizationDetailPage from "./OrganizationDetailPage.jsx";
 import "../monitoring.css";
+import "../dashboard.css";
 
 const moduleLabels = { PDV:"PDV", ESTOQUE:"Estoque", CONSULTORIO:"Consultório", BANHO_TOSA:"Banho e Tosa", FINANCEIRO:"Financeiro", PORTAL_CLIENTE:"Portal do cliente", PONTO:"Ponto", FISCAL:"Fiscal", RELATORIOS:"Relatórios" };
 const allModules = Object.keys(moduleLabels);
