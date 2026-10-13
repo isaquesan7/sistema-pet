@@ -22,8 +22,9 @@ function HorizontalBars({rows,labelKey,valueKey="valor",empty="Nenhum registro n
  return <div className="pv-bars">{list.map((item,i)=><div className="pv-bar-row" key={String(item[labelKey])+"-"+i}><div className="pv-bar-label"><strong>{String(item[labelKey]||"Não informado").replaceAll("_"," ")}</strong><span>{money(item[valueKey])}</span></div><div className="pv-bar-track"><span style={{width:`${max?100*(Number(item[valueKey])||0)/max:0}%`,background:palette[i%palette.length]}}/></div></div>)}</div>;
 }
 function Trend({rows}){
- const series=(rows||[]).map(row=>({x:row.data,total:Number(row.faturamento)||0}));const max=Math.max(1,...series.map(x=>x.total));
- return <div className="pv-trend">{series.length?<><div className="pv-trend-bars" role="img" aria-label="Faturamento diário de vendas finalizadas">{series.map((d,i)=><div className="pv-trend-column" key={d.x} title={`${d.x}: ${money(d.total)}`}><div style={{height:`${Math.max(d.total>0?3:0,d.total/max*100)}%`}}/></div>)}</div><div className="pv-trend-axis"><span>{series[0].x.slice(8)}</span><span>Dia do mês</span><span>{series.at(-1).x.slice(8)}</span></div></>:<p className="pv-empty">Sem vendas finalizadas neste período.</p>}</div>;
+ const series=(rows||[]).map(row=>({x:row.data,realizadas:Number(row.realizadas)||0,canceladas:Number(row.canceladas)||0}));
+ const max=Math.max(1,...series.flatMap(x=>[x.realizadas,x.canceladas]));
+ return <div className="pv-trend">{series.length?<><div className="pv-trend-legend"><span><i style={{background:"#6454d6"}}/> Finalizadas</span><span><i style={{background:"#dc555b"}}/> Canceladas/estornadas</span></div><div className="pv-trend-bars" role="img" aria-label="Comparação diária de vendas finalizadas e canceladas">{series.map(d=><div className="pv-trend-column" key={d.x} title={`${d.x} · Finalizadas: ${d.realizadas} · Canceladas: ${d.canceladas}`}><div style={{height:`${d.realizadas/max*100}%`,background:"#6454d6"}}/><div style={{height:`${d.canceladas/max*100}%`,background:"#dc555b"}}/></div>)}</div><div className="pv-trend-axis"><span>{series[0].x.slice(8)}</span><span>Dia do mês</span><span>{series.at(-1).x.slice(8)}</span></div></>:<p className="pv-empty">Sem vendas finalizadas ou canceladas neste período.</p>}</div>;
 }
 function MainCard({title,value,detail,tone,icon:Icon}){return <article className={`pv-kpi pv-kpi--${tone}`}><div className="pv-kpi-heading"><span>{title}</span><Icon size={23}/></div><strong>{value}</strong><small>{detail}</small></article>;}
 function InlineStat({title,value,detail}){return <article className="pv-inline-stat"><span>{title}</span><strong>{value}</strong>{detail&&<small>{detail}</small>}</article>;}
@@ -62,7 +63,7 @@ export default function DashboardPage(){
     <section className="panel pv-report-panel"><div className="pv-section-head"><div><span>Composição</span><h2>Vendas por categoria</h2></div></div><HorizontalBars rows={v?.categorias} labelKey="categoria"/></section>
     <section className="panel pv-report-panel"><div className="pv-section-head"><div><span>Recebimentos</span><h2>Meios de pagamento</h2></div></div><HorizontalBars rows={v?.pagamentos} labelKey="forma" empty="Nenhum pagamento aprovado registrado."/></section>
    </div>
-   <section className="panel pv-report-panel"><div className="pv-section-head"><div><span>Evolução</span><h2>Atividade mensal de vendas finalizadas</h2></div><span>Faturamento por dia</span></div><Trend rows={v?.evolucao}/></section>
+   <section className="panel pv-report-panel"><div className="pv-section-head"><div><span>Evolução</span><h2>Atividade mensal: realizadas × canceladas</h2></div><span>Quantidade de vendas por dia</span></div><Trend rows={v?.atividadeDiaria}/></section>
    <section className="pv-block"><div className="pv-section-head"><div><span>Gestão</span><h2>Indicadores complementares</h2></div></div>
     <div className="pv-inline-grid">
      <InlineStat title="Ticket médio" value={display(v?.ticketMedio)}/>
