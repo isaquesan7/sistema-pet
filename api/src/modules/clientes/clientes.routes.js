@@ -45,6 +45,6 @@ router.patch(
   atualizar
 );
 
-router.delete("/:id",exigirPermissao("clientes.excluir"),excluir);
+router.delete("/:id",exigirPermissao("clientes.editar"),excluir);
 
 export default router;
