@@ -1,0 +1,25 @@
+name: PointVet personal account
+on:
+  pull_request:
+    paths:
+      - "api/src/modules/auth/**"
+      - "api/prisma/schema.prisma"
+      - "api/prisma/migrations/20261013050000_user_profile/**"
+      - "api/tests/my-account.contract.test.mjs"
+      - "admin-web/src/**"
+      - ".github/workflows/pointvet-my-account.yml"
+  workflow_dispatch:
+jobs:
+  account:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: node --check api/src/modules/auth/profile.controller.js
+      - run: node --test api/tests/my-account.contract.test.mjs
+      - name: Build admin frontend
+        working-directory: admin-web
+        run: |
+          npm ci
+          npm run build
