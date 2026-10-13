@@ -2,6 +2,12 @@ name: PointVet Quotes Credit Foundation
 on:
   pull_request:
     paths:
+      - "api/src/modules/clientes/client-finance.*"
+      - "api/src/app.js"
+      - "admin-web/src/components/ClientQuotesTab.jsx"
+      - "admin-web/src/components/ClientCreditTab.jsx"
+      - "admin-web/src/pages/ClientDetailPage.jsx"
+      - "admin-web/src/clients.css"
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
       - "POINTVET_QUOTES_CREDIT_FOUNDATION.md"
@@ -27,3 +33,20 @@ jobs:
           grep -q 'model OrcamentoCliente' api/prisma/schema.prisma
           grep -q 'model CreditoClienteMovimento' api/prisma/schema.prisma
           grep -q 'CHECK ("valor" > 0)' api/prisma/migrations/20261013213000_client_quotes_credit_foundation/migration.sql
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Verify backend syntax
+        run: |
+          node --check api/src/modules/clientes/client-finance.routes.js
+          node --check api/src/modules/clientes/client-finance.service.js
+          node --check api/src/app.js
+      - name: Build admin
+        working-directory: admin-web
+        run: |
+          npm ci
+          npm run build
