@@ -13,6 +13,8 @@ on:
       - "api/src/modules/organizacoes/organizacoes.schema.js"
       - "api/src/app.js"
       - "api/tests/pdv-unificado-foundation.contract.test.mjs"
+      - "api/tests/pdv-unificado-postgres.smoke.mjs"
+      - "api/prisma/migrations/20261013222500_unified_comanda_draft/**"
       - "admin-web/src/pages/SettingsPage.jsx"
       - ".github/workflows/pointvet-unified-pdv-foundation.yml"
   workflow_dispatch:
@@ -41,3 +43,35 @@ jobs:
         run: |
           npm ci
           npm run build
+
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pointvet_ci
+          POSTGRES_PASSWORD: pointvet_ci_only
+          POSTGRES_DB: pointvet_unified_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pointvet_ci -d pointvet_unified_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/pointvet_unified_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Install API dependencies
+        working-directory: api
+        run: npm ci
+      - name: Apply all migrations to disposable PostgreSQL
+        working-directory: api
+        run: npm run db:deploy
+      - name: Verify draft columns and revision conflict
+        working-directory: api
+        run: node --test tests/pdv-unificado-postgres.smoke.mjs
