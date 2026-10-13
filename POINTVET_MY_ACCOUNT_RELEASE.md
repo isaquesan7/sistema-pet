@@ -12,14 +12,14 @@
 1. Confirmar backup recuperável mais recente e plano de restauração.
 2. Validar a migração aditiva `20261013050000_user_profile` em PostgreSQL isolado (não na base principal). Executar `prisma migrate status` e `prisma migrate deploy` nesse banco.
 3. Homologar dois usuários de organizações diferentes, um usuário comum e um superadmin, com foto, nome, e-mail duplicado, senha errada, troca de senha, sessões simultâneas e encerramento de sessões.
-4. Confirmar o comportamento do login após alteração do e-mail e a entrega de notificações. A confirmação por e-mail ainda não foi implementada: não liberar alterações de e-mail sem aprovação de produto para esse fluxo.
+4. Confirmar o comportamento do login após alteração do e-mail, envio real via Resend, tentativas erradas, expiração, revogação de sessões e duplicidade de e-mail. Sem homologação de entrega, não liberar a funcionalidade em produção.
 5. Executar smoke test em ambiente isolado, incluindo `/auth/me/perfil`, `/auth/me/senha`, rotas existentes de login/refresh e menu do Admin.
 6. Aplicar a migração antes de implantar versões de API que consultem os novos campos, em janela controlada e com rollback.
 7. Revalidar backups, alertas, Console Interno e acesso à Pet King após o deploy.
 
 ## Ainda pendente
-- Testes de integração com banco isolado, além dos testes estáticos de contrato.
-- Confirmação de novo e-mail por link ou código para prevenir perda de controle do login.
+- CI executa migrações SQL novas contra PostgreSQL descartável; testes de integração da API autenticada e dos fluxos completos continuam pendentes.
+- Confirmação por código implementada no backend e UI; ainda exige homologação de entrega pelo Resend em ambiente isolado.
 - Política de upload de fotos no armazenamento externo (atualmente base64 com limite no banco).
 - Ajustes de UX e acessibilidade do menu via navegador real.
 
