@@ -46,6 +46,7 @@ export async function editMyProfile(req,res,next){
     const current=await prisma.usuario.findUnique({where:{id:req.usuario.id}});
     if(!current)return res.status(404).json({success:false,message:"Usuário não encontrado."});
     const changingEmail=data.email!==current.email;
+    if(changingEmail)return res.status(409).json({success:false,message:'Para alterar o e-mail, solicite um código de confirmação.'});
     if(changingEmail && (!data.senhaAtual || !await bcrypt.compare(data.senhaAtual,current.senhaHash))){
       return res.status(403).json({success:false,message:"Confirme a senha atual para alterar o e-mail."});
     }
