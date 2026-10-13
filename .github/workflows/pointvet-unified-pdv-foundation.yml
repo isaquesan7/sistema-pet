@@ -14,6 +14,7 @@ on:
       - "api/src/app.js"
       - "api/tests/pdv-unificado-foundation.contract.test.mjs"
       - "api/tests/pdv-unificado-postgres.smoke.mjs"
+      - "api/tests/pdv-unificado-integration.test.mjs"
       - "api/prisma/migrations/20261013222500_unified_comanda_draft/**"
       - "admin-web/src/pages/SettingsPage.jsx"
       - ".github/workflows/pointvet-unified-pdv-foundation.yml"
@@ -72,6 +73,12 @@ jobs:
       - name: Apply all migrations to disposable PostgreSQL
         working-directory: api
         run: npm run db:deploy
+      - name: Generate Prisma client
+        working-directory: api
+        run: npm run db:generate
+      - name: Verify cross-company draft operations
+        working-directory: api
+        run: node --import tsx --test tests/pdv-unificado-integration.test.mjs
       - name: Verify draft columns and revision conflict
         working-directory: api
         run: node --test tests/pdv-unificado-postgres.smoke.mjs
