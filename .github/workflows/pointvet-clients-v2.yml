@@ -8,6 +8,7 @@ on:
       - "admin-web/src/components/Modal.jsx"
       - "admin-web/src/App.jsx"
       - "api/src/modules/clientes/**"
+      - "api/tests/clients-v2.contract.test.mjs"
       - ".github/workflows/pointvet-clients-v2.yml"
   workflow_dispatch:
 jobs:
@@ -22,6 +23,7 @@ jobs:
           node --check api/src/modules/clientes/clientes.service.js
           node --check api/src/modules/clientes/clientes.controller.js
           node --check api/src/modules/clientes/clientes.routes.js
+      - run: node --test api/tests/clients-v2.contract.test.mjs
       - name: Build admin
         working-directory: admin-web
         run: |
