@@ -1,0 +1,40 @@
+/* PointVet Clientes V2 — legible drawer, complete tutor profile and safe actions */
+.modal-layer:has(.pv-drawer){display:flex;align-items:stretch;justify-content:flex-end;padding:0;background:rgba(21,29,47,.53)}
+.modal-card.pv-drawer{width:min(560px,100vw);max-width:none;height:100dvh;max-height:100dvh;border-radius:18px 0 0 18px;display:flex;flex-direction:column;margin:0;box-shadow:-20px 0 55px #0e1b3530}
+.pv-drawer .modal-card__header{flex-shrink:0}.pv-drawer .modal-card__body{flex:1;overflow:auto;min-height:0}.pv-drawer .modal-card__footer{flex-shrink:0}
+.pv-drawer .form-grid--4,.pv-drawer .form-grid--3{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pv-drawer .form-field--span-2{grid-column:1/-1}
+.pv-drawer input,.pv-drawer select,.pv-drawer textarea{font-size:15px;min-height:42px}
+.pv-drawer .form-section__heading strong{font-size:17px}
+.pv-client-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.pv-client-actions button{min-width:38px;min-height:38px}
+.pv-danger-action{color:#c73d4a!important;background:#fff1f2!important}
+.pv-delete-submit{background:#bc3344!important}
+.pv-list-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;font-size:14px;color:#57647a;font-weight:650}
+.pv-list-pagination>div{display:flex;gap:8px}
+.pv-client-details{font-size:15px}
+.pv-back{justify-self:start}
+.pv-detail-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.pv-detail-head h1{font-size:clamp(24px,2.4vw,32px);display:flex;align-items:center;gap:12px;margin:9px 0;color:#263147}
+.pv-detail-head p{margin:0;color:#637189;font-size:14px}
+.pv-detail-tabs{display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid #dee5ef}
+.pv-detail-tabs button{white-space:nowrap;background:transparent;border:0;border-bottom:3px solid transparent;padding:14px 16px;font-size:15px;font-weight:700;color:#53617a;cursor:pointer}
+.pv-detail-tabs button.selected{color:#6156c9;border-bottom-color:#6156c9}
+.pv-detail-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:17px;align-items:start}
+.pv-detail-panel{padding:23px}
+.pv-detail-panel h2{font-size:20px;margin:0 0 20px}
+.pv-detail-panel dl{margin:0;display:grid;gap:0}
+.pv-detail-panel dl>div{display:grid;grid-template-columns:155px minmax(0,1fr);border-bottom:1px solid #edf0f6;gap:14px;padding:12px 0}
+.pv-detail-panel dt{font-size:14px;font-weight:750;color:#52617c}
+.pv-detail-panel dd{font-size:15px;color:#283752;overflow-wrap:anywhere;margin:0}
+.pv-detail-pets-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pv-detail-pets-head h2{margin:0}
+.pv-detail-pets{display:grid;gap:11px;margin-top:20px}
+.pv-detail-pets>div{display:grid;grid-template-columns:28px 1fr;gap:3px 10px;padding:13px;border:1px solid #e5e9f2;border-radius:12px}
+.pv-detail-pets svg{color:#665ac9;grid-row:span 2}
+.pv-detail-pets strong{font-size:15px}
+.pv-detail-pets small{font-size:13px;color:#617087}
+.pv-pet-form{display:grid;gap:17px}
+.pv-pet-form label{display:grid;gap:8px;font-size:14px;font-weight:750;color:#34425b}
+@media(max-width:900px){.pv-detail-columns{grid-template-columns:1fr}}
+@media(max-width:560px){.pv-detail-panel dl>div{grid-template-columns:1fr;gap:4px}.pv-drawer .form-grid--4,.pv-drawer .form-grid--3{grid-template-columns:1fr}.modal-card.pv-drawer{border-radius:0}}
