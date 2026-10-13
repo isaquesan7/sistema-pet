@@ -1,0 +1,25 @@
+name: PointVet Client Finance UX Fixes
+on:
+  pull_request:
+    paths:
+      - "admin-web/src/pages/PetServiceHubPage.jsx"
+      - "admin-web/src/clients.css"
+      - "admin-web/src/index.css"
+      - ".github/workflows/pointvet-client-finance-ux.yml"
+  workflow_dispatch:
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - name: Build Admin
+        working-directory: admin-web
+        run: |
+          npm ci
+          npm run build
+      - name: Guard known grooming runtime regression
+        run: |
+          if grep -q 'related.isLoading' admin-web/src/pages/PetServiceHubPage.jsx; then exit 1; fi
+          grep -q '"/banho-e-tosa"' admin-web/src/pages/PetServiceHubPage.jsx
