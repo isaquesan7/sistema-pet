@@ -5,8 +5,8 @@ const read=p=>readFileSync(new URL(p,import.meta.url),"utf8");
 const routes=read("../src/modules/clientes/clientes.routes.js");
 const service=read("../src/modules/clientes/clientes.service.js");
 const ctrl=read("../src/modules/clientes/clientes.controller.js");
-const clients=read("../../../admin-web/src/pages/ClientsPage.jsx");
-const details=read("../../../admin-web/src/pages/ClientDetailPage.jsx");
+const clients=read("../../admin-web/src/pages/ClientsPage.jsx");
+const details=read("../../admin-web/src/pages/ClientDetailPage.jsx");
 test("deletion requires authorization and is tenant scoped",()=>{
  assert.match(routes,/router.delete\("\/:id",exigirPermissao\("clientes.editar"\),excluir\)/);
  assert.match(service,/where:\{id,organizacaoId\}/);
