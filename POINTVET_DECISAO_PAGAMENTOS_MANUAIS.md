@@ -1,3 +1,5 @@
+> **Estado técnico M.3C (14/10/2026):** já existe rotina de estorno manual transacional **somente em PostgreSQL CI descartável**, testada em [run 38640657139](https://github.com/isaquesan7/sistema-pet/actions/runs/38640657139). Ela exige confirmação humana da devolução/cancelamento externamente, registra auditoria por reserva e bloqueia parcelas conciliadas, fiscal e financeiro. **Não efetua estorno em maquininha, Pix ou banco nem autoriza produção**. Próxima etapa oficial M.4: Orçamentos/Crédito PR #35, fiscal e modelagem de unidades; depois M.5 staging, restore e canário.
+
 # Ponto de decisão OFICIAL — recebimentos manuais no PointVet
 
 **Data:** 14/10/2026. **Origem:** decisão explícita do responsável pelo produto no chat.
