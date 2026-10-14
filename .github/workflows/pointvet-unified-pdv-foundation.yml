@@ -14,6 +14,7 @@ on:
       - "api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js"
       - "api/src/modules/pdv/pdv-unificado-psp-sandbox.contract.js"
       - "api/src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js"
+      - "api/src/modules/pdv/pdv-unificado-consulta-psp.contract.js"
       - "admin-web/src/pages/UnifiedPdvPreviewPage.jsx"
       - "admin-web/src/pages/PdvPage.jsx"
       - "admin-web/src/App.jsx"
@@ -23,6 +24,7 @@ on:
       - "api/tests/pdv-unificado-foundation.contract.test.mjs"
       - "api/tests/pdv-unificado-postgres.smoke.mjs"
       - "api/tests/pdv-unificado-integration.test.mjs"
+      - "api/tests/pdv-unificado-psp-contract.test.mjs"
       - "api/prisma/migrations/20261013222500_unified_comanda_draft/**"
       - "api/prisma/migrations/20261014100000_unified_closing_reservations/**"
       - "api/prisma/migrations/20261014113000_unified_sale_preparation/**"
@@ -49,8 +51,10 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-psp-sandbox.contract.js
           node --check api/src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js
+          node --check api/src/modules/pdv/pdv-unificado-consulta-psp.contract.js
           node --check api/src/app.js
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
+          node --test api/tests/pdv-unificado-psp-contract.test.mjs
       - name: Prisma schema
         working-directory: api
         env:
