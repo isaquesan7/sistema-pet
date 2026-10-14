@@ -9,6 +9,11 @@ on:
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
       - "api/src/modules/clientes/client-finance.service.js"
+      - "api/src/modules/clientes/client-credit-ledger.contract.js"
+      - "api/src/modules/clientes/client-credit-ledger-sandbox.service.js"
+      - "api/tests/client-credit-ledger.contract.test.mjs"
+      - "api/tests/client-credit-ledger.integration.test.mjs"
+      - "api/prisma/migrations/20261014235900_client_credit_causal_ledger/**"
       - "api/src/modules/clientes/client-quote-pdv-preview.service.js"
       - "api/src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js"
       - "api/prisma/migrations/20261014234500_quote_to_unified_draft/**"
@@ -85,6 +90,9 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js
           node --check api/src/app.js
           node --check api/src/modules/clientes/client-finance.service.js
+          node --check api/src/modules/clientes/client-credit-ledger.contract.js
+          node --check api/src/modules/clientes/client-credit-ledger-sandbox.service.js
+          node --test api/tests/client-credit-ledger.contract.test.mjs
           node --check api/src/modules/clientes/client-quote-pdv-preview.service.js
           node --check api/src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js
           node --check api/src/modules/clientes/client-finance.routes.js
@@ -144,6 +152,12 @@ jobs:
           NODE_ENV: test
           POINTVET_UNIFIED_SALES_SANDBOX: "1"
         run: node --import tsx --test tests/pdv-unificado-integration.test.mjs
+      - name: Verify reconciled prepaid credit and causal reversal on disposable database
+        working-directory: api
+        env:
+          NODE_ENV: test
+          POINTVET_UNIFIED_SALES_SANDBOX: "1"
+        run: node --import tsx --test tests/client-credit-ledger.integration.test.mjs
       - name: Verify draft columns and revision conflict
         working-directory: api
         run: node --test tests/pdv-unificado-postgres.smoke.mjs

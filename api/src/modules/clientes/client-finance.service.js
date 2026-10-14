@@ -1,6 +1,7 @@
 /** Client commercial quotes — no cash, fiscal or credit postings. */
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
+import {checarRazaoCreditoCausal} from "./client-credit-ledger.contract.js";
 const money=z.number().finite().min(0).max(100000000).refine(v=>Math.abs(v*100-Math.round(v*100))<1e-6&&Number.isSafeInteger(Math.round(v*100)),{message:"MOEDA_CENTAVOS_INVALIDOS"});
 const quantity=z.number().positive().max(100000).refine(v=>Math.abs(v*1000-Math.round(v*1000))<1e-6,{message:"QUANTIDADE_MILESIMOS_INVALIDA"});
 export const createSchema=z.object({
@@ -60,17 +61,18 @@ export async function setQuoteStatus(org,empresa,cliente,id,status,actorId){
   return serialized(await tx.orcamentoCliente.findUnique({where:{id},include:{itens:true}}));
  },{isolationLevel:"Serializable"});
 }
-/** Credit is read-only until explicit payment confirmation and PDV integration exist. */
+/** Credit remains only a read endpoint; confirmed CI ledger has causal signs. */
 export async function creditLedger(org,empresa,cliente){
  await assertTenant(prisma,org,empresa,cliente);
- const rows=await prisma.creditoClienteMovimento.findMany({where:{organizacaoId:org,empresaId:empresa,clienteId:cliente},orderBy:[{createdAt:"desc"},{id:"desc"}],take:200});
- const all=await prisma.creditoClienteMovimento.findMany({where:{organizacaoId:org,empresaId:empresa,clienteId:cliente},select:{tipo:true,valor:true}});
- // ESTORNO ainda não contém vínculo à operação original; NÃO presumir direção.
- const ambiguidade=all.some(m=>m.tipo==="ESTORNO");
- const saldoCentavos=all.reduce((acc,m)=>acc+(m.tipo==="ENTRADA"?1:-1)*Math.round(Number(m.valor)*100),0);
- const saldoConfiavel=!ambiguidade&&saldoCentavos>=0&&Number.isSafeInteger(saldoCentavos);
- return {saldo:saldoConfiavel?saldoCentavos/100:null,saldoConfiavel,
-  motivoSaldoIndisponivel:ambiguidade?"ESTORNO_SEM_VINCULO_ORIGINAL":saldoConfiavel?null:"RAZAO_INCONSISTENTE",
-  movimentos:rows.map(x=>({...x,valor:Number(x.valor)})),
+ const rows=await prisma.creditoClienteMovimento.findMany({where:{
+  organizacaoId:org,empresaId:empresa,clienteId:cliente
+ },orderBy:[{createdAt:"desc"},{id:"desc"}]});
+ const audit=checarRazaoCreditoCausal(rows);
+ // Existing ledger can include historic noncausal rows; fail closed rather than
+ // making unknown ESTORNO look like real spendable credit.
+ return {saldo:audit.saldoConfiavel?audit.saldoCentavos/100:null,
+  saldoConfiavel:audit.saldoConfiavel,
+  motivoSaldoIndisponivel:audit.motivo,
+  movimentos:rows.slice(0,200).map(x=>({...x,valor:Number(x.valor)})),
   lancamentosHabilitados:false,usoNoPdvHabilitado:false};
 }
