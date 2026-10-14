@@ -10,6 +10,8 @@ CREATE TABLE "reservas_fechamento_unificado" (
   "status" "StatusReservaFechamentoUnificado" NOT NULL DEFAULT 'RESERVADA',
   "canceladaEm" TIMESTAMP(3),
   "motivoCancelamento" TEXT,
+  "criadoPorId" TEXT NOT NULL,
+  "canceladoPorId" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "reservas_fechamento_unificado_pkey" PRIMARY KEY ("id")
@@ -18,6 +20,11 @@ CREATE UNIQUE INDEX "reservas_fechamento_unificado_comandaId_versaoRascunho_key"
 CREATE INDEX "reservas_fechamento_unificado_status_idx" ON "reservas_fechamento_unificado"("status");
 ALTER TABLE "reservas_fechamento_unificado" ADD CONSTRAINT "reservas_fechamento_unificado_comandaId_fkey"
  FOREIGN KEY ("comandaId") REFERENCES "comandas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "reservas_fechamento_unificado" ADD CONSTRAINT "reservas_fechamento_unificado_criadoPorId_fkey"
+ FOREIGN KEY ("criadoPorId") REFERENCES "usuarios"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "reservas_fechamento_unificado" ADD CONSTRAINT "reservas_fechamento_unificado_canceladoPorId_fkey"
+ FOREIGN KEY ("canceladoPorId") REFERENCES "usuarios"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE TABLE "reservas_operacoes_unificadas" (
   "id" TEXT NOT NULL,
