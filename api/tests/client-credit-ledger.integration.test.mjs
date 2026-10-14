@@ -150,7 +150,8 @@ test("M.4B.2: evidence-bound credit, negative balance, concurrency, idempotency 
  assert.equal((await creditLedger(org,empresa,client)).saldo,30);
  await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
   ...base,solicitacaoId:ref("estorno-adiantamento-bloqueado-"),
-  movimentoOriginalId:deposited.id,motivo:"Devolução de adiantamento pretendida"
+  movimentoOriginalId:deposited.id,motivo:"Devolução de adiantamento pretendida",
+  confirmouDevolucaoExterna:true
  }),/M4B2_ESTORNO_SALDO_INSUFICIENTE/);
  const reversal={...base,solicitacaoId:ref("estorno-uso-simulado-"),
   movimentoOriginalId:win.id,motivo:"Reversão causal do débito simulado"};
