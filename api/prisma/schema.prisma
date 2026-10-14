@@ -2929,7 +2929,8 @@ model ConciliacaoFinanceira {
   contaFinanceira ContaFinanceira @relation(fields: [contaFinanceiraId], references: [id], onDelete: Restrict)
   usuario         Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 
-  creditoPrePago CreditoClienteMovimento?
+  creditoPrePago CreditoClienteMovimento? @relation("CreditoEntradaConciliada")
+  creditoDevolvido CreditoClienteMovimento? @relation("CreditoDevolucaoConciliada")
 
   @@unique([origem, origemId])
   @@index([empresaId, dataMovimento])
@@ -3386,6 +3387,8 @@ model CreditoClienteMovimento {
   // M.4B.2: optional for retrocompatibility. Only CI sandbox records them.
   solicitacaoFingerprint String?
   conciliacaoId String? @unique
+  // M.4B.3: return of original credit requires a DISTINCT outbound reconciliation.
+  devolucaoConciliacaoId String? @unique
   reverteMovimentoId String? @unique
   responsavelId String?
   evidencia Json?
@@ -3393,7 +3396,8 @@ model CreditoClienteMovimento {
   organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
   empresa Empresa @relation(fields:[empresaId],references:[id],onDelete:Restrict)
   cliente Cliente @relation(fields:[clienteId],references:[id],onDelete:Restrict)
-  conciliacao ConciliacaoFinanceira? @relation(fields:[conciliacaoId],references:[id],onDelete:Restrict)
+  conciliacao ConciliacaoFinanceira? @relation("CreditoEntradaConciliada",fields:[conciliacaoId],references:[id],onDelete:Restrict)
+  devolucaoConciliacao ConciliacaoFinanceira? @relation("CreditoDevolucaoConciliada",fields:[devolucaoConciliacaoId],references:[id],onDelete:Restrict)
   responsavel Usuario? @relation("CreditoOperadorCausal",fields:[responsavelId],references:[id],onDelete:Restrict)
   reverteMovimento CreditoClienteMovimento? @relation("CreditoEstornoCausal",fields:[reverteMovimentoId],references:[id],onDelete:Restrict)
   estornoCausal CreditoClienteMovimento? @relation("CreditoEstornoCausal")
