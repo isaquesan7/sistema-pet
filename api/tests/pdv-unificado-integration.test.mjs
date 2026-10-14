@@ -5,7 +5,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
 import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
-import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
+import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -85,6 +85,28 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(good.preConferenciaAprovada,true);
  assert.equal(good.execucaoDisponivel,false);
  assert.equal(good.empresas.length,2);
+ const prepArgs={...reservationArgs,dados:proper};
+ const preparacoesConcorrentes=await Promise.allSettled([
+  prepararExecucaoUnificada(prepArgs),prepararExecucaoUnificada(prepArgs)
+ ]);
+ assert(preparacoesConcorrentes.some(x=>x.status==="fulfilled"),"One preparation must commit");
+ const preparacao=await consultarPreparacaoUnificada(reservationArgs);
+ assert.equal(preparacao.status,"PREPARADA");
+ assert.equal(preparacao.execucaoDisponivel,false);
+ assert.equal(preparacao.operacoes.length,2);
+ assert.equal(await prisma.criacaoPreparacaoUnificada.count({where:{reservaId:initialReservation.id}}),1);
+ const replayPrep=await prepararExecucaoUnificada(prepArgs);
+ assert.equal(replayPrep.id,preparacao.id);
+ assert.equal(replayPrep.fingerprint,preparacao.fingerprint);
+ assert.equal(replayPrep.reutilizada,true);
+ const reordered=await prepararExecucaoUnificada({...reservationArgs,dados:{versao:1,alocacoes:[...proper.alocacoes].reverse()}});
+ assert.equal(reordered.id,preparacao.id,"Equivalent allocation order must replay the same preparation");
+ await assert.rejects(()=>prepararExecucaoUnificada({...reservationArgs,dados:{
+  ...proper,alocacoes:[{...proper.alocacoes[0],pagamentos:[{forma:"DINHEIRO",valorCentavos:18000}]},proper.alocacoes[1]]
+ }}),/PREPARACAO_DIVERGENTE/);
+ assert.equal(await prisma.venda.count(),0,"Preparation must never create sales");
+ assert.equal(await prisma.pagamento.count(),0,"Preparation must never create payments");
+
  const repeatedGood=await conferirAlocacaoFechamento({...reservationArgs,dados:proper});
  assert.deepEqual(good,repeatedGood,"Pre-conference must be repeatable, read-only");
  const wrongSession=await conferirAlocacaoFechamento({...reservationArgs,dados:{
@@ -112,6 +134,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const cancelled=await cancelarReservaFechamento({...reservationArgs,motivo:"Revisão de itens no teste isolado"});
  assert.equal(cancelled.canceladoPorId,ids.user);
  assert.equal(cancelled.status,"CANCELADA");
+ const cancelledPrep=await consultarPreparacaoUnificada(reservationArgs);
+ assert.equal(cancelledPrep.status,"INVALIDADA");
+ await assert.rejects(()=>prepararExecucaoUnificada(prepArgs),/RESERVA_NAO_EDITAVEL/);
+
  const afterCancelled=await diagnosticarRecuperacaoFechamento(reservationArgs);
  assert(afterCancelled.operacoes.every(o=>o.diagnostico==="CANCELADA"));
  assert(cancelled.operacoes.every(x=>x.status==="CANCELADA"));
