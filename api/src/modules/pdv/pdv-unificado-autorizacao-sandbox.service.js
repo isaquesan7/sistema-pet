@@ -12,7 +12,7 @@ const DATABASE_CI="pointvet_unified_ci";
 const formes=new Set(["DINHEIRO","PIX","CARTAO_DEBITO","CARTAO_CREDITO","TRANSFERENCIA"]);
 function cents(v){
  const n=Math.round(Number(v)*100);
- if(!Number.isSafeInteger(n)||n<1)throw Error("VALOR_INTENCAO_INVALIDO");
+ if(!Number.isSafeInteger(n)||n<0)throw Error("VALOR_INTENCAO_INVALIDO");
  return n;
 }
 async function lockComandaCI(tx,id){
