@@ -171,7 +171,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.vendaItem.count({where:{venda:{comandaId:sandboxDraft.id}}}),2);
  assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
  assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
- assert.equal(await prisma.movimentacaoEstoque.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ assert.equal(await prisma.movimentacaoEstoque.count(),0);
  assert.equal(await prisma.documentoFiscal.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
  const diagnosisSandbox=await diagnosticarRecuperacaoFechamento(sandboxArgs);
  assert(diagnosisSandbox.operacoes.every(o=>o.diagnostico==="ESTADO_REQUER_REVISAO"),"Draft sale must never be considered finalized");
