@@ -190,7 +190,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert(again.operacoes.every(o=>o.estado==="PREPARADA_SANDBOX"&&o.outboxStatus==="PENDENTE"));
  const intentCount=await prisma.intencaoAutorizacaoUnificada.count({where:{operacao:{reserva:{comandaId:sandboxDraft.id}}}});
  assert.equal(intentCount,2,"One intent per allocated payment");
- const jobs=await prisma.outboxAutorizacaoUnificada.findMany({where:{intencao:{operacao:{reserva:{comandaId:sandboxDraft.id}}}}}});
+ const jobs=await prisma.outboxAutorizacaoUnificada.findMany({where:{intencao:{operacao:{reserva:{comandaId:sandboxDraft.id}}}}});
  assert.equal(jobs.length,2);
  const [first,second]=again.operacoes;
  const authContext={...sandboxArgs,intencaoId:first.id};
