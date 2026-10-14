@@ -94,3 +94,17 @@
 .pv-unified-total>div{display:flex;justify-content:space-between;gap:14px;font-size:15px}
 .pv-unified-total p{font-size:13px;line-height:1.6;color:#5e6480}
 @media(max-width:650px){.pv-unified-catalog>div,.pv-unified-line{flex-wrap:wrap}.pv-unified-line label{width:100%}}
+
+/* Financial proposals and credit: consistent readable three-column filters and right drawer. */
+.pv-client-quotes,.pv-client-credit{display:grid;gap:20px}
+.pv-client-quote-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:end;padding:0 0 12px}
+.pv-client-quote-filters label{display:grid;gap:8px;font-size:14px;font-weight:700;color:#45536d}
+.pv-client-quote-filters select{min-height:44px;font-size:15px}
+.pv-quote-row{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) auto!important}
+.pv-quote-row .pv-pet-card-actions{grid-column:1/-1}
+.pv-quote-item{display:grid;gap:14px;border:1px solid #e5eaf2;padding:16px;border-radius:13px}
+.pv-quote-item>strong{font-size:16px;color:#29364e}
+.pv-quote-numbers{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pv-quote-total{display:flex;justify-content:space-between;gap:15px;align-items:center;font-size:15px;border-top:1px solid #e5eaf2;padding-top:17px}
+.pv-quote-total strong{font-size:24px;color:#554bc3}
+@media(max-width:760px){.pv-client-quote-filters{grid-template-columns:1fr}.pv-quote-numbers{grid-template-columns:1fr}.pv-quote-row{grid-template-columns:1fr!important}}
