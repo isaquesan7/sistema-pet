@@ -38,6 +38,14 @@ export function checarRazaoCreditoCausal(movimentos=[]){
       m.conciliacaoId||m.evidencia?.tipo!=="ESTORNO_CAUSAL_CI"||
       reversed.has(original.id))
     return {saldoCentavos:null,saldoConfiavel:false,motivo:"ESTORNO_CAUSAL_INCONSISTENTE"};
+   // A reversal of prepaid funds must reference an OUTBOUND accounting proof.
+   if(original.tipo==="ENTRADA"&&(!m.devolucaoConciliacaoId||
+      m.evidencia?.devolucaoConciliacaoId!==m.devolucaoConciliacaoId||
+      m.evidencia?.devolucaoExternaDeclarada!==true||
+      m.evidencia?.verificadoPeloBanco!==false))
+    return {saldoCentavos:null,saldoConfiavel:false,motivo:"DEVOLUCAO_SEM_LASTRO_CONTABIL"};
+   if(original.tipo==="UTILIZACAO"&&m.devolucaoConciliacaoId)
+    return {saldoCentavos:null,saldoConfiavel:false,motivo:"DEVOLUCAO_INDEVIDA_PARA_DEBITO"};
    reversed.add(original.id);
    total+=original.tipo==="ENTRADA"?-valor:valor;
   }else return {saldoCentavos:null,saldoConfiavel:false,motivo:"RAZAO_TIPO_INVALIDO"};
