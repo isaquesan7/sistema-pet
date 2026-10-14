@@ -9,6 +9,7 @@
 | Artefato | Referência |
 | --- | --- |
 | Repositório | https://github.com/isaquesan7/sistema-pet |
+| **Issue permanente de continuidade (LER PRIMEIRO)** | https://github.com/isaquesan7/sistema-pet/issues/37 |
 | PDV Unificado — PR principal (DRAFT) | https://github.com/isaquesan7/sistema-pet/pull/36 |
 | Branch PDV | `feat/pointvet-20-1-unified-pdv-foundation` |
 | Orçamentos + Crédito Cliente — PR dependente (DRAFT) | https://github.com/isaquesan7/sistema-pet/pull/35 |
@@ -79,7 +80,7 @@ As etapas externas (PSP fiscal/gateway) NÃO entram em uma transação SQL únic
 3. Verificar `main` e deploys atuais (produção pode avançar enquanto chats estão separados).
 4. Abrir `POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md` e os módulos de serviço/rotas.
 5. Continuar **na próxima etapa da seção 5**, fazendo testes unitários/integração em PostgreSQL descartável.
-6. Atualizar **este arquivo e descrição do PR #36 ao final de cada incremento**, com HEAD, testes e próxima ação.
+6. Atualizar **este arquivo, a issue #37 e a descrição do PR #36 ao final de cada incremento**, com HEAD, testes e próxima ação.
 
 ## 8. Registro de progresso (manter cumulativo)
 | Data | Incremento | Estado |
@@ -116,7 +117,7 @@ As etapas externas (PSP fiscal/gateway) NÃO entram em uma transação SQL únic
 6. **Bloqueio absoluto**: não integrar crédito de cliente como pagamento antes da revisão do PR #35 e da consistência do razão; não habilitar emissão opcional irregular; não fazer deploy/merge antes de backup restaurável/rollback e canário aprovado.
 
 ### Protocolo de handoff obrigatório
-Em cada continuação, antes de avançar: confirmar HEAD de PR #36 e PR #35, verificar divergência com `main` e CI **do HEAD**; depois fazer commit de código, esperar CI, atualizar esta seção com SHA/run/erros e próxima decisão, atualizar corpo do PR #36; nunca escrever "concluído" para etapa não homologada.
+Em cada continuação, antes de avançar: confirmar HEAD de PR #36 e PR #35, verificar divergência com `main` e CI **do HEAD**; depois fazer commit de código, esperar CI, atualizar esta seção com SHA/run/erros e próxima decisão, atualizar a issue #37 e o corpo do PR #36; nunca escrever "concluído" para etapa não homologada.
 
 ## 9. Marcadores de status
 - **IMPLEMENTADO NA BRANCH** ≠ **HOMOLOGADO** ≠ **EM PRODUÇÃO**.
