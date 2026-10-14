@@ -58,6 +58,8 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
    if(atual.status!=="ABERTA"||atual.vendas?.length)throw Error("RASCUNHO_BLOQUEADO");
    if(atual.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
    if(atual.clienteId!==args.clienteId)throw Error("RASCUNHO_CLIENTE_IMUTAVEL");
+   const ativa=await tx.reservaFechamentoUnificado.findFirst({where:{comandaId:id,status:"RESERVADA"},select:{id:true}});
+   if(ativa)throw Error("RASCUNHO_RESERVADO");
    const empresaIds=[...new Set(atual.itens.map(x=>x.empresaId))];
    const acessiveis=await empresasAutorizadas(args,tx);
    if(empresaIds.some(e=>!acessiveis.some(a=>a.id===e)))throw Error("EMPRESA_SEM_ACESSO");
@@ -87,13 +89,13 @@ export async function listarRascunhos({organizacaoId,usuarioId,empresaId}){
 /** Pre-close verification only. Never mutates invoices, stock, credit or payments.
  * All seller allocations are evaluated from persisted draft rows, not client totals.
  */
-export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
- const draft=await prisma.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
+ const draft=await db.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
   include:{cliente:{select:{id:true,nome:true,ativo:true}},itens:{where:{status:"ATIVO"},include:{itemCatalogo:{select:{id:true,ativo:true,precoVenda:true,empresaId:true,servico:{select:{exigePet:true}}}},pet:{select:{id:true,clienteId:true,ativo:true}}}},vendas:{select:{id:true}}}});
  if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
  if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
  if(draft.status!=="ABERTA"||draft.vendas.length||!draft.cliente.ativo||!draft.itens.length)throw Error("RASCUNHO_BLOQUEADO");
- const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},db);
  const allowed=new Map(acessiveis.map(e=>[e.id,e]));
  if(draft.itens.some(i=>!allowed.has(i.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
  const issues=[],totals=new Map();
@@ -118,8 +120,8 @@ export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,i
 /** Pure, deterministic allocation plan: one future sale per company, never an executed sale.
  * Keys are scoped to draft+revision+company; no payment or invoice is attempted here.
  */
-export async function planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
- const revisao=await conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao});
+export async function planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
+ const revisao=await conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao},db);
  if(revisao.pendencias.length)throw Error("PRE_FECHAMENTO_COM_PENDENCIAS");
  const grupos=revisao.empresas.map(company=>({
   empresaId:company.empresaId,cnpj:company.cnpj,empresa:company.nome,total:company.total,
@@ -129,4 +131,93 @@ export async function planejarFechamento({organizacaoId,usuarioId,empresaId,id,v
  if(new Set(grupos.map(g=>g.empresaId)).size!==grupos.length)throw Error("EMPRESA_DUPLICADA");
  return {rascunhoId:id,versao,estado:"PLANEJAMENTO_SEM_EXECUCAO",total:revisao.total,operacoes:grupos,
   podeExecutar:false,checkoutHabilitado:false,observacao:"Plano determinístico para futura idempotência. Nenhuma venda, cobrança, movimentação ou documento fiscal é criado."};
+}
+
+/** Durable reservation: locks the parent comanda, revalidates the full pre-close plan
+ * transactionally, and creates at most one immutable operation per company/revision.
+ * Never creates a Venda/Pagamento/DocumentoFiscal or moves inventory.
+ */
+export async function reservarOperacoesFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
+ return prisma.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
+  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},select:{id:true,clienteId:true,status:true,versaoRascunho:true}});
+  if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
+  if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
+  if(draft.status!=="ABERTA")throw Error("RASCUNHO_BLOQUEADO");
+  const existente=await tx.reservaFechamentoUnificado.findUnique({
+   where:{comandaId_versaoRascunho:{comandaId:id,versaoRascunho:versao}},
+   include:{operacoes:{include:{empresa:{select:{nomeFantasia:true,cnpj:true}}}}}
+  });
+  if(existente){
+   const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},tx);
+   const allowed=new Set(acessiveis.map(e=>e.id));
+   if(existente.operacoes.some(op=>!allowed.has(op.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
+   if(existente.status!=="RESERVADA")throw Error("RESERVA_CANCELADA");
+   if(existente.operacoes.some(op=>op.vendaId||op.status!=="RESERVADA"))throw Error("RESERVA_NAO_EDITAVEL");
+   return normalizarReserva(existente,true);
+  }
+  const plano=await planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao},tx);
+  if(!plano.operacoes.length)throw Error("RASCUNHO_BLOQUEADO");
+  const criada=await tx.reservaFechamentoUnificado.create({
+   data:{comandaId:id,versaoRascunho:versao,valorTotal:plano.total,
+    operacoes:{create:plano.operacoes.map(op=>({
+      empresaId:op.empresaId,chaveIdempotencia:op.chaveIdempotencia,valorTotal:op.total
+    }))}},
+   include:{operacoes:{include:{empresa:{select:{nomeFantasia:true,cnpj:true}}}}}
+  });
+  return normalizarReserva(criada,false);
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
+}
+function normalizarReserva(reserva,reutilizada){
+ return {id:reserva.id,comandaId:reserva.comandaId,versao:reserva.versaoRascunho,
+  status:reserva.status,total:String(reserva.valorTotal),reutilizada,
+  operacoes:reserva.operacoes.map(op=>({id:op.id,empresaId:op.empresaId,
+   nome:op.empresa.nomeFantasia,cnpj:op.empresa.cnpj,valor:String(op.valorTotal),
+   chaveIdempotencia:op.chaveIdempotencia,status:op.status,vendaId:op.vendaId})),
+  checkoutHabilitado:false,pagamentosHabilitados:false,emissaoFiscalHabilitada:false};
+}
+/** Tenant and all-company authorization required even for reading a reservation. */
+export async function consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
+ const comanda=await prisma.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+  select:{id:true,itens:{select:{empresaId:true}}}});
+ if(!comanda)throw Error("RASCUNHO_NAO_ENCONTRADO");
+ const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ const permitidos=new Set(acessiveis.map(e=>e.id));
+ if(comanda.itens.some(i=>!permitidos.has(i.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
+ const reserva=await prisma.reservaFechamentoUnificado.findUnique({
+  where:{comandaId_versaoRascunho:{comandaId:id,versaoRascunho:versao}},
+  include:{operacoes:{include:{empresa:{select:{nomeFantasia:true,cnpj:true}}}}}
+ });
+ if(reserva?.operacoes.some(i=>!permitidos.has(i.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
+ return reserva?normalizarReserva(reserva,true):null;
+}
+/** Release only an unexecuted reservation; preserve its audit rows and key uniqueness.
+ * A new revision is required before reserving again.
+ */
+export async function cancelarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao,motivo}){
+ return prisma.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
+  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},select:{id:true,versaoRascunho:true}});
+  if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
+  if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
+  const reserva=await tx.reservaFechamentoUnificado.findUnique({
+   where:{comandaId_versaoRascunho:{comandaId:id,versaoRascunho:versao}},
+   include:{operacoes:{include:{empresa:{select:{nomeFantasia:true,cnpj:true}}}}}
+  });
+  if(!reserva)throw Error("RESERVA_NAO_ENCONTRADA");
+  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},tx);
+  const permitidos=new Set(acessiveis.map(e=>e.id));
+  if(reserva.operacoes.some(op=>!permitidos.has(op.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
+  if(reserva.operacoes.some(op=>op.vendaId||op.status==="CONCLUIDA"))throw Error("RESERVA_NAO_EDITAVEL");
+  if(reserva.status==="CANCELADA")return normalizarReserva(reserva,true);
+  const updated=await tx.reservaFechamentoUnificado.updateMany({
+   where:{id:reserva.id,status:"RESERVADA"},
+   data:{status:"CANCELADA",canceladaEm:new Date(),motivoCancelamento:motivo}
+  });
+  if(updated.count!==1)throw Error("RESERVA_NAO_EDITAVEL");
+  await tx.reservaOperacaoUnificada.updateMany({where:{reservaId:reserva.id,status:"RESERVADA"},data:{status:"CANCELADA"}});
+  const result=await tx.reservaFechamentoUnificado.findUnique({where:{id:reserva.id},
+   include:{operacoes:{include:{empresa:{select:{nomeFantasia:true,cnpj:true}}}}}});
+  return normalizarReserva(result,false);
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
 }
