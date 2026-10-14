@@ -16,6 +16,7 @@ on:
       - "api/tests/pdv-unificado-postgres.smoke.mjs"
       - "api/tests/pdv-unificado-integration.test.mjs"
       - "api/prisma/migrations/20261013222500_unified_comanda_draft/**"
+      - "api/prisma/migrations/20261014100000_unified_closing_reservations/**"
       - "admin-web/src/pages/SettingsPage.jsx"
       - ".github/workflows/pointvet-unified-pdv-foundation.yml"
   workflow_dispatch:
