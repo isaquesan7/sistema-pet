@@ -51,7 +51,64 @@ export default function UnifiedPdvPreviewPage(){
  {cancelReservation.isError&&<p className="alert alert--error">{getApiErrorMessage(cancelReservation.error)}</p>}
  {closingPlan.data&&!reservation.data&&<div className="pv-unified-total"><h3>Reserva do fechamento (sem cobrança)</h3><p>Registra as operações planejadas e bloqueia a edição até a reserva ser cancelada. Nenhuma venda é criada. {localChanges?"Salve as alterações antes de reservar.":""}</p><button type="button" className="ghost-button" disabled={reserveMutation.isPending||localChanges} onClick={()=>reserveMutation.mutate()}>{reserveMutation.isPending?"Reservando...":"Reservar operações por empresa"}</button></div>}
  {reservation.data&&<div className="pv-unified-total"><h3>Reserva #{reservation.data.id.slice(0,8)}</h3><p>Status: {reservation.data.status==="RESERVADA"?"Reservada — edição bloqueada":"Cancelada — edição liberada"}. Sem pagamentos ou notas fiscais.</p>{reservation.data.operacoes.map(op=><div key={op.id}><span>{op.nome} · {op.cnpj}</span><strong>{formatCurrency(Number(op.valor))}</strong></div>)}{isReserved&&hasPermission("pdv.cancelar_venda")&&<><label>Motivo para cancelar a reserva<input className="form-control" value={motivoCancelar} onChange={e=>setMotivoCancelar(e.target.value)}/></label><button type="button" className="ghost-button" disabled={cancelReservation.isPending||motivoCancelar.trim().length<5} onClick={()=>cancelReservation.mutate()}>{cancelReservation.isPending?"Cancelando...":"Cancelar reserva e liberar edição"}</button></>}</div>}
+ {isReserved&&<UnifiedAllocationConference draft={draft} reservation={reservation.data} dirty={localChanges}/>}
  {closingReview.data&&<div className="pv-unified-total"><h3>Pré-fechamento (somente conferência)</h3>{closingReview.data.empresas.map(e=><div key={e.empresaId}><span>{e.nome} · {e.cnpj}</span><strong>{formatCurrency(Number(e.total))}</strong></div>)}<div><strong>Total por empresas</strong><strong>{formatCurrency(Number(closingReview.data.total))}</strong></div>{closingReview.data.pendencias.length?<p>Há {closingReview.data.pendencias.length} pendência(s) de preço ou cadastro. Revise os itens antes de seguir.</p>:<p>Itens conferidos. Fechamento, pagamento e notas fiscais continuam desabilitados.</p>}</div>}{preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}{preview.data&&<div className="pv-unified-total"><h3>Resumo por empresa</h3>{preview.data.empresas.map(e=><div key={e.empresaId}><strong>{e.empresa}</strong><span>{formatCurrency(Number(e.total))}</span></div>)}<div><strong>Total consolidado</strong><strong>{formatCurrency(Number(preview.data.total))}</strong></div><p>Prévia validada. Nenhuma venda, estoque ou documento fiscal foi movimentado.</p></div>}</section>
   </>}
  </div>;
+}
+
+
+/** Pure payment-allocation conference; absolutely no charges or finance writes. */
+function UnifiedAllocationConference({draft,reservation,dirty}){
+ const [forms,setForms]=useState({});
+ const sessions=useQuery({
+  queryKey:["unified-cash-sessions",draft?.id,draft?.versao],
+  enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
+  queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/caixas-disponiveis`,{params:{versao:draft.versao}})).data.dados||[]
+ });
+ const diagnosis=useQuery({
+  queryKey:["unified-recovery-diagnosis",draft?.id,draft?.versao],
+  enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
+  queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/diagnostico-recuperacao`,{params:{versao:draft.versao}})).data.dados
+ });
+ const conference=useMutation({
+  mutationFn:async()=>{
+   const alocacoes=reservation.operacoes.map(op=>{
+    const own=(sessions.data||[]).filter(s=>s.empresaId===op.empresaId);
+    const fields=forms[op.empresaId]||{};
+    return {empresaId:op.empresaId,sessaoCaixaId:fields.sessaoCaixaId||own[0]?.sessaoCaixaId||"",
+     pagamentos:[{forma:fields.forma||"PIX",valorCentavos:Math.round(Number(fields.valor??op.valor)*100)}]};
+   });
+   return (await api.post(`/pdv-unificado/rascunhos/${draft.id}/conferencia-alocacao`,{versao:draft.versao,alocacoes})).data.dados;
+  }
+ });
+ function set(companyId,patch){setForms(current=>({...current,[companyId]:{...current[companyId],...patch}}));conference.reset();}
+ return <section className="panel pv-detail-panel"><h2>Conferência de pagamentos por empresa</h2>
+  <p>Simulação somente leitura. Selecione um caixa aberto para cada empresa. Não existe cobrança, split, utilização de crédito nem emissão fiscal nesta etapa.</p>
+  {sessions.isError&&<p className="alert alert--error">{getApiErrorMessage(sessions.error)}</p>}
+  {reservation.operacoes.map(op=>{
+   const opts=(sessions.data||[]).filter(x=>x.empresaId===op.empresaId);
+   const current=forms[op.empresaId]||{};
+   return <div key={op.empresaId} className="pv-unified-line">
+    <div><strong>{op.nome} — {formatCurrency(Number(op.valor))}</strong><small>CNPJ: {op.cnpj}</small></div>
+    <label>Caixa aberto<select className="form-control" value={current.sessaoCaixaId||opts[0]?.sessaoCaixaId||""} onChange={e=>set(op.empresaId,{sessaoCaixaId:e.target.value})}>
+     {!opts.length&&<option value="">Nenhum caixa aberto</option>}
+     {opts.map(x=><option key={x.sessaoCaixaId} value={x.sessaoCaixaId}>{x.caixa}</option>)}
+    </select></label>
+    <label>Forma<select className="form-control" value={current.forma||"PIX"} onChange={e=>set(op.empresaId,{forma:e.target.value})}>
+     <option value="PIX">Pix</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Débito</option><option value="CARTAO_CREDITO">Crédito</option><option value="TRANSFERENCIA">Transferência</option>
+    </select></label>
+    <label>Valor simulado<input className="form-control" type="number" min="0.01" step="0.01" value={current.valor??op.valor} onChange={e=>set(op.empresaId,{valor:e.target.value})}/></label>
+   </div>;
+  })}
+  <button className="ghost-button" type="button" disabled={dirty||sessions.isLoading||conference.isPending||!(sessions.data||[]).length} onClick={()=>conference.mutate()}>{conference.isPending?"Conferindo...":"Conferir alocação (sem cobrar)"}</button>
+  {dirty&&<p>Salve as alterações locais antes de conferir a alocação.</p>}
+  {conference.isError&&<p className="alert alert--error">{getApiErrorMessage(conference.error)}</p>}
+  {conference.data&&<div className="pv-unified-total">
+   <strong>{conference.data.preConferenciaAprovada?"Alocações consistentes — execução ainda desativada":"Alocações com pendências"}</strong>
+   {conference.data.pendencias.map((e,i)=><p key={i}>{e.codigo} — empresa {e.empresaId}</p>)}
+   <p>Nenhuma venda ou pagamento foi registrado.</p>
+  </div>}
+  {diagnosis.data?.exigeRevisaoManual&&<p className="alert alert--error">Diagnóstico de recuperação identificou divergência de estado. Não efetue cobranças; encaminhe para revisão.</p>}
+ </section>;
 }
