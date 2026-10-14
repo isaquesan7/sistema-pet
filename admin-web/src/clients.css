@@ -108,3 +108,11 @@
 .pv-quote-total{display:flex;justify-content:space-between;gap:15px;align-items:center;font-size:15px;border-top:1px solid #e5eaf2;padding-top:17px}
 .pv-quote-total strong{font-size:24px;color:#554bc3}
 @media(max-width:760px){.pv-client-quote-filters{grid-template-columns:1fr}.pv-quote-numbers{grid-template-columns:1fr}.pv-quote-row{grid-template-columns:1fr!important}}
+
+/* M.4B — quote/catalogue mapping preview. Read-only; never converts a sale. */
+.pv-quote-preview-mappings{display:grid;gap:15px}
+.pv-quote-preview-mappings>label{display:grid;gap:8px;font-weight:650;font-size:14px}
+.pv-quote-preview-mapping{border:1px solid #dee4ed;border-radius:12px;padding:13px;display:grid;gap:9px}
+.pv-quote-preview-mapping span{color:#41516c;line-height:1.45}
+.pv-quote-preview-confirmation{border:1px solid #d4e9db;border-radius:12px;background:#f4fbf6;padding:16px;display:grid;gap:8px;font-size:14px}
+.pv-quote-preview-confirmation p{margin:0}

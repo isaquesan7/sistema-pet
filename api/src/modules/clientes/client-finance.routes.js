@@ -26,6 +26,7 @@ r.get("/:clienteId/credito",exigirPermissao("financeiro.visualizar"),async(req,r
 r.post("/:clienteId/orcamentos/:id/preview-pdv",
  exigirPermissao("financeiro.visualizar"),exigirPermissao("pdv.acessar"),
  async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"O PDV unificado está desativado nesta organização."});
   const v=previewQuoteSchema.safeParse(req.body);
   if(!v.success)return res.status(400).json({success:false,message:"Mapeamento inválido."});
   return res.json({success:true,dados:await previsualizarOrcamentoNoPdvUnificado({
