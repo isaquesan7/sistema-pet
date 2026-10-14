@@ -2,6 +2,7 @@
 import {Router} from "express";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
+import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento} from "./pdv-unificado-preparacao.service.js";
 import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
 const r=Router();
@@ -92,5 +93,21 @@ r.post("/rascunhos/:id/cancelar-reserva",exigirPermissao("pdv.cancelar_venda"),a
  if(!dados.success)return res.status(400).json({success:false,message:"Versão ou motivo inválido."});
  const reserva=await cancelarReservaFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,...dados.data});
  return res.json({success:true,dados:reserva});
+}catch(e){erroRascunho(e,res,next);}});
+/**
+ * Routes are intentionally named "conferencia"/"diagnostico".
+ * There is no execute/charge/sell endpoint in the unified PDV.
+ */
+r.post("/rascunhos/:id/conferencia-alocacao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=conferenciaAlocacaoSchema.safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Alocação financeira inválida.",errors:parsed.error.flatten().fieldErrors});
+ return res.json({success:true,dados:await conferirAlocacaoFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,dados:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/diagnostico-recuperacao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await diagnosticarRecuperacaoFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:parsed.data})});
 }catch(e){erroRascunho(e,res,next);}});
 export default r;
