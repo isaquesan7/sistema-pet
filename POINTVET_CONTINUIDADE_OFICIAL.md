@@ -4,7 +4,7 @@
 
 **[LEITURA OBRIGATÓRIA: POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md](./POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md)** — contrato, roadmap M.1–M.5 e bloqueios atuais. O código PSP/webhooks/outbox das fases 20.2.4B anteriores permanece apenas como **histórico de sandbox**, não é mais a estratégia de recebimento, não deve ser exposto em produção e não obriga integração de provedor.
 
-**PRÓXIMA ETAPA OFICIAL:** M.2, registro auditável e idempotente dos pagamentos informados por atendente, sem lançamento real até homologação de M.3. Depois M.3 fechamento transacional multiempresa, caixa, estoque; M.4 fiscal, estorno e integração Orçamentos/Crédito PR #35; M.5 backup, staging e canário. CNPJ compartilhado por mais de uma unidade ainda exige modelagem. PR #36 segue DRAFT, sem merge/deploy.
+**M.2 IMPLEMENTADA E TESTADA NO CI, SEM PRODUÇÃO. PRÓXIMA ETAPA OFICIAL: M.3**, fechamento transacional de vendas e registros manuais com caixa, estoque e auditoria por empresa, exclusivamente em sandbox primeiro. M.4 fiscal, estorno e integração Orçamentos/Crédito PR #35; M.5 backup, staging e canário. CNPJ compartilhado por mais de uma unidade ainda exige modelagem. PR #36 segue DRAFT, sem merge/deploy.
 
 ---
 
@@ -228,6 +228,15 @@ Em cada continuação, antes de avançar: confirmar HEAD de PR #36 e PR #35, ver
 - **Importante:** M.1 é apenas preparação; não afirmar que a contabilização financeira já funciona. Para M.2 criar registro durável, auditoria do atendente e unicidade; para M.3 efetivar pagamento e movimento de caixa da empresa na mesma transação com stock/fiscal segundo regra aprovada.
 - **Outras pendências:** PR #35 Orçamentos/Crédito no perfil e PDV, fiscal segregado, suporte a mesmo CNPJ em várias unidades, testes de backup/restore, E2E e piloto.
 - **CI/HEAD:** atualizar após última validação; não há autorização de deploy ou migration em produção nesta etapa.
+
+## 8I. Fase M.2 — declarações manuais persistentes e auditáveis (14/10/2026)
+- **Concluída na branch e CI**: [workflow #38634484538](https://github.com/isaquesan7/sistema-pet/actions/runs/38634484538), dois jobs `validate` e `isolated-postgres` SUCCESS no commit de código `25caf3435c28135aed3e5a6c87a191169f661084`. Commits documentais posteriores podem alterar o HEAD; verificar novamente.
+- **Migration:** `20261014193000_unified_manual_receipt_declarations`, tabelas `registros_recebimento_manual_unificado` e `linhas_recebimento_manual_unificado`, unicidade `reservaId` e `(operacaoId, indice)`; declaração vinculada ao atendente, empresa via operação, sessão de caixa, parcelas e referência opcional.
+- **Serviço isolado:** `api/src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js`, sem rotas HTTP e protegido pelo ambiente PostgreSQL CI. Cria declaração durável sob `Serializable`, lock de comanda, consulta de reserva/preparação, validação de autorização, status da operação, pet/preço/catalogo, valor, empresa, caixa e confirmação manual. Repetição idêntica retorna mesmo ID; alteração posterior é conflito.
+- **Cancelamento da reserva** bloqueado após declaração manual: `REGISTRO_MANUAL_EXIGE_REVERSAO`, pois reverter registro feito após pagamento fora do sistema exige fluxo de estorno/ajuste auditável. O serviço M.2 **não** cria `Pagamento`, `MovimentacaoCaixa`, `Venda`, saída de estoque, crédito ou fiscal.
+- **Testes integrados CI:** tentativas simultâneas, replay, valor/comprovante divergente, não confirmação, caixa de outra empresa, isolamento tenant, não cancelamento silencioso, zero lançamentos efetivos. Corrigido um erro de relação Prisma na validação; resultado final CI SUCCESS.
+- **PRÓXIMA FASE M.3 (SEM PSP):** desenhar fechamento transacional em PostgreSQL isolado, com idempotência por venda/operação/registro e auditoria de atendente. Integrar `Venda.ABERTA→FINALIZADA`, `Pagamento`, movimentações e recebíveis por empresa; diferenciar cartão registrado do repasse efetivo; baixa de estoque/estorno/cancelamento com rollback e recuperação. Auditar efeitos atuais do legado (`criarVendaNoTx`), não chamar indiscriminadamente. Não abrir checkout público sem homologação e emissão fiscal legal.
+- **Continuar obrigatoriamente:** PR #35 Orçamentos e Crédito do Cliente (ficha tutor e PDV), mesmo CNPJ em várias unidades, notas por emissor, backup/rollback e canário. A decisão [sem maquininhas/PSP](./POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md) tem precedência sobre todo planejamento PSP anterior.
 
 ## 9. Marcadores de status
 - **IMPLEMENTADO NA BRANCH** ≠ **HOMOLOGADO** ≠ **EM PRODUÇÃO**.
