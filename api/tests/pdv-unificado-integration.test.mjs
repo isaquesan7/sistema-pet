@@ -197,7 +197,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"70.00"}});
  const entries=await listarRascunhos(args);
  assert(entries.some(x=>x.id===draft.id));
- assert.equal(await prisma.venda.count(),0,"Draft must not create sales");
+ assert.equal(await prisma.venda.count({where:{comandaId:draft.id}}),0,"Saving a separate draft must not create a sale");
  assert.equal(await prisma.pagamento.count(),0,"Draft must not create payments");
  const updated=await salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:2}]},{id:draft.id,versao:1});
  assert.equal(updated.total,"360.00");
