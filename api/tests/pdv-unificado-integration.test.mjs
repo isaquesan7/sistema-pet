@@ -7,7 +7,7 @@ import prisma from "../src/config/prisma.js";
 import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
-import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
+import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,verificarExpiracaoOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
 import {assinarWebhookPSPSimulado,receberWebhookPSPSomenteSandbox} from "../src/modules/pdv/pdv-unificado-psp-sandbox.contract.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
@@ -214,6 +214,25 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_NOVA_"+suffix,resultado:"RECUSADA"}),/EVENTO_NAO_AUTORIZADO|RESULTADO_TERMINAL/);
  const denyCtx={...sandboxArgs,intencaoId:second.id};
  const secondClaim=await reclamarOutboxSomenteSandbox(denyCtx);
+ const activeLease=await verificarExpiracaoOutboxSomenteSandbox({...denyCtx,agoraMs:secondClaim.leaseExpiraEm.getTime()-1});
+ assert.equal(activeLease.status,"EM_SIMULACAO");
+ assert.equal(activeLease.alterado,false);
+ assert.equal(activeLease.podeReenviar,false);
+ const expiredLease=await verificarExpiracaoOutboxSomenteSandbox({...denyCtx,agoraMs:secondClaim.leaseExpiraEm.getTime()+1});
+ assert.equal(expiredLease.status,"REVISAO_MANUAL");
+ assert.equal(expiredLease.motivo,"TIMEOUT_SEM_CONFIRMACAO");
+ assert.equal(expiredLease.podeReenviar,false);
+ const repeatExpired=await verificarExpiracaoOutboxSomenteSandbox({...denyCtx,agoraMs:secondClaim.leaseExpiraEm.getTime()+10000});
+ assert.equal(repeatExpired.alterado,false);
+ assert.equal(repeatExpired.precisaConciliar,true);
+ const afterTimeoutClaim=await reclamarOutboxSomenteSandbox(denyCtx);
+ assert.equal(afterTimeoutClaim.podeEnviar,false);
+ assert.equal(afterTimeoutClaim.reutilizada,true);
+ assert.equal(afterTimeoutClaim.token,secondClaim.token);
+ const pendingTimeout=await prisma.outboxAutorizacaoUnificada.findUnique({where:{intencaoId:second.id}});
+ assert.equal(pendingTimeout.tentativas,1,"Timeout may not create another provider request");
+ assert.equal(pendingTimeout.motivoRevisao,"TIMEOUT_SEM_CONFIRMACAO");
+
  const assinaturaSegredo="somente-teste-pointvet-psp-sem-chave-real-2026";
  const timestamp=Math.floor(Date.now()/1000);
  const rawBody=JSON.stringify({versao:1,intencaoChave:second.chaveIdempotencia,
@@ -240,6 +259,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const replayWebhook=await receberWebhookPSPSomenteSandbox(webhook);
  assert.equal(replayWebhook.reutilizada,true);
  assert.equal(denial.status,"RECUSADA_SIMULADA");
+ const settledLease=await verificarExpiracaoOutboxSomenteSandbox({...denyCtx,agoraMs:secondClaim.leaseExpiraEm.getTime()+60000});
+ assert.equal(settledLease.status,"CONCLUIDO_SIMULADO");
+ assert.equal(settledLease.precisaConciliar,false);
+ assert.equal((await prisma.outboxAutorizacaoUnificada.findUnique({where:{intencaoId:second.id}})).tentativas,1);
  assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
  assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
  assert.equal(await prisma.movimentacaoEstoque.count(),0);
