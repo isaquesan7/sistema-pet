@@ -27,3 +27,22 @@ test("legacy, unverified and negative credits are never spendable",()=>{
  assert.equal(checarRazaoCreditoCausal([{...entry,conciliacaoId:null}]).motivo,"ORIGEM_NAO_COMPROVADA");
  assert.equal(checarRazaoCreditoCausal([debit]).motivo,"RAZAO_SALDO_NEGATIVO");
 });
+
+
+test("M.4B.3: refund of an ENTRY without outbound reconciliation is not trusted",()=>{
+ const r={...reversal,id:"return-entry",valor:"100.00",reverteMovimentoId:"e",
+  devolucaoConciliacaoId:null,evidencia:{tipo:"ESTORNO_CAUSAL_CI"}};
+ assert.equal(checarRazaoCreditoCausal([entry,r]).motivo,"DEVOLUCAO_SEM_LASTRO_CONTABIL");
+ const withProof={...r,devolucaoConciliacaoId:"outbound-proof",
+  evidencia:{tipo:"ESTORNO_CAUSAL_CI",devolucaoConciliacaoId:"outbound-proof",
+   devolucaoExternaDeclarada:true,verificadoPeloBanco:false}};
+ assert.deepEqual(checarRazaoCreditoCausal([entry,withProof]),{
+  saldoCentavos:0,saldoConfiavel:true,motivo:null
+ });
+ assert.equal(checarRazaoCreditoCausal([entry,{
+  ...withProof,evidencia:{...withProof.evidencia,devolucaoExternaDeclarada:false}
+ }]).motivo,"DEVOLUCAO_SEM_LASTRO_CONTABIL");
+ assert.equal(checarRazaoCreditoCausal([entry,debit,{
+  ...reversal,devolucaoConciliacaoId:"outbound-proof"
+ }]).motivo,"DEVOLUCAO_INDEVIDA_PARA_DEBITO");
+});

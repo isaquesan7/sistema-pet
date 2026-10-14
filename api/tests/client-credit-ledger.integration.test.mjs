@@ -174,12 +174,80 @@ test("M.4B.2: evidence-bound credit, negative balance, concurrency, idempotency 
   ...base,solicitacaoId:ref("estorno-entrada-"),
   movimentoOriginalId:deposited.id,motivo:"Devolução do adiantamento conciliado (simulação)"
  }),/M4B2_DEVOLUCAO_EXTERNA_NAO_CONFIRMADA/);
- const reverseEntry=await estornarCreditoCausalSomenteSandbox({
+ // M.4B.3: employee assertion WITHOUT matching outgoing accounting record
+ // is insufficient; the system must never invent an actual refund.
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
   ...base,solicitacaoId:ref("estorno-entrada-"),
   movimentoOriginalId:deposited.id,motivo:"Devolução do adiantamento conciliado (simulação)",
   confirmouDevolucaoExterna:true
- });
+ }),/M4B3_DEVOLUCAO_SEM_CONCILIACAO/);
+ const refundTitle=await prisma.tituloFinanceiro.create({data:{
+  organizacaoId:org,empresaId:empresa,clienteId:client,tipo:"PAGAR",
+  origem:"OUTRO",status:"PAGO",
+  descricao:"DEVOLUCAO ADIANTAMENTO CLIENTE CI",
+  valorOriginal:"100.00",valorPago:"100.00"
+ }});
+ const refundBaixa=await prisma.baixaFinanceira.create({data:{
+  tituloId:refundTitle.id,contaFinanceiraId:account.id,usuarioId:actor,
+  forma:"PIX",valor:"100.00",desconto:"0.00",juros:"0.00"
+ }});
+ const refundReconcile=await prisma.conciliacaoFinanceira.create({data:{
+  empresaId:empresa,contaFinanceiraId:account.id,usuarioId:actor,
+  origem:"BAIXA_TITULO",origemId:refundBaixa.id,
+  direcao:"SAIDA",valor:"100.00",dataMovimento:new Date()
+ }});
+ const refundArgs={
+  ...base,solicitacaoId:ref("estorno-entrada-"),
+  movimentoOriginalId:deposited.id,motivo:"Devolução do adiantamento conciliado (simulação)",
+  confirmouDevolucaoExterna:true,devolucaoConciliacaoId:refundReconcile.id
+ };
+ await prisma.conciliacaoFinanceira.update({where:{id:refundReconcile.id},
+  data:{direcao:"ENTRADA"}});
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox(refundArgs),
+  /M4B3_DEVOLUCAO_SEM_CONCILIACAO/);
+ await prisma.conciliacaoFinanceira.update({where:{id:refundReconcile.id},
+  data:{direcao:"SAIDA"}});
+ await prisma.tituloFinanceiro.update({where:{id:refundTitle.id},
+  data:{status:"PENDENTE"}});
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox(refundArgs),
+  /M4B3_TITULO_DEVOLUCAO_INVALIDO/);
+ await prisma.tituloFinanceiro.update({where:{id:refundTitle.id},
+  data:{status:"PAGO"}});
+ await prisma.conciliacaoFinanceira.update({where:{id:refundReconcile.id},
+  data:{valor:"99.99"}});
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox(refundArgs),
+  /M4B3_VALOR_DEVOLUCAO_DIVERGENTE/);
+ await prisma.conciliacaoFinanceira.update({where:{id:refundReconcile.id},
+  data:{valor:"100.00"}});
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
+  ...refundArgs,devolucaoConciliacaoId:reconcile.id
+ }),/M4B3_DEVOLUCAO_SEM_CONCILIACAO/);
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
+  ...refundArgs,simularFalhaAposLancamento:true
+ }),/M4B2_FALHA_SIMULADA_TRANSACAO/);
+ assert.equal(await prisma.creditoClienteMovimento.count({where:{
+  reverteMovimentoId:deposited.id
+ }}),0,"Failed refund reversal must roll back the ledger");
+ const reverseEntry=await estornarCreditoCausalSomenteSandbox(refundArgs);
  assert.equal(reverseEntry.saldoApos,0);
+ assert.equal(reverseEntry.houveDevolucaoBancaria,false);
+ assert.equal((await estornarCreditoCausalSomenteSandbox(refundArgs)).reutilizada,true);
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
+  ...refundArgs,devolucaoConciliacaoId:reconcile.id
+ }),/M4B2_REPLAY_DIVERGENTE/);
+ await prisma.conciliacaoFinanceira.update({where:{id:refundReconcile.id},
+  data:{direcao:"ENTRADA"}});
+ const tamperedRefund=await creditLedger(org,empresa,client);
+ assert.equal(tamperedRefund.saldo,null);
+ assert.equal(tamperedRefund.saldoConfiavel,false);
+ assert.equal(tamperedRefund.motivoSaldoIndisponivel,"COMPROVACAO_DEVOLUCAO_DIVERGENTE");
+ await assert.rejects(()=>simularUtilizacaoCreditoSomenteSandbox({
+  ...base,solicitacaoId:ref("debit-refund-tampered-"),valorCentavos:100
+ }),/M4B2_RAZAO_NAO_HOMOLOGADO_COMPROVACAO_DEVOLUCAO_DIVERGENTE/);
+ await prisma.conciliacaoFinanceira.update({where:{id:refundReconcile.id},
+  data:{direcao:"SAIDA"}});
+ assert.equal((await creditLedger(org,empresa,client)).saldo,0);
+
  const finalWallet=await creditLedger(org,empresa,client);
  assert.equal(finalWallet.saldo,0);
  assert.equal(finalWallet.saldoConfiavel,true);
