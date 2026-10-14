@@ -14,6 +14,7 @@ import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomen
 import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
+import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -754,5 +755,44 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(ambiguous.motivoSaldoIndisponivel,"ESTORNO_SEM_VINCULO_ORIGINAL");
  assert.equal((await creditLedger(ids.org,ids.co2,ids.client)).saldo,0,
   "Prepaid credit cannot cross company boundaries");
+
+
+ // M.4A — explicit one-to-one mapping, read-only checked against current catalog.
+ const sameItemQuote=await createQuote(ids.org,ids.co1,quoteCreateSchema.parse({
+  clienteId:ids.client,itens:[{descricao:"Ração",quantidade:1,valorUnitario:180}]
+ }),ids.user);
+ await assert.rejects(()=>previsualizarOrcamentoNoPdvUnificado({
+  organizacaoId:ids.org,usuarioId:ids.user,empresaId:ids.co1,clienteId:ids.client,
+  orcamentoId:sameItemQuote.id,vinculos:[]}),/M4A_ORCAMENTO_NAO_APROVADO/);
+ await setQuoteStatus(ids.org,ids.co1,ids.client,sameItemQuote.id,"APROVADO",ids.user);
+ const quoteRow=(await prisma.orcamentoClienteItem.findFirst({
+  where:{orcamentoId:sameItemQuote.id}
+ }));
+ const previewArgs={organizacaoId:ids.org,usuarioId:ids.user,empresaId:ids.co1,
+  clienteId:ids.client,orcamentoId:sameItemQuote.id,
+  vinculos:[{orcamentoItemId:quoteRow.id,itemCatalogoId:ids.it1}]};
+ await assert.rejects(()=>previsualizarOrcamentoNoPdvUnificado({
+  ...previewArgs,vinculos:[]}),/M4A_MAPEAMENTO_INCOMPLETO/);
+ await assert.rejects(()=>previsualizarOrcamentoNoPdvUnificado({
+  ...previewArgs,vinculos:[{orcamentoItemId:quoteRow.id,itemCatalogoId:ids.it2}]
+ }),/M4A_CATALOGO_EMPRESA_INCOMPATIVEL/);
+ const frozen={
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
+ };
+ const quotePreview=await previsualizarOrcamentoNoPdvUnificado(previewArgs);
+ assert.equal(quotePreview.modo,"PREVIA_ORCAMENTO_SEM_CONVERSAO");
+ assert.equal(quotePreview.total,"180.00");
+ assert.equal(quotePreview.podeCriarRascunho,false);
+ assert.equal(quotePreview.podeFecharVenda,false);
+ assert.equal(quotePreview.movimentouEstoque,false);
+ await prisma.itemCatalogo.update({where:{id:ids.it1},data:{precoVenda:"181.00"}});
+ await assert.rejects(()=>previsualizarOrcamentoNoPdvUnificado(previewArgs),
+  /M4A_CATALOGO_PRECO_OU_DESCRICAO_DIVERGENTE/);
+ await prisma.itemCatalogo.update({where:{id:ids.it1},data:{precoVenda:"180.00"}});
+ assert.deepEqual({
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
+ },frozen,"Read-only quote preview must never book money, sales or stock");
 
 });

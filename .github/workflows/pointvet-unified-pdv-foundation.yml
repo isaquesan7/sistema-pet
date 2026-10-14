@@ -9,6 +9,7 @@ on:
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
       - "api/src/modules/clientes/client-finance.service.js"
+      - "api/src/modules/clientes/client-quote-pdv-preview.service.js"
       - "api/src/modules/clientes/client-finance.routes.js"
       - "api/tests/client-quotes-credit.contract.test.mjs"
       - "admin-web/src/components/ClientQuotesTab.jsx"
@@ -81,6 +82,7 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js
           node --check api/src/app.js
           node --check api/src/modules/clientes/client-finance.service.js
+          node --check api/src/modules/clientes/client-quote-pdv-preview.service.js
           node --check api/src/modules/clientes/client-finance.routes.js
           node --test api/tests/client-quotes-credit.contract.test.mjs
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
