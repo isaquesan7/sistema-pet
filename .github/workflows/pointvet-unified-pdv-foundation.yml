@@ -20,6 +20,10 @@ on:
       - "api/src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js"
       - "api/src/modules/pdv/pdv-unificado-fechamento-manual.contract.js"
       - "api/src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js"
+      - "api/src/modules/pdv/pdv-unificado-estorno-manual.contract.js"
+      - "api/src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js"
+      - "api/tests/pdv-unificado-estorno-manual.contract.test.mjs"
+      - "api/prisma/migrations/20261014223000_unified_manual_closing_reversal/**"
       - "api/tests/pdv-unificado-fechamento-manual.contract.test.mjs"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
       - "admin-web/src/pages/UnifiedPdvPreviewPage.jsx"
@@ -65,10 +69,12 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-fechamento-manual.contract.js
           node --check api/src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js
+          node --check api/src/modules/pdv/pdv-unificado-estorno-manual.contract.js
           node --check api/src/app.js
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs
           node --test api/tests/pdv-unificado-fechamento-manual.contract.test.mjs
+          node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
       - name: Prisma schema
         working-directory: api
         env:

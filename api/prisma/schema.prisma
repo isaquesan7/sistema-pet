@@ -643,6 +643,7 @@ model Usuario {
   preparacoesUnificadas CriacaoPreparacaoUnificada[]
   intencoesUnificadasCriadas IntencaoAutorizacaoUnificada[]
   recebimentosManuaisUnificadosCriados RegistroRecebimentoManualUnificado[]
+  estornosUnificadosRealizados EstornoFechamentoManualUnificado[]
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -1412,6 +1413,7 @@ enum StatusReservaOperacaoUnificada {
   VENDA_RASCUNHO
   CANCELADA
   CONCLUIDA
+  ESTORNADA
 }
 
 enum StatusPreparacaoExecucaoUnificada {
@@ -1438,6 +1440,7 @@ model ReservaFechamentoUnificado {
   operacoes       ReservaOperacaoUnificada[]
   preparacao      CriacaoPreparacaoUnificada?
   recebimentoManual RegistroRecebimentoManualUnificado?
+  estornoManual EstornoFechamentoManualUnificado?
 
   @@unique([comandaId, versaoRascunho])
   @@index([status])
@@ -1562,6 +1565,26 @@ model ParcelaRecebivelManualUnificado {
   @@unique([linhaId, indice])
   @@index([status])
   @@map("parcelas_recebiveis_manual_unificado")
+}
+
+// M.3C — um estorno MANUAL integral por reserva, auditado e imutável.
+// Sem integração de provedor, confirmação externa é declaração humana.
+model EstornoFechamentoManualUnificado {
+  id String @id @default(cuid())
+  reservaId String @unique
+  usuarioId String
+  motivo String @db.VarChar(500)
+  referenciaExterna String? @db.VarChar(120)
+  confirmouDevolucaoExterna Boolean
+  fingerprint String
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  reserva ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@map("estornos_fechamento_manual_unificado")
 }
 
 // 20.2.4B — fila de preparação para futuro gateway. NÃO representa cobrança.
