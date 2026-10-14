@@ -4,8 +4,9 @@
  * Revalida a reserva e cada caixa, sem confiar em totais do navegador.
  */
 import {z} from "zod";
+import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
-import {consultarReservaFechamento} from "./pdv-unificado.service.js";
+import {consultarReservaFechamento,planejarFechamento} from "./pdv-unificado.service.js";
 
 // "Crédito do cliente" só poderá entrar após a homologação do razão no PR #35.
 // Valores inteiros em centavos impedem divergência por arredondamento no cliente.
@@ -28,7 +29,7 @@ function toCents(value){
 
 /** Read-only financial readiness. A valid answer does NOT authorize payment. */
 export async function conferirAlocacaoFechamento({organizacaoId,usuarioId,empresaId,id,dados},db=prisma){
- const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao:dados.versao});
+ const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao:dados.versao},db);
  if(!reserva)throw Error("RESERVA_NAO_ENCONTRADA");
  if(reserva.status!=="RESERVADA")throw Error("RESERVA_NAO_EDITAVEL");
  const operacoes=reserva.operacoes;
@@ -84,7 +85,7 @@ export async function conferirAlocacaoFechamento({organizacaoId,usuarioId,empres
  * This is for later manual incident review and retry orchestration.
  */
 export async function diagnosticarRecuperacaoFechamento({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
- const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao});
+ const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao},db);
  if(!reserva)throw Error("RESERVA_NAO_ENCONTRADA");
  const vendaIds=reserva.operacoes.map(o=>o.vendaId).filter(Boolean);
  const vendas=vendaIds.length?await db.venda.findMany({
@@ -123,4 +124,88 @@ export async function listarCaixasDisponiveisUnificados({organizacaoId,usuarioId
   take:100
  });
  return sessions.map(s=>({sessaoCaixaId:s.id,empresaId:s.caixa.empresaId,caixa:s.caixa.nome}));
+}
+
+/** Stable payload representation for idempotency; user-supplied amounts remain untrusted
+ * until the read-only financial conference and cart price reconciliation pass in TX. */
+function normalizarAlocacoes(alocacoes){
+ return alocacoes.map(a=>({
+  empresaId:a.empresaId,sessaoCaixaId:a.sessaoCaixaId,
+  pagamentos:a.pagamentos.map(p=>({forma:p.forma,valorCentavos:p.valorCentavos}))
+   .sort((a,b)=>a.forma.localeCompare(b.forma)||a.valorCentavos-b.valorCentavos)
+ })).sort((a,b)=>a.empresaId.localeCompare(b.empresaId));
+}
+function apresentarPreparacao(prep,reutilizada=false){
+ return {id:prep.id,reservaId:prep.reservaId,status:prep.status,
+  fingerprint:prep.fingerprint,criadoEm:prep.createdAt,reutilizada,
+  total:prep.snapshot.total,operacoes:prep.snapshot.operacoes.map(({empresaId,cnpj,total})=>({empresaId,cnpj,total})),
+  execucaoDisponivel:false,pagamentosGerados:false,vendasGeradas:false,
+  mensagem:"Snapshot registrado. Nenhuma venda, pagamento, baixa de estoque ou nota fiscal foi criada."};
+}
+/** An immutable seller allocation snapshot, NOT a sale.
+ * On retries, the unique reservation key and payload fingerprint return the original
+ * record; a different payload gets a conflict, never an overwrite.
+ */
+export async function prepararExecucaoUnificada({organizacaoId,usuarioId,empresaId,id,dados}){
+ const normalizadas=normalizarAlocacoes(dados.alocacoes);
+ return prisma.$transaction(async tx=>{
+  // Same row lock ordering as draft edits and reservations.
+  await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
+  const comanda=await tx.comanda.findFirst({
+   where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+   select:{id:true,clienteId:true,status:true,versaoRascunho:true,
+    itens:{where:{status:"ATIVO"},select:{
+      id:true,empresaId:true,itemCatalogoId:true,petId:true,descricao:true,
+      quantidade:true,valorUnitario:true,valorTotal:true,desconto:true
+    }}}
+  });
+  if(!comanda)throw Error("RASCUNHO_NAO_ENCONTRADO");
+  if(comanda.status!=="ABERTA"||comanda.versaoRascunho!==dados.versao)throw Error("RASCUNHO_DESATUALIZADO");
+  const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao:dados.versao},tx);
+  if(!reserva)throw Error("RESERVA_NAO_ENCONTRADA");
+  if(reserva.status!=="RESERVADA"||reserva.operacoes.some(op=>op.status!=="RESERVADA"||op.vendaId))throw Error("RESERVA_NAO_EDITAVEL");
+  const fingerprint=createHash("sha256").update(JSON.stringify({reservaId:reserva.id,versao:dados.versao,alocacoes:normalizadas})).digest("hex");
+  const prior=await tx.criacaoPreparacaoUnificada.findUnique({where:{reservaId:reserva.id}});
+  if(prior){
+   if(prior.status!=="PREPARADA")throw Error("PREPARACAO_INVALIDADA");
+   if(prior.fingerprint!==fingerprint)throw Error("PREPARACAO_DIVERGENTE");
+   return apresentarPreparacao(prior,true);
+  }
+
+  // Revalidate current catalog/pet/roles under the same serializable DB TX.
+  const plano=await planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao:dados.versao},tx);
+  if(plano.operacoes.length!==reserva.operacoes.length||
+   plano.operacoes.some(p=>!reserva.operacoes.some(op=>op.empresaId===p.empresaId&&op.chaveIdempotencia===p.chaveIdempotencia&&toCents(op.valor)===toCents(p.total)))||
+   toCents(plano.total)!==toCents(reserva.total))throw Error("RESERVA_PLANO_DIVERGENTE");
+  const conference=await conferirAlocacaoFechamento({organizacaoId,usuarioId,empresaId,id,dados},tx);
+  if(!conference.preConferenciaAprovada)throw Error("ALOCACAO_COM_PENDENCIAS");
+  const allocationByCompany=new Map(normalizadas.map(a=>[a.empresaId,a]));
+  const operacoes=reserva.operacoes.map(op=>({
+   empresaId:op.empresaId,cnpj:op.cnpj,chaveIdempotencia:op.chaveIdempotencia,
+   total:op.valor,
+   sessaoCaixaId:allocationByCompany.get(op.empresaId).sessaoCaixaId,
+   pagamentos:allocationByCompany.get(op.empresaId).pagamentos,
+   itens:comanda.itens.filter(line=>line.empresaId===op.empresaId)
+    .map(line=>({
+      comandaItemId:line.id,itemCatalogoId:line.itemCatalogoId,petId:line.petId,
+      descricao:line.descricao,quantidade:String(line.quantidade),
+      valorUnitario:String(line.valorUnitario),desconto:String(line.desconto),
+      valorTotal:String(line.valorTotal)
+    })).sort((a,b)=>a.comandaItemId.localeCompare(b.comandaItemId))
+  })).sort((a,b)=>a.empresaId.localeCompare(b.empresaId));
+  if(operacoes.some(op=>op.itens.length===0))throw Error("RESERVA_PLANO_DIVERGENTE");
+  const snapshot={schemaVersao:1,comandaId:id,clienteId:comanda.clienteId,
+   versaoRascunho:dados.versao,total:reserva.total,operacoes};
+  const created=await tx.criacaoPreparacaoUnificada.create({
+   data:{reservaId:reserva.id,criadoPorId:usuarioId,fingerprint,snapshot}
+  });
+  return apresentarPreparacao(created);
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
+}
+/** Query never charges and requires permission to every company in the reservation. */
+export async function consultarPreparacaoUnificada({organizacaoId,usuarioId,empresaId,id,versao}){
+ const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao});
+ if(!reserva)throw Error("RESERVA_NAO_ENCONTRADA");
+ const prep=await prisma.criacaoPreparacaoUnificada.findUnique({where:{reservaId:reserva.id}});
+ return prep?apresentarPreparacao(prep,true):null;
 }
