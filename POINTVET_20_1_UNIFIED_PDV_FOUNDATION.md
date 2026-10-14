@@ -1,3 +1,5 @@
+> **Continuidade oficial:** [POINTVET_CONTINUIDADE_OFICIAL.md](./POINTVET_CONTINUIDADE_OFICIAL.md) — ler primeiro em futuros chats. Este arquivo conserva detalhes históricos de implementação.
+
 # PointVet — Fase 20.1 / Fundação do PDV Unificado
 
 ## Decisão de produto
