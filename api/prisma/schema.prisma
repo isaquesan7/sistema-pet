@@ -579,6 +579,7 @@ model Empresa {
   inventariosEstoque   InventarioEstoque[]
   comandaItens         ComandaItem[]
   operacoesUnificadas  ReservaOperacaoUnificada[]
+  recebedorPspUnificado RecebedorPspUnificado?
   caixas               Caixa[]
   vendas               Venda[]
 
@@ -1517,6 +1518,7 @@ model IntencaoAutorizacaoUnificada {
   updatedAt          DateTime @updatedAt
 
   operacao           ReservaOperacaoUnificada @relation(fields: [operacaoId], references: [id], onDelete: Restrict)
+  evidenciasConsulta EvidenciaConsultaPspSimulada[]
   criadoPor          Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
   outbox             OutboxAutorizacaoUnificada?
   eventos            EventoAutorizacaoSimulada[]
@@ -1524,6 +1526,43 @@ model IntencaoAutorizacaoUnificada {
   @@unique([operacaoId, indice])
   @@index([status])
   @@map("intencoes_autorizacao_unificada")
+}
+
+// Fase 20.2.4B.2B.2: registro técnico desligado por padrão.
+// Não representa credencial, conta bancária validada ou habilitação de checkout.
+model RecebedorPspUnificado {
+  id                    String @id @default(cuid())
+  empresaId             String @unique
+  cnpj                  String
+  provedor              String @default("SIMULADOR_CI")
+  referenciaExterna     String
+  ativo                 Boolean @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  empresa               Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  evidenciasConsulta    EvidenciaConsultaPspSimulada[]
+
+  @@index([cnpj])
+  @@map("recebedores_psp_unificados")
+}
+
+// Prova de correlação do MOCK, não evidência de liquidação financeira real.
+// Cada consulta é persistida sem executar/reenviar pagamento.
+model EvidenciaConsultaPspSimulada {
+  id                    String @id @default(cuid())
+  intencaoId            String
+  recebedorId           String
+  chaveConsulta         String @unique
+  referenciaTransacao   String
+  resultado             ResultadoEventoAutorizacaoSimulada
+  createdAt             DateTime @default(now())
+
+  intencao              IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
+  recebedor             RecebedorPspUnificado @relation(fields: [recebedorId], references: [id], onDelete: Restrict)
+
+  @@index([intencaoId, createdAt])
+  @@map("evidencias_consulta_psp_simulada")
 }
 
 model OutboxAutorizacaoUnificada {
