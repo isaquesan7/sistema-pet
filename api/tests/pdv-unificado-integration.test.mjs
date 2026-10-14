@@ -12,6 +12,7 @@ import {assinarWebhookPSPSimulado,receberWebhookPSPSomenteSandbox} from "../src/
 import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteSandbox,conferirRespostaConsultaPSPMockSomenteSandbox} from "../src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js";
 import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js";
 import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
+import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -540,5 +541,79 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({
   where:{produtoId:product.id}
  })).quantidade),9);
+
+
+ // M.3C — Estorno manual integral, preservando histórico e compensando estoque.
+ const reverseCtx={...closingCtx,dados:{
+  motivo:"Devolução confirmada fora do PDV para todos os CNPJs",
+  referenciaExterna:"CI_REV_"+suffix,confirmouDevolucaoExterna:true
+ }};
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox({
+  ...reverseCtx,dados:{...reverseCtx.dados,confirmouDevolucaoExterna:false}
+ }),/M3C_CONFIRMACAO_EXTERNA/);
+ const p0=receipts[0];
+ await prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
+  data:{status:"CONCILIADA",conciliadoEm:new Date()}});
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
+  /M3C_REPASSE_CONCILIADO/);
+ await prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
+  data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}});
+ await prisma.sessaoCaixa.update({where:{id:session1.id},data:{status:"FECHADO"}});
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
+  /M3C_CAIXA_FECHADO/);
+ await prisma.sessaoCaixa.update({where:{id:session1.id},data:{status:"ABERTO"}});
+ await prisma.cargoPermissao.delete({where:{
+  cargoId_permissaoId:{cargoId:cargo.id,permissaoId:cancelPermission.id}
+ }});
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
+  /M3C_SEM_PERMISSAO_ESTORNO/);
+ await prisma.cargoPermissao.create({data:{cargoId:cargo.id,permissaoId:cancelPermission.id}});
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox({
+  ...reverseCtx,simularFalhaAposEmpresaId:ids.co1
+ }),/M3C_FALHA_SIMULADA_TRANSACAO/);
+ assert.equal(await prisma.estornoFechamentoManualUnificado.count(),0);
+ assert.equal(await prisma.pagamento.count({where:{
+  venda:{comandaId:closingDraft.id},status:"ESTORNADO"
+ }}),0);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{
+  origemTipo:"ESTORNO_MANUAL_UNIFICADO"
+ }}),0);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:product.id}
+ })).quantidade),9);
+ const concurrentReverse=await Promise.allSettled([
+  estornarFechamentoManualSomenteSandbox(reverseCtx),
+  estornarFechamentoManualSomenteSandbox(reverseCtx)
+ ]);
+ assert(concurrentReverse.some(x=>x.status==="fulfilled"),
+  "One reversal must commit: "+concurrentReverse.map(x=>x.reason?.message||x.status).join(", "));
+ const reverse=await estornarFechamentoManualSomenteSandbox(reverseCtx);
+ assert.equal(reverse.reutilizada,true);
+ assert.equal(reverse.houveRefundPorAPI,false);
+ assert.equal(await prisma.estornoFechamentoManualUnificado.count(),1);
+ assert.equal(await prisma.venda.count({where:{
+  comandaId:closingDraft.id,status:"ESTORNADA"
+ }}),2);
+ assert.equal(await prisma.pagamento.count({where:{
+  venda:{comandaId:closingDraft.id},status:"ESTORNADO"
+ }}),2);
+ assert.equal(await prisma.parcelaRecebivelManualUnificado.count({
+  where:{status:"ESTORNADA"}
+ }),3);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{
+  origemTipo:"ESTORNO_MANUAL_UNIFICADO",origemId:reverse.id
+ }}),1);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:product.id}
+ })).quantidade),10);
+ assert.equal((await prisma.comanda.findUnique({where:{id:closingDraft.id}})).status,"CANCELADA");
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox({
+  ...reverseCtx,dados:{...reverseCtx.dados,motivo:"Estorno diferente"}
+ }),/M3C_ESTORNO_DIVERGENTE/);
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox({
+  ...reverseCtx,organizacaoId:ids.other
+ }),/RASCUNHO_NAO_ENCONTRADO/);
+ await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox(closingCtx),
+  /RESERVA_NAO_EDITAVEL/);
 
 });
