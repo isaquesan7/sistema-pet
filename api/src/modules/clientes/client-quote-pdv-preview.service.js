@@ -27,7 +27,10 @@ export async function previsualizarOrcamentoNoPdvUnificado({
  if(q.status!=="APROVADO")throw Error("M4A_ORCAMENTO_NAO_APROVADO");
  if(q.validade&&q.validade.toISOString().slice(0,10)<new Date().toISOString().slice(0,10))
   throw Error("ORCAMENTO_EXPIRADO");
- if(centavosExatos(q.desconto)!==0)throw Error("M4A_DESCONTO_SEM_CORRESPONDENCIA_PDV");
+ // Diferente de pagamento, desconto zero é permitido: não usar centavosExatos,
+ // cujo contrato M.3 é deliberadamente estritamente positivo.
+ if(!Number.isFinite(Number(q.desconto))||Number(q.desconto)!==0)
+  throw Error("M4A_DESCONTO_SEM_CORRESPONDENCIA_PDV");
  if(!vinculos.length||vinculos.length!==q.itens.length)throw Error("M4A_MAPEAMENTO_INCOMPLETO");
  const mapped=new Map();
  for(const entry of vinculos){
