@@ -220,6 +220,8 @@ export async function cancelarReservaFechamento({organizacaoId,usuarioId,empresa
   const canceladores=await empresasComPermissao({organizacaoId,usuarioId,codigo:"pdv.cancelar_venda"},tx);
   if(reserva.operacoes.some(op=>!canceladores.has(op.empresaId)))throw Error("CANCELAMENTO_SEM_PERMISSAO");
   if(reserva.operacoes.some(op=>op.vendaId||op.status==="CONCLUIDA"))throw Error("RESERVA_NAO_EDITAVEL");
+  if(await tx.registroRecebimentoManualUnificado.findUnique({where:{reservaId:reserva.id},select:{id:true}}))
+   throw Error("REGISTRO_MANUAL_EXIGE_REVERSAO");
   if(reserva.status==="CANCELADA")return normalizarReserva(reserva,true);
   await tx.criacaoPreparacaoUnificada.updateMany({where:{reservaId:reserva.id,status:"PREPARADA"},data:{status:"INVALIDADA",invalidadaEm:new Date()}});
   const updated=await tx.reservaFechamentoUnificado.updateMany({
