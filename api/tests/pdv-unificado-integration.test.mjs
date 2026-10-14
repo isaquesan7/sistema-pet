@@ -9,6 +9,7 @@ import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuper
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
 import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,verificarExpiracaoOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
 import {assinarWebhookPSPSimulado,receberWebhookPSPSomenteSandbox} from "../src/modules/pdv/pdv-unificado-psp-sandbox.contract.js";
+import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteSandbox} from "../src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -232,6 +233,60 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const pendingTimeout=await prisma.outboxAutorizacaoUnificada.findUnique({where:{intencaoId:second.id}});
  assert.equal(pendingTimeout.tentativas,1,"Timeout may not create another provider request");
  assert.equal(pendingTimeout.motivoRevisao,"TIMEOUT_SEM_CONFIRMACAO");
+
+ // Mock receiver registry; proof of provider/status-query correlation, NOT settlement.
+ process.env.POINTVET_UNIFIED_SALES_SANDBOX="0";
+ await assert.rejects(()=>registrarRecebedorMockSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,cnpj:"99999999999999",referenciaExterna:"ci_mock_loja_"+suffix
+ }),/EXECUCAO_SANDBOX_DESABILITADA/);
+ process.env.POINTVET_UNIFIED_SALES_SANDBOX=guard;
+ const receiverLoja=await registrarRecebedorMockSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,cnpj:"99999999999999",referenciaExterna:"ci_mock_loja_"+suffix
+ });
+ const receiverEstetica=await registrarRecebedorMockSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co2,cnpj:"88888888888888",referenciaExterna:"ci_mock_estetica_"+suffix
+ });
+ assert.equal(receiverLoja.ativo,false);
+ assert.equal(receiverEstetica.ativo,false);
+ const replayReceiver=await registrarRecebedorMockSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co2,cnpj:"88888888888888",referenciaExterna:"ci_mock_estetica_"+suffix
+ });
+ assert.equal(replayReceiver.reutilizado,true);
+ await assert.rejects(()=>registrarRecebedorMockSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co2,cnpj:"99999999999999",referenciaExterna:"ci_mock_wrong_"+suffix
+ }),/RECEBEDOR_CNPJ_DIVERGENTE/);
+ await assert.rejects(()=>registrarRecebedorMockSomenteSandbox({
+  organizacaoId:ids.other,empresaId:ids.co2,cnpj:"88888888888888",referenciaExterna:"ci_mock_wrong_"+suffix
+ }),/RECEBEDOR_CNPJ_DIVERGENTE/);
+ const receiverForSecond=second.empresaId===ids.co1?receiverLoja:receiverEstetica;
+ const receiverForFirst=first.empresaId===ids.co1?receiverLoja:receiverEstetica;
+ const consult={...denyCtx,recebedorId:receiverForSecond.id,
+  chaveConsulta:"CI_PSP_QUERY_"+suffix,referenciaTransacao:"CI_TRANSACTION_"+suffix,
+  resultado:"INDETERMINADA"};
+ await assert.rejects(()=>registrarConsultaStatusMockSomenteSandbox({
+  ...consult,recebedorId:receiverForFirst.id
+ }),/RECEBEDOR_NAO_CORRESPONDE_A_EMPRESA/);
+ await assert.rejects(()=>registrarConsultaStatusMockSomenteSandbox({
+  ...consult,organizacaoId:ids.other
+ }),/RASCUNHO_NAO_ENCONTRADO/);
+ await assert.rejects(()=>registrarConsultaStatusMockSomenteSandbox({
+  ...consult,intencaoId:first.id,recebedorId:receiverForFirst.id,
+  chaveConsulta:"CI_PSP_QUERY_SETTLED_"+suffix
+ }),/CONSULTA_FORA_DA_REVISAO/);
+ const evidence=await registrarConsultaStatusMockSomenteSandbox(consult);
+ assert.equal(evidence.houveEnvioPsp,false);
+ assert.equal(evidence.podeReenviar,false);
+ assert.equal(evidence.liquidacaoConfirmada,false);
+ const repeatedEvidence=await registrarConsultaStatusMockSomenteSandbox(consult);
+ assert.equal(repeatedEvidence.reutilizada,true);
+ assert.equal(repeatedEvidence.id,evidence.id);
+ await assert.rejects(()=>registrarConsultaStatusMockSomenteSandbox({
+  ...consult,resultado:"CONFIRMADA"
+ }),/CONSULTA_STATUS_CONFLITANTE/);
+ assert.equal(await prisma.evidenciaConsultaPspSimulada.count({where:{intencaoId:second.id}}),1);
+ assert.equal((await prisma.intencaoAutorizacaoUnificada.findUnique({where:{id:second.id}})).status,"PREPARADA_SANDBOX");
+ assert.equal((await prisma.outboxAutorizacaoUnificada.findUnique({where:{intencaoId:second.id}})).status,"REVISAO_MANUAL");
+
 
  const assinaturaSegredo="somente-teste-pointvet-psp-sem-chave-real-2026";
  const timestamp=Math.floor(Date.now()/1000);
