@@ -649,6 +649,7 @@ model Usuario {
   recebimentosManuaisUnificadosCriados RegistroRecebimentoManualUnificado[]
   estornosUnificadosRealizados EstornoFechamentoManualUnificado[]
   conversoesOrcamentoPdv ConversaoOrcamentoPdv[]
+  registrosCreditoCausal CreditoClienteMovimento[] @relation("CreditoOperadorCausal")
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -2928,6 +2929,8 @@ model ConciliacaoFinanceira {
   contaFinanceira ContaFinanceira @relation(fields: [contaFinanceiraId], references: [id], onDelete: Restrict)
   usuario         Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 
+  creditoPrePago CreditoClienteMovimento?
+
   @@unique([origem, origemId])
   @@index([empresaId, dataMovimento])
   @@index([contaFinanceiraId, dataMovimento])
@@ -3380,10 +3383,20 @@ model CreditoClienteMovimento {
   referenciaId String?
   motivo String?
   idempotencia String? @unique
+  // M.4B.2: optional for retrocompatibility. Only CI sandbox records them.
+  solicitacaoFingerprint String?
+  conciliacaoId String? @unique
+  reverteMovimentoId String? @unique
+  responsavelId String?
+  evidencia Json?
   createdAt DateTime @default(now())
   organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
   empresa Empresa @relation(fields:[empresaId],references:[id],onDelete:Restrict)
   cliente Cliente @relation(fields:[clienteId],references:[id],onDelete:Restrict)
+  conciliacao ConciliacaoFinanceira? @relation(fields:[conciliacaoId],references:[id],onDelete:Restrict)
+  responsavel Usuario? @relation("CreditoOperadorCausal",fields:[responsavelId],references:[id],onDelete:Restrict)
+  reverteMovimento CreditoClienteMovimento? @relation("CreditoEstornoCausal",fields:[reverteMovimentoId],references:[id],onDelete:Restrict)
+  estornoCausal CreditoClienteMovimento? @relation("CreditoEstornoCausal")
   @@index([organizacaoId,clienteId,createdAt])
   @@map("creditos_cliente_movimentos")
 }
