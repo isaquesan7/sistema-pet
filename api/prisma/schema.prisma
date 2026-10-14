@@ -639,6 +639,7 @@ model Usuario {
   vendas               Venda[]
   reservasUnificadasCriadas ReservaFechamentoUnificado[] @relation("ReservaCriadaPor")
   reservasUnificadasCanceladas ReservaFechamentoUnificado[] @relation("ReservaCanceladaPor")
+  preparacoesUnificadas CriacaoPreparacaoUnificada[]
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -1409,6 +1410,11 @@ enum StatusReservaOperacaoUnificada {
   CONCLUIDA
 }
 
+enum StatusPreparacaoExecucaoUnificada {
+  PREPARADA
+  INVALIDADA
+}
+
 model ReservaFechamentoUnificado {
   id              String @id @default(cuid())
   comandaId       String
@@ -1426,6 +1432,7 @@ model ReservaFechamentoUnificado {
   criadoPor       Usuario @relation("ReservaCriadaPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
   canceladoPor    Usuario? @relation("ReservaCanceladaPor", fields: [canceladoPorId], references: [id], onDelete: Restrict)
   operacoes       ReservaOperacaoUnificada[]
+  preparacao      CriacaoPreparacaoUnificada?
 
   @@unique([comandaId, versaoRascunho])
   @@index([status])
@@ -1450,6 +1457,26 @@ model ReservaOperacaoUnificada {
   @@unique([reservaId, empresaId])
   @@index([empresaId, status])
   @@map("reservas_operacoes_unificadas")
+}
+
+// Snapshot imutável da preparação da venda; sem Venda, Pagamento ou fiscal.
+model CriacaoPreparacaoUnificada {
+  id             String @id @default(cuid())
+  reservaId      String @unique
+  criadoPorId    String
+  fingerprint    String
+  snapshot       Json
+  status         StatusPreparacaoExecucaoUnificada @default(PREPARADA)
+  invalidadaEm   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reserva        ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  criadoPor      Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([fingerprint])
+  @@index([status])
+  @@map("preparacoes_execucao_unificada")
 }
 
 model ComandaItem {
