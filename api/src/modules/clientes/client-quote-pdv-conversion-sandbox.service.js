@@ -39,18 +39,29 @@ async function checkExisting(tx,link,quote,{vinculos,fingerprintKey}){
     comanda.itens.length!==quote.itens.length||
     await tx.reservaFechamentoUnificado.count({where:{comandaId:link.comandaId}}))
   fail("M4B_CONVERSAO_JA_ALTERADA");
+ // Compare a MULTISET of current draft lines against the immutable mapping:
+ // a simple .some() check would miss replacement of one of two identical lines.
  const byItem=new Map(record.itens.map(i=>[i.orcamentoItemId,i]));
  const byMapped=new Map(vinculos.map(v=>[v.orcamentoItemId,v.itemCatalogoId]));
+ if(byItem.size!==quote.itens.length)fail("M4B_CONVERSAO_JA_ALTERADA");
+ const signature=(catalogId,petId,quantity,price,total,companyId,status)=>JSON.stringify([
+  catalogId,petId||null,Number(quantity).toFixed(3),cents(price),cents(total),companyId,status
+ ]);
+ const expected=[];
  for(const q of quote.itens){
   const rec=byItem.get(q.id);
   if(!rec||rec.itemCatalogoId!==byMapped.get(q.id)||
+     Number(rec.quantidade)!==Number(q.quantidade)||
      cents(rec.valorUnitario)!==cents(q.valorUnitario)||
-     cents(rec.valorTotal)!==cents(q.total)||
-     !comanda.itens.some(i=>i.itemCatalogoId===rec.itemCatalogoId&&
-      Number(i.quantidade)===Number(rec.quantidade)&&
-      cents(i.valorTotal)===cents(rec.valorTotal)&&i.status==="ATIVO"))
+     cents(rec.valorTotal)!==cents(q.total))
    fail("M4B_CONVERSAO_JA_ALTERADA");
+  expected.push(signature(rec.itemCatalogoId,q.petId,rec.quantidade,
+   rec.valorUnitario,rec.valorTotal,link.empresaId,"ATIVO"));
  }
+ const actual=comanda.itens.map(i=>signature(i.itemCatalogoId,i.petId,
+  i.quantidade,i.valorUnitario,i.valorTotal,i.empresaId,i.status));
+ if(JSON.stringify(expected.sort())!==JSON.stringify(actual.sort()))
+  fail("M4B_CONVERSAO_JA_ALTERADA");
  return {modo:"RASCUNHO_PDV_UNIFICADO_CI",conversaoId:link.id,
   orcamentoId:quote.id,rascunhoId:link.comandaId,versao:snap.versaoRascunho,
   total:snap.total,reutilizada:true,
