@@ -105,8 +105,7 @@ export async function registrarEntradaCreditoConciliadaSomenteSandbox(input){
      titulo.organizacaoId!==x.organizacaoId||titulo.empresaId!==x.empresaId||
      titulo.clienteId!==x.clienteId||titulo.vendaId||titulo.pagamentoId||
      titulo.tipo!=="RECEBER"||titulo.origem!=="OUTRO"||
-     titulo.status!=="PAGO"||!titulo.descricao.toUpperCase().startsWith("ADIANTAMENTO CLIENTE")||
-     Number(titulo.desconto)!==0)
+     titulo.status!=="PAGO"||!titulo.descricao.toUpperCase().startsWith("ADIANTAMENTO CLIENTE"))
    fail("M4B2_TITULO_NAO_E_ADIANTAMENTO");
   const other=await tx.baixaFinanceira.count({where:{tituloId:titulo.id}});
   const amount=valorCreditoCentavos(baixa.valor);
