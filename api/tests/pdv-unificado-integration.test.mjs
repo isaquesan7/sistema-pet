@@ -8,6 +8,7 @@ import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,plan
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
 import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
+import {assinarWebhookPSPSimulado,receberWebhookPSPSomenteSandbox} from "../src/modules/pdv/pdv-unificado-psp-sandbox.contract.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -16,8 +17,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.usuario.create({data:{id:ids.user,nome:"Tester",email:suffix+"@ci.invalid",senhaHash:"not-a-login"}});
  await prisma.cliente.create({data:{id:ids.client,organizacaoId:ids.org,nome:"Tutor de teste"}});
  await prisma.empresa.createMany({data:[
-  {id:ids.co1,organizacaoId:ids.org,cnpj:"CI-1-"+suffix,nomeFantasia:"Loja",razaoSocial:"Loja CI",tipo:"LOJA_CONSULTORIO"},
-  {id:ids.co2,organizacaoId:ids.org,cnpj:"CI-2-"+suffix,nomeFantasia:"Estética",razaoSocial:"Estética CI",tipo:"BANHO_TOSA"}
+  {id:ids.co1,organizacaoId:ids.org,cnpj:"99999999999999",nomeFantasia:"Loja",razaoSocial:"Loja CI",tipo:"LOJA_CONSULTORIO"},
+  {id:ids.co2,organizacaoId:ids.org,cnpj:"88888888888888",nomeFantasia:"Estética",razaoSocial:"Estética CI",tipo:"BANHO_TOSA"}
  ]});
  const permission=await prisma.permissao.upsert({where:{codigo:"pdv.acessar"},update:{},create:{codigo:"pdv.acessar",nome:"Acessar PDV"}});
  const cancelPermission=await prisma.permissao.upsert({where:{codigo:"pdv.cancelar_venda"},update:{},create:{codigo:"pdv.cancelar_venda",nome:"Cancelar venda"}});
