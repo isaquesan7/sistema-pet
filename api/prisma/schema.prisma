@@ -1541,6 +1541,7 @@ model OutboxAutorizacaoUnificada {
   intencao          IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
 
   @@index([status])
+  @@index([status, leaseExpiraEm])
   @@map("outbox_autorizacao_unificada")
 }
 
