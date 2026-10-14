@@ -172,11 +172,12 @@ export async function simularUtilizacaoCreditoSomenteSandbox(input){
 export async function estornarCreditoCausalSomenteSandbox(input){
  exigirBancoIsolado();
  const x=paramsBase(input);
- const {movimentoOriginalId,motivo,simularFalhaAposLancamento=false}=input;
+ const {movimentoOriginalId,motivo,confirmouDevolucaoExterna=false,
+  simularFalhaAposLancamento=false}=input;
  if(!movimentoOriginalId||typeof motivo!=="string"||motivo.trim().length<10||
     motivo.trim().length>500)fail("M4B2_MOTIVO_ESTORNO_OBRIGATORIO");
  const m=motivo.trim(),fingerprint=digest({
-  version:1,tipo:"ESTORNO",movimentoOriginalId,motivo:m
+  version:1,tipo:"ESTORNO",movimentoOriginalId,motivo:m,confirmouDevolucaoExterna
  });
  return prisma.$transaction(async tx=>{
   await lockedContext(tx,x);
@@ -190,6 +191,8 @@ export async function estornarCreditoCausalSomenteSandbox(input){
   if(!original||!["ENTRADA","UTILIZACAO"].includes(original.tipo)||
      !original.solicitacaoFingerprint)
    fail("M4B2_ORIGINAL_NAO_ESTORNAVEL");
+  if(original.tipo==="ENTRADA"&&confirmouDevolucaoExterna!==true)
+   fail("M4B2_DEVOLUCAO_EXTERNA_NAO_CONFIRMADA");
   if(await tx.creditoClienteMovimento.count({where:{reverteMovimentoId:original.id}}))
    fail("M4B2_ESTORNO_JA_EXISTENTE");
   const amount=valorCreditoCentavos(original.valor);
@@ -202,7 +205,9 @@ export async function estornarCreditoCausalSomenteSandbox(input){
    reverteMovimentoId:original.id,motivo:m,responsavelId:x.usuarioId,
    idempotencia:key(x,"ESTORNO"),solicitacaoFingerprint:fingerprint,
    evidencia:{tipo:"ESTORNO_CAUSAL_CI",originalId:original.id,
-    originalTipo:original.tipo,semDevolucaoBancaria:true,semPagamento:true}
+    originalTipo:original.tipo,semDevolucaoBancaria:true,
+    devolucaoExternaDeclarada:original.tipo==="ENTRADA"&&confirmouDevolucaoExterna===true,
+    semPagamento:true}
   }});
   await event(tx,x,"CREDITO_CLIENTE_ESTORNO_CAUSAL_CI",created,{
    reverteMovimentoId:original.id,motivo:m,valorCentavos:amount,

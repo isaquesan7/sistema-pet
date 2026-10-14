@@ -169,9 +169,14 @@ test("M.4B.2: evidence-bound credit, negative balance, concurrency, idempotency 
  await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
   ...reversal,motivo:"Alteração maliciosa da mesma chave"
  }),/M4B2_REPLAY_DIVERGENTE/);
- const reverseEntry=await estornarCreditoCausalSomenteSandbox({
+ await assert.rejects(()=>estornarCreditoCausalSomenteSandbox({
   ...base,solicitacaoId:ref("estorno-entrada-"),
   movimentoOriginalId:deposited.id,motivo:"Devolução do adiantamento conciliado (simulação)"
+ }),/M4B2_DEVOLUCAO_EXTERNA_NAO_CONFIRMADA/);
+ const reverseEntry=await estornarCreditoCausalSomenteSandbox({
+  ...base,solicitacaoId:ref("estorno-entrada-"),
+  movimentoOriginalId:deposited.id,motivo:"Devolução do adiantamento conciliado (simulação)",
+  confirmouDevolucaoExterna:true
  });
  assert.equal(reverseEntry.saldoApos,0);
  const finalWallet=await creditLedger(org,empresa,client);
