@@ -107,6 +107,25 @@ test("M.4B.2: evidence-bound credit, negative balance, concurrency, idempotency 
  assert.equal(wallet.saldoConfiavel,true);
  assert.equal(wallet.saldo,100);
  assert.equal(wallet.usoNoPdvHabilitado,false);
+ // If bookkeeping proof is modified after a credit was posted, balance must
+ // instantly become untrusted and all subsequent mutations fail closed.
+ await prisma.conciliacaoFinanceira.update({where:{id:reconcile.id},
+  data:{direcao:"SAIDA"}});
+ const invalidBank=await creditLedger(org,empresa,client);
+ assert.equal(invalidBank.saldo,null);
+ assert.equal(invalidBank.saldoConfiavel,false);
+ assert.equal(invalidBank.motivoSaldoIndisponivel,"COMPROVACAO_CONTABIL_DIVERGENTE");
+ await assert.rejects(()=>simularUtilizacaoCreditoSomenteSandbox({
+  ...base,solicitacaoId:ref("debito-prova-invalida-"),valorCentavos:100
+ }),/M4B2_RAZAO_NAO_HOMOLOGADO_COMPROVACAO_CONTABIL_DIVERGENTE/);
+ await prisma.conciliacaoFinanceira.update({where:{id:reconcile.id},
+  data:{direcao:"ENTRADA"}});
+ await prisma.tituloFinanceiro.update({where:{id:title.id},
+  data:{status:"PENDENTE"}});
+ assert.equal((await creditLedger(org,empresa,client)).saldoConfiavel,false);
+ await prisma.tituloFinanceiro.update({where:{id:title.id},
+  data:{status:"PAGO"}});
+ assert.equal((await creditLedger(org,empresa,client)).saldo,100);
  await assert.rejects(()=>registrarEntradaCreditoConciliadaSomenteSandbox({
   ...request,valorCentavos:9900
  }),/M4B2_REPLAY_DIVERGENTE/);
