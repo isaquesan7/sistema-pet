@@ -133,6 +133,14 @@ export async function planejarFechamento({organizacaoId,usuarioId,empresaId,id,v
   podeExecutar:false,checkoutHabilitado:false,observacao:"Plano determinístico para futura idempotência. Nenhuma venda, cobrança, movimentação ou documento fiscal é criado."};
 }
 
+/** Explicit authorization in every company: selected-company permissions alone
+ * are not enough to cancel the full multi-company closing reservation.
+ */
+async function empresasComPermissao({organizacaoId,usuarioId,codigo},db=prisma){
+ const vinculos=await db.usuarioEmpresa.findMany({where:{usuarioId,ativo:true,empresa:{organizacaoId,ativo:true}},
+  include:{cargo:{include:{permissoes:{include:{permissao:true}}}}}});
+ return new Set(vinculos.filter(v=>v.cargo?.ativo&&v.cargo.permissoes.some(p=>p.permissao.codigo===codigo)).map(v=>v.empresaId));
+}
 /** Durable reservation: locks the parent comanda, revalidates the full pre-close plan
  * transactionally, and creates at most one immutable operation per company/revision.
  * Never creates a Venda/Pagamento/DocumentoFiscal or moves inventory.
@@ -159,7 +167,7 @@ export async function reservarOperacoesFechamento({organizacaoId,usuarioId,empre
   const plano=await planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao},tx);
   if(!plano.operacoes.length)throw Error("RASCUNHO_BLOQUEADO");
   const criada=await tx.reservaFechamentoUnificado.create({
-   data:{comandaId:id,versaoRascunho:versao,valorTotal:plano.total,
+   data:{comandaId:id,versaoRascunho:versao,valorTotal:plano.total,criadoPorId:usuarioId,
     operacoes:{create:plano.operacoes.map(op=>({
       empresaId:op.empresaId,chaveIdempotencia:op.chaveIdempotencia,valorTotal:op.total
     }))}},
@@ -171,6 +179,7 @@ export async function reservarOperacoesFechamento({organizacaoId,usuarioId,empre
 function normalizarReserva(reserva,reutilizada){
  return {id:reserva.id,comandaId:reserva.comandaId,versao:reserva.versaoRascunho,
   status:reserva.status,total:String(reserva.valorTotal),reutilizada,
+  criadoPorId:reserva.criadoPorId,canceladoPorId:reserva.canceladoPorId,
   operacoes:reserva.operacoes.map(op=>({id:op.id,empresaId:op.empresaId,
    nome:op.empresa.nomeFantasia,cnpj:op.empresa.cnpj,valor:String(op.valorTotal),
    chaveIdempotencia:op.chaveIdempotencia,status:op.status,vendaId:op.vendaId})),
@@ -208,11 +217,13 @@ export async function cancelarReservaFechamento({organizacaoId,usuarioId,empresa
   const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},tx);
   const permitidos=new Set(acessiveis.map(e=>e.id));
   if(reserva.operacoes.some(op=>!permitidos.has(op.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
+  const canceladores=await empresasComPermissao({organizacaoId,usuarioId,codigo:"pdv.cancelar_venda"},tx);
+  if(reserva.operacoes.some(op=>!canceladores.has(op.empresaId)))throw Error("CANCELAMENTO_SEM_PERMISSAO");
   if(reserva.operacoes.some(op=>op.vendaId||op.status==="CONCLUIDA"))throw Error("RESERVA_NAO_EDITAVEL");
   if(reserva.status==="CANCELADA")return normalizarReserva(reserva,true);
   const updated=await tx.reservaFechamentoUnificado.updateMany({
    where:{id:reserva.id,status:"RESERVADA"},
-   data:{status:"CANCELADA",canceladaEm:new Date(),motivoCancelamento:motivo}
+   data:{status:"CANCELADA",canceladaEm:new Date(),motivoCancelamento:motivo,canceladoPorId:usuarioId}
   });
   if(updated.count!==1)throw Error("RESERVA_NAO_EDITAVEL");
   await tx.reservaOperacaoUnificada.updateMany({where:{reservaId:reserva.id,status:"RESERVADA"},data:{status:"CANCELADA"}});
