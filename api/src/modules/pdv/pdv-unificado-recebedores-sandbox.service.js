@@ -6,6 +6,7 @@
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
 import {consultarReservaFechamento} from "./pdv-unificado.service.js";
+import {correlacionarConsultaPsp} from "./pdv-unificado-consulta-psp.contract.js";
 
 const CNPJ=/^[0-9]{14}$/;
 const MOCK_REF=/^ci_mock_[a-zA-Z0-9_-]{3,90}$/;
@@ -91,4 +92,42 @@ export async function registrarConsultaStatusMockSomenteSandbox({
   }});
   return resumoConsulta(row,false);
  },{isolationLevel:"Serializable",maxWait:5000,timeout:12000});
+}
+
+/** Provider-neutral correlation against DB-owned intention and receiver.
+ * A forged or unauthenticated response can never settle an order. This service
+ * is intentionally sandbox-only, read-only and has no public API route.
+ */
+export async function conferirRespostaConsultaPSPMockSomenteSandbox({
+ organizacaoId,usuarioId,empresaId,id,versao,intencaoId,recebedorId,resposta
+}){
+ exigirBancoIsolado();
+ return prisma.$transaction(async tx=>{
+  await bancoIsolado(tx);
+  const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao},tx);
+  if(!reserva||reserva.status!=="RESERVADA")throw Error("RESERVA_NAO_EDITAVEL");
+  const intent=await tx.intencaoAutorizacaoUnificada.findFirst({
+   where:{id:intencaoId,operacao:{reservaId:reserva.id}},
+   select:{id:true,valor:true,chaveIdempotencia:true,
+    operacao:{select:{empresaId:true,empresa:{select:{cnpj:true,organizacaoId:true}}}},
+    outbox:{select:{status:true}}}
+  });
+  if(!intent?.outbox)throw Error("INTENCAO_NAO_ENCONTRADA");
+  if(intent.outbox.status!=="REVISAO_MANUAL")throw Error("CONSULTA_FORA_DA_REVISAO");
+  const receiver=await tx.recebedorPspUnificado.findUnique({where:{id:recebedorId}});
+  if(!receiver||receiver.provedor!=="SIMULADOR_CI"||receiver.ativo||
+   receiver.empresaId!==intent.operacao.empresaId||
+   receiver.cnpj!==intent.operacao.empresa.cnpj||
+   intent.operacao.empresa.organizacaoId!==organizacaoId)
+   throw Error("RECEBEDOR_NAO_CORRESPONDE_A_EMPRESA");
+  const expected={
+   provedor:receiver.provedor,empresaId:intent.operacao.empresaId,
+   cnpj:intent.operacao.empresa.cnpj,recebedorRef:receiver.referenciaExterna,
+   chaveIdempotencia:intent.chaveIdempotencia,
+   valorCentavos:Math.round(Number(intent.valor)*100),moeda:"BRL"
+  };
+  const check=correlacionarConsultaPsp({esperado:expected,resposta});
+  return {...check,empresaId:intent.operacao.empresaId,intencaoId:intent.id,
+   gravouEvidencia:false,houveConsultaExterna:false,pagamentoCriado:false};
+ });
 }
