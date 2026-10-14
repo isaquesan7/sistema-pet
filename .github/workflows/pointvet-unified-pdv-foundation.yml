@@ -11,6 +11,7 @@ on:
       - "api/src/modules/pdv/pdv-unificado-preparacao.service.js"
       - "api/src/modules/pdv/pdv-unificado-venda-sandbox.service.js"
       - "api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js"
+      - "api/src/modules/pdv/pdv-unificado-psp-sandbox.contract.js"
       - "admin-web/src/pages/UnifiedPdvPreviewPage.jsx"
       - "admin-web/src/pages/PdvPage.jsx"
       - "admin-web/src/App.jsx"
@@ -42,6 +43,7 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-preparacao.service.js
           node --check api/src/modules/pdv/pdv-unificado-venda-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js
+          node --check api/src/modules/pdv/pdv-unificado-psp-sandbox.contract.js
           node --check api/src/app.js
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
       - name: Prisma schema
