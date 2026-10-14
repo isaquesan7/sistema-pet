@@ -640,6 +640,7 @@ model Usuario {
   reservasUnificadasCriadas ReservaFechamentoUnificado[] @relation("ReservaCriadaPor")
   reservasUnificadasCanceladas ReservaFechamentoUnificado[] @relation("ReservaCanceladaPor")
   preparacoesUnificadas CriacaoPreparacaoUnificada[]
+  intencoesUnificadasCriadas IntencaoAutorizacaoUnificada[]
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -1454,6 +1455,7 @@ model ReservaOperacaoUnificada {
   reserva           ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
   empresa           Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   venda             Venda? @relation(fields: [vendaId], references: [id], onDelete: Restrict)
+  intencoesAutorizacao IntencaoAutorizacaoUnificada[]
 
   @@unique([reservaId, empresaId])
   @@index([empresaId, status])
@@ -1478,6 +1480,79 @@ model CriacaoPreparacaoUnificada {
   @@index([fingerprint])
   @@index([status])
   @@map("preparacoes_execucao_unificada")
+}
+
+// 20.2.4B — fila de preparação para futuro gateway. NÃO representa cobrança.
+enum StatusIntencaoAutorizacaoUnificada {
+  PREPARADA_SANDBOX
+  CONFIRMADA_SIMULADA
+  RECUSADA_SIMULADA
+  INDETERMINADA_SIMULADA
+}
+
+enum StatusOutboxAutorizacaoUnificada {
+  PENDENTE
+  EM_SIMULACAO
+  CONCLUIDO_SIMULADO
+  REVISAO_MANUAL
+}
+
+enum ResultadoEventoAutorizacaoSimulada {
+  CONFIRMADA
+  RECUSADA
+  INDETERMINADA
+}
+
+model IntencaoAutorizacaoUnificada {
+  id                 String @id @default(cuid())
+  operacaoId         String
+  criadoPorId        String
+  indice             Int
+  forma              FormaPagamento
+  valor              Decimal @db.Decimal(12,2)
+  sessaoCaixaId      String
+  chaveIdempotencia  String @unique
+  status             StatusIntencaoAutorizacaoUnificada @default(PREPARADA_SANDBOX)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  operacao           ReservaOperacaoUnificada @relation(fields: [operacaoId], references: [id], onDelete: Restrict)
+  criadoPor          Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+  outbox             OutboxAutorizacaoUnificada?
+  eventos            EventoAutorizacaoSimulada[]
+
+  @@unique([operacaoId, indice])
+  @@index([status])
+  @@map("intencoes_autorizacao_unificada")
+}
+
+model OutboxAutorizacaoUnificada {
+  id                String @id @default(cuid())
+  intencaoId        String @unique
+  status            StatusOutboxAutorizacaoUnificada @default(PENDENTE)
+  tentativas        Int @default(0)
+  tokenExecucao     String?
+  ultimaTentativaEm DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  intencao          IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@map("outbox_autorizacao_unificada")
+}
+
+model EventoAutorizacaoSimulada {
+  id           String @id @default(cuid())
+  intencaoId   String
+  chaveEvento  String @unique
+  resultado    ResultadoEventoAutorizacaoSimulada
+  createdAt    DateTime @default(now())
+
+  intencao     IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
+
+  @@index([intencaoId])
+  @@map("eventos_autorizacao_simulada")
 }
 
 model ComandaItem {
