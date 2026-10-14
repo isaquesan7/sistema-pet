@@ -183,7 +183,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
   enfileirarAutorizacoesSomenteSandbox(sandboxArgs),
   enfileirarAutorizacoesSomenteSandbox(sandboxArgs)
  ]);
- assert(staged.some(x=>x.status==="fulfilled"),"Sandbox intents must stage once");
+ assert(staged.some(x=>x.status==="fulfilled"),"Sandbox intents must stage once: "+staged.map(x=>x.status==="rejected"?String(x.reason?.message||x.reason):"ok").join(" | "));
  const again=await enfileirarAutorizacoesSomenteSandbox(sandboxArgs);
  assert.equal(again.reutilizada,true);
  assert.equal(again.operacoes.length,2);
