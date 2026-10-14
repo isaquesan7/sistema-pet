@@ -33,3 +33,15 @@
 - Os novos campos e validações exigem migration testada e rollback planejado; não mesclar sem homologação PostgreSQL isolada.
 - Nem essa nova comanda nem sua atualização executam pagamento, venda, estoque, nota fiscal ou split.
 - **Orçamentos e Crédito do Cliente permanecem no PR #35**, devendo ser integrados ao mesmo catálogo/comanda antes do fechamento multiempresa.
+
+## Incremento 20.2.1 — Reserva idempotente do plano (sem venda)
+- `ReservaFechamentoUnificado` persiste 1 conjunto por `comandaId + versaoRascunho`, com chave única no PostgreSQL e estado `RESERVADA / CANCELADA`.
+- `ReservaOperacaoUnificada` persiste 1 operação por empresa, valor próprio, chave SHA-256 única e `vendaId` opcional único para vínculo futuro; `vendaId` não é preenchido nesta fase.
+- POST `/api/pdv-unificado/rascunhos/:id/reservar` aceita **somente** `versao`; todos os valores, CNPJs e chaves são gerados no servidor.
+- As operações são gravadas atomicamente numa transação `Serializable`, após lock de linha na comanda, validação de autorização em todas as empresas e checagem do preço atual. Repetir a mesma reserva retorna os mesmos IDs. Corridas serializáveis podem exigir que o cliente tente novamente ao receber HTTP 409.
+- Enquanto uma reserva está ativa, o serviço de rascunho bloqueia edição. O PDV tradicional já bloqueia faturamento desses rascunhos.
+- GET `/api/pdv-unificado/rascunhos/:id/reserva?versao=N` consulta o estado com isolamento organizacional e permissão em **todas** as empresas da comanda.
+- POST `/api/pdv-unificado/rascunhos/:id/cancelar-reserva` exige `pdv.cancelar_venda`, versão e motivo; cancela apenas reservas sem venda vinculada, preservando registros e chaves para auditoria. Para reservar novamente, é necessário atualizar a comanda e criar nova revisão.
+- **Nenhuma reserva cria Venda, Pagamento, DocumentoFiscal ou MovimentacaoEstoque.** O checkout segue desativado. Isto prepara idempotência futura, mas não implementa adquirência, split, conciliação, impostos nem NFC-e/NFS-e.
+- Testes de integração CI criam duas empresas e validam reserva simultânea, replay, unicidade, bloqueio da edição, cancelamento repetido e recuperação via nova revisão, tudo em PostgreSQL descartável.
+- **Pendências de homologação:** backup/restore e rollout reversível, auditoria completa de usuário nas reservas, CNPJ compartilhado entre estabelecimentos, regras financeiras e fiscais, e integração do PR #35 de Orçamentos e Crédito do Cliente.
