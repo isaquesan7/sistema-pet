@@ -13,6 +13,7 @@ on:
       - "api/src/modules/pdv/pdv-unificado-venda-sandbox.service.js"
       - "api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js"
       - "api/src/modules/pdv/pdv-unificado-psp-sandbox.contract.js"
+      - "api/src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js"
       - "admin-web/src/pages/UnifiedPdvPreviewPage.jsx"
       - "admin-web/src/pages/PdvPage.jsx"
       - "admin-web/src/App.jsx"
@@ -28,6 +29,7 @@ on:
       - "api/prisma/migrations/20261014140000_unified_sandbox_sale_state/**"
       - "api/prisma/migrations/20261014153000_unified_auth_outbox_sandbox/**"
       - "api/prisma/migrations/20261014170000_unified_outbox_lease_reconciliation/**"
+      - "api/prisma/migrations/20261014183000_unified_mock_receivers_status_evidence/**"
       - "admin-web/src/pages/SettingsPage.jsx"
       - ".github/workflows/pointvet-unified-pdv-foundation.yml"
   workflow_dispatch:
@@ -46,6 +48,7 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-venda-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-psp-sandbox.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js
           node --check api/src/app.js
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
       - name: Prisma schema
