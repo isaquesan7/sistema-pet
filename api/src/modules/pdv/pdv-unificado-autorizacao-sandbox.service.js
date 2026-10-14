@@ -9,6 +9,7 @@ import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
 import {consultarReservaFechamento} from "./pdv-unificado.service.js";
 
 const DATABASE_CI="pointvet_unified_ci";
+const LEASE_MS=60_000; // Simulated lease: expiry never grants another send.
 const formes=new Set(["DINHEIRO","PIX","CARTAO_DEBITO","CARTAO_CREDITO","TRANSFERENCIA"]);
 function cents(v){
  const n=Math.round(Number(v)*100);
@@ -143,14 +144,57 @@ export async function reclamarOutboxSomenteSandbox(ctx){
     token:intent.outbox.tokenExecucao,podeEnviar:false,reutilizada:true};
   }
   const token=randomUUID();
+  const now=new Date();
+  const leaseExpiraEm=new Date(now.getTime()+LEASE_MS);
   const changed=await tx.outboxAutorizacaoUnificada.updateMany({
    where:{id:intent.outbox.id,status:"PENDENTE"},
-   data:{status:"EM_SIMULACAO",tokenExecucao:token,
-    tentativas:{increment:1},ultimaTentativaEm:new Date()}
+   data:{status:"EM_SIMULACAO",tokenExecucao:token,leaseExpiraEm,
+    tentativas:{increment:1},ultimaTentativaEm:now,motivoRevisao:null}
   });
   if(changed.count!==1)throw Error("CLAIM_CONCORRENTE");
-  return {intencaoId:intent.id,status:"EM_SIMULACAO",token,
+  return {intencaoId:intent.id,status:"EM_SIMULACAO",token,leaseExpiraEm,
    podeEnviar:false,reutilizada:false};
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
+}
+/** Expired claims are fenced into manual reconciliation, never automatically
+ * released to PENDENTE. An authentic late PSP result may still resolve the
+ * original attempt, with the ORIGINAL token, without a second send.
+ * Simulation time can be injected only in this CI-guarded internal function.
+ */
+export async function verificarExpiracaoOutboxSomenteSandbox(ctx){
+ exigirBancoIsolado();
+ const agoraMs=ctx.agoraMs??Date.now();
+ if(!Number.isSafeInteger(agoraMs)||agoraMs<0)throw Error("TEMPO_INVALIDO");
+ return prisma.$transaction(async tx=>{
+  await lockComandaCI(tx,ctx.id);
+  const {reserva}=await validarContextoCI(tx,ctx);
+  const intent=await tx.intencaoAutorizacaoUnificada.findFirst({
+   where:{id:ctx.intencaoId,operacao:{reservaId:reserva.id}},include:{outbox:true}});
+  if(!intent?.outbox)throw Error("INTENCAO_NAO_ENCONTRADA");
+  const o=intent.outbox;
+  if(o.status!=="EM_SIMULACAO")return {
+   intencaoId:intent.id,status:o.status,precisaConciliar:o.status==="REVISAO_MANUAL",
+   podeReenviar:false,alterado:false};
+  if(!o.leaseExpiraEm){
+   // Legacy incomplete lease: never automatically resend.
+   await tx.outboxAutorizacaoUnificada.updateMany({
+    where:{id:o.id,status:"EM_SIMULACAO"},
+    data:{status:"REVISAO_MANUAL",motivoRevisao:"LEASE_AUSENTE"}
+   });
+   return {intencaoId:intent.id,status:"REVISAO_MANUAL",precisaConciliar:true,
+    podeReenviar:false,alterado:true,motivo:"LEASE_AUSENTE"};
+  }
+  if(o.leaseExpiraEm.getTime()>agoraMs)return {
+   intencaoId:intent.id,status:"EM_SIMULACAO",precisaConciliar:false,
+   podeReenviar:false,alterado:false};
+  const updated=await tx.outboxAutorizacaoUnificada.updateMany({
+   where:{id:o.id,status:"EM_SIMULACAO",tokenExecucao:o.tokenExecucao,
+    leaseExpiraEm:{lte:new Date(agoraMs)}},
+   data:{status:"REVISAO_MANUAL",motivoRevisao:"TIMEOUT_SEM_CONFIRMACAO"}
+  });
+  if(updated.count!==1)throw Error("TIMEOUT_CONCORRENTE");
+  return {intencaoId:intent.id,status:"REVISAO_MANUAL",precisaConciliar:true,
+   podeReenviar:false,alterado:true,motivo:"TIMEOUT_SEM_CONFIRMACAO"};
  },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
 }
 /** Idempotent synthetic event ingestion. Does not create Pagamento or mark Venda FINALIZADA.
@@ -183,7 +227,9 @@ export async function registrarEventoSomenteSandbox(ctx){
   const outStatus=ctx.resultado==="INDETERMINADA"?"REVISAO_MANUAL":"CONCLUIDO_SIMULADO";
   await tx.eventoAutorizacaoSimulada.create({data:{intencaoId:intent.id,chaveEvento:ctx.chaveEvento,resultado:ctx.resultado}});
   await tx.intencaoAutorizacaoUnificada.update({where:{id:intent.id},data:{status}});
-  await tx.outboxAutorizacaoUnificada.update({where:{id:intent.outbox.id},data:{status:outStatus}});
+  await tx.outboxAutorizacaoUnificada.update({where:{id:intent.outbox.id},data:{status:outStatus,
+   motivoRevisao:ctx.resultado==="INDETERMINADA"?"RESULTADO_INDETERMINADO":null,
+   leaseExpiraEm:null}});
   return {intencaoId:intent.id,reutilizada:false,status,outbox:outStatus,
    pagamentoCriado:false,vendaFinalizada:false};
  },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
