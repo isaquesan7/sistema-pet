@@ -6,7 +6,7 @@
 import {createHash,randomUUID} from "node:crypto";
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
-import {consultarReservaFechamento,planejarFechamento} from "./pdv-unificado.service.js";
+import {consultarReservaFechamento} from "./pdv-unificado.service.js";
 
 const DATABASE_CI="pointvet_unified_ci";
 const formes=new Set(["DINHEIRO","PIX","CARTAO_DEBITO","CARTAO_CREDITO","TRANSFERENCIA"]);
@@ -29,13 +29,12 @@ async function validarContextoCI(tx,{organizacaoId,usuarioId,empresaId,id,versao
  if(!reserva||reserva.status!=="RESERVADA")throw Error("RESERVA_NAO_EDITAVEL");
  const prep=await tx.criacaoPreparacaoUnificada.findUnique({where:{reservaId:reserva.id}});
  if(!prep||prep.status!=="PREPARADA")throw Error("PREPARACAO_INDISPONIVEL");
- const plano=await planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao},tx);
- if(plano.operacoes.length!==reserva.operacoes.length||
-  plano.operacoes.some(p=>!reserva.operacoes.some(o=>o.empresaId===p.empresaId&&o.chaveIdempotencia===p.chaveIdempotencia&&cents(o.valor)===cents(p.total))))
-  throw Error("PLANO_DIVERGENTE");
+ // The legacy pre-close refuses a draft with linked sales by design.
+ // After sale shells exist, validate the immutable snapshot against live rows
+ // WITHOUT weakening that legacy protection or accepting browser totals.
  const saved=await tx.reservaOperacaoUnificada.findMany({where:{reservaId:reserva.id},
   include:{venda:{select:{id:true,status:true,empresaId:true,comandaId:true,valorTotal:true}}}});
- if(saved.length!==plano.operacoes.length||saved.some(o=>
+ if(saved.length!==reserva.operacoes.length||saved.some(o=>
   o.status!=="VENDA_RASCUNHO"||!o.vendaId||!o.venda||
   o.venda.status!=="ABERTA"||o.venda.empresaId!==o.empresaId||
   o.venda.comandaId!==id||cents(o.venda.valorTotal)!==cents(o.valorTotal)))
@@ -43,11 +42,32 @@ async function validarContextoCI(tx,{organizacaoId,usuarioId,empresaId,id,versao
  const snapshot=prep.snapshot;
  if(snapshot.comandaId!==id||snapshot.versaoRascunho!==versao||
   snapshot.operacoes.length!==saved.length)throw Error("SNAPSHOT_INCONSISTENTE");
+ const currentLines=await tx.comandaItem.findMany({where:{comandaId:id,status:"ATIVO"},
+  include:{itemCatalogo:{select:{id:true,empresaId:true,ativo:true,precoVenda:true,servico:{select:{exigePet:true}}}},
+    pet:{select:{id:true,ativo:true,clienteId:true}}}});
+ const linesById=new Map(currentLines.map(line=>[line.id,line]));
+ const snapLines=snapshot.operacoes.flatMap(op=>op.itens.map(line=>({...line,empresaId:op.empresaId})));
+ if(snapLines.length!==currentLines.length||new Set(snapLines.map(x=>x.comandaItemId)).size!==snapLines.length)
+  throw Error("SNAPSHOT_INCONSISTENTE");
+ for(const line of snapLines){
+  const now=linesById.get(line.comandaItemId);
+  if(!now||now.empresaId!==line.empresaId||now.itemCatalogoId!==line.itemCatalogoId||
+    now.petId!==line.petId||!now.itemCatalogo?.ativo||now.itemCatalogo.empresaId!==now.empresaId||
+    cents(now.valorUnitario)!==cents(line.valorUnitario)||
+    cents(now.valorTotal)!==cents(line.valorTotal)||
+    cents(now.desconto)!==Math.round(Number(line.desconto)*100)||
+    Number(now.quantidade)!==Number(line.quantidade)||
+    cents(now.itemCatalogo.precoVenda)!==cents(now.valorUnitario))
+    throw Error("SNAPSHOT_INCONSISTENTE");
+  if((now.petId&&(!now.pet?.ativo||now.pet.clienteId!==snapshot.clienteId))||
+    (now.itemCatalogo.servico?.exigePet&&!now.petId))throw Error("PET_INVALIDO");
+ }
  const byCompany=new Map(saved.map(x=>[x.empresaId,x]));
  for(const op of snapshot.operacoes){
   const real=byCompany.get(op.empresaId);
   if(!real||op.chaveIdempotencia!==real.chaveIdempotencia||
-   cents(op.total)!==cents(real.valorTotal))throw Error("SNAPSHOT_INCONSISTENTE");
+   cents(op.total)!==cents(real.valorTotal)||
+   op.itens.reduce((n,i)=>n+cents(i.valorTotal),0)!==cents(op.total))throw Error("SNAPSHOT_INCONSISTENTE");
  }
  return {reserva,prep,saved,snapshot,byCompany};
 }
