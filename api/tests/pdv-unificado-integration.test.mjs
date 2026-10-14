@@ -17,8 +17,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
   {id:ids.co2,organizacaoId:ids.org,cnpj:"CI-2-"+suffix,nomeFantasia:"Estética",razaoSocial:"Estética CI",tipo:"BANHO_TOSA"}
  ]});
  const permission=await prisma.permissao.upsert({where:{codigo:"pdv.acessar"},update:{},create:{codigo:"pdv.acessar",nome:"Acessar PDV"}});
- const cargo=await prisma.cargo.create({data:{empresaId:ids.co2,nome:"Operador CI",permissoes:{create:{permissaoId:permission.id}}}});
- await prisma.usuarioEmpresa.createMany({data:[{usuarioId:ids.user,empresaId:ids.co1},{usuarioId:ids.user,empresaId:ids.co2,cargoId:cargo.id}]});
+ const cancelPermission=await prisma.permissao.upsert({where:{codigo:"pdv.cancelar_venda"},update:{},create:{codigo:"pdv.cancelar_venda",nome:"Cancelar venda"}});
+ const manager=await prisma.cargo.create({data:{empresaId:ids.co1,nome:"Gestor CI",permissoes:{create:[{permissaoId:permission.id},{permissaoId:cancelPermission.id}]}}});
+ const cargo=await prisma.cargo.create({data:{empresaId:ids.co2,nome:"Operador CI",permissoes:{create:[{permissaoId:permission.id},{permissaoId:cancelPermission.id}]}}});
+ await prisma.usuarioEmpresa.createMany({data:[{usuarioId:ids.user,empresaId:ids.co1,cargoId:manager.id},{usuarioId:ids.user,empresaId:ids.co2,cargoId:cargo.id}]});
  await prisma.itemCatalogo.createMany({data:[
   {id:ids.it1,empresaId:ids.co1,nome:"Ração",tipo:"PRODUTO",precoVenda:"180.00"},
   {id:ids.it2,empresaId:ids.co2,nome:"Banho",tipo:"SERVICO",precoVenda:"70.00"}
@@ -53,6 +55,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert(concurrent.some(x=>x.status==="fulfilled"),"At least one reservation must commit");
  const initialReservation=await consultarReservaFechamento(reservationArgs);
  assert.equal(initialReservation.status,"RESERVADA");
+ assert.equal(initialReservation.criadoPorId,ids.user);
  assert.equal(initialReservation.operacoes.length,2);
  assert.equal(new Set(initialReservation.operacoes.map(x=>x.chaveIdempotencia)).size,2);
  assert(initialReservation.operacoes.every(x=>x.vendaId===null));
@@ -66,7 +69,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>reservarOperacoesFechamento({...reservationArgs,organizacaoId:ids.other}),/RASCUNHO_NAO_ENCONTRADO/);
  assert.equal(await prisma.venda.count(),0);
  assert.equal(await prisma.pagamento.count(),0);
+ await prisma.cargoPermissao.delete({where:{cargoId_permissaoId:{cargoId:cargo.id,permissaoId:cancelPermission.id}}});
+ await assert.rejects(()=>cancelarReservaFechamento({...reservationArgs,motivo:"Deve bloquear cancelamento parcial"}),/CANCELAMENTO_SEM_PERMISSAO/);
+ assert.equal((await consultarReservaFechamento(reservationArgs)).status,"RESERVADA");
+ await prisma.cargoPermissao.create({data:{cargoId:cargo.id,permissaoId:cancelPermission.id}});
  const cancelled=await cancelarReservaFechamento({...reservationArgs,motivo:"Revisão de itens no teste isolado"});
+ assert.equal(cancelled.canceladoPorId,ids.user);
  assert.equal(cancelled.status,"CANCELADA");
  assert(cancelled.operacoes.every(x=>x.status==="CANCELADA"));
  assert.equal((await cancelarReservaFechamento({...reservationArgs,motivo:"Repetição segura"})).status,"CANCELADA");
