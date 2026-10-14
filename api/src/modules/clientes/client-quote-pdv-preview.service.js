@@ -19,8 +19,8 @@ export const previewQuoteSchema=z.object({
 
 export async function previsualizarOrcamentoNoPdvUnificado({
  organizacaoId,empresaId,usuarioId,clienteId,orcamentoId,vinculos
-}){
- const q=await prisma.orcamentoCliente.findFirst({where:{
+},db=prisma){
+ const q=await db.orcamentoCliente.findFirst({where:{
   id:orcamentoId,organizacaoId,empresaId,clienteId
  },include:{itens:{orderBy:{id:"asc"}}}});
  if(!q)throw Error("ORCAMENTO_NAO_ENCONTRADO");
@@ -43,7 +43,7 @@ export async function previsualizarOrcamentoNoPdvUnificado({
   petId:item.petId||null,quantidade:Number(item.quantidade)
  }));
  // Only the selected issuer company is authorized, never another company's catalog.
- const catalog=await prisma.itemCatalogo.findMany({where:{
+ const catalog=await db.itemCatalogo.findMany({where:{
   id:{in:[...new Set(inputs.map(i=>i.itemCatalogoId))]},
   empresaId,ativo:true,empresa:{organizacaoId,ativo:true}
  },select:{id:true,nome:true,precoVenda:true}});
@@ -58,7 +58,7 @@ export async function previsualizarOrcamentoNoPdvUnificado({
  }
  const preview=await simularComanda({
   organizacaoId,usuarioId,empresaId,clienteId,itens:inputs
- });
+ },db);
  if(preview.empresas.length!==1||preview.empresas[0].empresaId!==empresaId||
     preview.empresas[0].itens.length!==q.itens.length)
   throw Error("M4A_PREVIA_EMPRESA_DIVERGENTE");
