@@ -13,6 +13,7 @@ import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteS
 import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js";
 import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
+import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -683,5 +684,75 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal((await prisma.pagamento.aggregate({where:{
   sessaoCaixaId:session1.id,forma:"DINHEIRO",status:"APROVADO"
  },_sum:{valor:true}}))._sum.valor,null,"Legacy cash sums only approved money");
+
+
+ // M.4A — quota foundation coexists with M.3C without fiscal, sales or payments.
+ const beforeQuotes={
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
+ };
+ assert.equal(quoteCreateSchema.safeParse({
+  clienteId:ids.client,desconto:0,itens:[{descricao:"Dose CI",quantidade:1,valorUnitario:2.999}]
+ }).success,false,"Reject hidden fractions of cents");
+ assert.equal(quoteCreateSchema.safeParse({
+  clienteId:ids.client,desconto:0,itens:[{descricao:"Dose CI",quantidade:1.0009,valorUnitario:3}]
+ }).success,false,"Reject quantity with more than 3 decimals");
+ const newQuoteData=quoteCreateSchema.parse({
+  clienteId:ids.client,desconto:5,
+  itens:[{descricao:"Orçamento Ração",quantidade:1,valorUnitario:180},
+         {descricao:"Acompanhamento",quantidade:2,valorUnitario:25.5}]
+ });
+ await assert.rejects(()=>createQuote(ids.other,ids.co1,newQuoteData,ids.user),
+  /CADASTRO_INVALIDO/);
+ await assert.rejects(()=>createQuote(ids.org,ids.co2,{
+  ...newQuoteData,itens:[{...newQuoteData.itens[0],petId:"not_owned"}]
+ },ids.user),/PET_INVALIDO/);
+ await assert.rejects(()=>createQuote(ids.org,ids.co1,{
+  ...newQuoteData,desconto:999999
+ },ids.user),/DESCONTO_INVALIDO/);
+ const quote=await createQuote(ids.org,ids.co1,newQuoteData,ids.user);
+ assert.equal(quote.status,"RASCUNHO");
+ assert.equal(quote.total,226);
+ assert.equal((await listQuotes(ids.org,ids.co1,ids.client)).length,1);
+ assert.equal((await listQuotes(ids.org,ids.co2,ids.client)).length,0,
+  "A quote must remain visible only in its issuer company");
+ await assert.rejects(()=>listQuotes(ids.other,ids.co1,ids.client),/CADASTRO_INVALIDO/);
+ await assert.rejects(()=>setQuoteStatus(ids.org,ids.co2,ids.client,quote.id,"APROVADO",ids.user),
+  /ORCAMENTO_NAO_ENCONTRADO/);
+ const approvalRace=await Promise.allSettled([
+  setQuoteStatus(ids.org,ids.co1,ids.client,quote.id,"APROVADO",ids.user),
+  setQuoteStatus(ids.org,ids.co1,ids.client,quote.id,"APROVADO",ids.user)
+ ]);
+ assert.equal(approvalRace.filter(x=>x.status==="fulfilled").length,1,
+  "Only one approval is allowed, without duplicate cash or reservation");
+ assert.equal((await prisma.orcamentoCliente.findUnique({where:{id:quote.id}})).status,
+  "APROVADO");
+ await assert.rejects(()=>setQuoteStatus(ids.org,ids.co1,ids.client,quote.id,"CANCELADO",ids.user),
+  /ORCAMENTO_FECHADO/);
+ assert.equal(await prisma.auditoria.count({where:{
+  organizacaoId:ids.org,empresaId:ids.co1,entidadeId:quote.id
+ }}),2,"Quote creation/approval must both be audited");
+ assert.deepEqual({
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
+ },beforeQuotes,"Quote approval cannot create sales, fiscal docs, payments or stock");
+ const emptyWallet=await creditLedger(ids.org,ids.co1,ids.client);
+ assert.equal(emptyWallet.saldo,0);
+ assert.equal(emptyWallet.lancamentosHabilitados,false);
+ assert.equal(emptyWallet.usoNoPdvHabilitado,false);
+ await assert.rejects(()=>creditLedger(ids.other,ids.co1,ids.client),/CADASTRO_INVALIDO/);
+ // Synthetic contradictory ledger rows inserted by fixture, NEVER a public credit endpoint.
+ await prisma.creditoClienteMovimento.createMany({data:[
+  {organizacaoId:ids.org,empresaId:ids.co1,clienteId:ids.client,
+   tipo:"ENTRADA",valor:"40.00",idempotencia:"m4a-credit-"+suffix},
+  {organizacaoId:ids.org,empresaId:ids.co1,clienteId:ids.client,
+   tipo:"ESTORNO",valor:"40.00",idempotencia:"m4a-reversal-"+suffix}
+ ]});
+ const ambiguous=await creditLedger(ids.org,ids.co1,ids.client);
+ assert.equal(ambiguous.saldo,null,"Never guess the direction of an unlinked reversal");
+ assert.equal(ambiguous.saldoConfiavel,false);
+ assert.equal(ambiguous.motivoSaldoIndisponivel,"ESTORNO_SEM_VINCULO_ORIGINAL");
+ assert.equal((await creditLedger(ids.org,ids.co2,ids.client)).saldo,0,
+  "Prepaid credit cannot cross company boundaries");
 
 });
