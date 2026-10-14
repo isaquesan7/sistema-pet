@@ -109,3 +109,18 @@ export async function diagnosticarRecuperacaoFechamento({organizacaoId,usuarioId
   recuperacaoAutomaticaHabilitada:false,execucaoDisponivel:false,
   mensagem:"Diagnóstico apenas leitura: nenhuma repetição automática de cobrança ou venda."};
 }
+
+/** Only cash sessions for companies within the validated reservation are exposed. */
+export async function listarCaixasDisponiveisUnificados({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
+ const reserva=await consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao});
+ if(!reserva)throw Error("RESERVA_NAO_ENCONTRADA");
+ if(reserva.status!=="RESERVADA")return [];
+ const ids=reserva.operacoes.map(o=>o.empresaId);
+ const sessions=await db.sessaoCaixa.findMany({
+  where:{status:"ABERTO",caixa:{empresaId:{in:ids},ativo:true}},
+  select:{id:true,caixaId:true,caixa:{select:{nome:true,empresaId:true}}},
+  orderBy:{dataAbertura:"desc"},
+  take:100
+ });
+ return sessions.map(s=>({sessaoCaixaId:s.id,empresaId:s.caixa.empresaId,caixa:s.caixa.nome}));
+}
