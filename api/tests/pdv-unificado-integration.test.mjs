@@ -9,7 +9,7 @@ import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuper
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
 import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,verificarExpiracaoOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
 import {assinarWebhookPSPSimulado,receberWebhookPSPSomenteSandbox} from "../src/modules/pdv/pdv-unificado-psp-sandbox.contract.js";
-import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteSandbox} from "../src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js";
+import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteSandbox,conferirRespostaConsultaPSPMockSomenteSandbox} from "../src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -286,6 +286,35 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.evidenciaConsultaPspSimulada.count({where:{intencaoId:second.id}}),1);
  assert.equal((await prisma.intencaoAutorizacaoUnificada.findUnique({where:{id:second.id}})).status,"PREPARADA_SANDBOX");
  assert.equal((await prisma.outboxAutorizacaoUnificada.findUnique({where:{intencaoId:second.id}})).status,"REVISAO_MANUAL");
+
+ const mockReply={provedor:"SIMULADOR_CI",empresaId:second.empresaId,
+  cnpj:second.empresaId===ids.co1?"99999999999999":"88888888888888",
+  recebedorRef:receiverForSecond.referenciaExterna,
+  chaveIdempotencia:second.chaveIdempotencia,valorCentavos:Math.round(Number(second.valor)*100),
+  moeda:"BRL",status:"LIQUIDADA",referenciaTransacao:"CI_MOCK_TX_"+suffix};
+ const correlated=await conferirRespostaConsultaPSPMockSomenteSandbox({
+  ...denyCtx,recebedorId:receiverForSecond.id,resposta:mockReply
+ });
+ assert.equal(correlated.correspondencia,true);
+ assert.equal(correlated.liquidacaoConfirmada,false,"Mock LIQUIDADA must not settle money");
+ assert.equal(correlated.podeFinalizarVenda,false);
+ assert.equal(correlated.podeReenviar,false);
+ assert.equal(correlated.pagamentoCriado,false);
+ await assert.rejects(()=>conferirRespostaConsultaPSPMockSomenteSandbox({
+  ...denyCtx,recebedorId:receiverForFirst.id,resposta:mockReply
+ }),/RECEBEDOR_NAO_CORRESPONDE_A_EMPRESA/);
+ await assert.rejects(()=>conferirRespostaConsultaPSPMockSomenteSandbox({
+  ...denyCtx,recebedorId:receiverForSecond.id,resposta:{...mockReply,valorCentavos:1}
+ }),/PSP_VALOR_DIVERGENTE/);
+ await assert.rejects(()=>conferirRespostaConsultaPSPMockSomenteSandbox({
+  ...denyCtx,recebedorId:receiverForSecond.id,resposta:{...mockReply,cnpj:"77777777777777"}
+ }),/PSP_RECEBEDOR_DIVERGENTE/);
+ await assert.rejects(()=>conferirRespostaConsultaPSPMockSomenteSandbox({
+  ...denyCtx,organizacaoId:ids.other,recebedorId:receiverForSecond.id,resposta:mockReply
+ }),/RASCUNHO_NAO_ENCONTRADO/);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ assert.equal((await prisma.outboxAutorizacaoUnificada.findUnique({where:{intencaoId:second.id}})).status,"REVISAO_MANUAL");
+
 
 
  const assinaturaSegredo="somente-teste-pointvet-psp-sem-chave-real-2026";
