@@ -4,6 +4,7 @@ on:
     paths:
       - "POINTVET_CONTINUIDADE_OFICIAL.md"
       - "POINTVET_GATES_PUBLICACAO.md"
+      - "POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md"
       - "POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md"
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013181500_unified_pdv_org_optin/**"
@@ -58,7 +59,6 @@ jobs:
           node --check api/src/app.js
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs
-          node --test api/tests/pdv-unificado-recebimento-manual.contract.test.mjs
       - name: Prisma schema
         working-directory: api
         env:
@@ -66,6 +66,7 @@ jobs:
         run: |
           npm ci
           npx prisma validate
+          node --test tests/pdv-unificado-recebimento-manual.contract.test.mjs
       - name: Admin build
         working-directory: admin-web
         run: |
