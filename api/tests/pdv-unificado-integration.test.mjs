@@ -11,6 +11,7 @@ import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,verifi
 import {assinarWebhookPSPSimulado,receberWebhookPSPSomenteSandbox} from "../src/modules/pdv/pdv-unificado-psp-sandbox.contract.js";
 import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteSandbox,conferirRespostaConsultaPSPMockSomenteSandbox} from "../src/modules/pdv/pdv-unificado-recebedores-sandbox.service.js";
 import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js";
+import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -443,4 +444,101 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const entriesAfter=await listarRascunhos(args);
  assert(entriesAfter.some(x=>x.id===draft.id),"Draft now has only authorized company's line");
  await assert.rejects(()=>simularComanda({...args,organizacaoId:ids.other}),/CLIENTE_NAO_ENCONTRADO/);
+
+ // M.3B — único fechamento manual multiempresa, incluindo estoque e recebíveis.
+ // Esta validação vem APÓS os testes legados para não afetar asserts de zero pagamentos.
+ await prisma.usuarioEmpresa.update({
+  where:{usuarioId_empresaId:{usuarioId:ids.user,empresaId:ids.co2}},data:{ativo:true}
+ });
+ const product=await prisma.produto.create({data:{
+  itemId:ids.it1,controlaEstoque:true,controlaLote:false
+ }});
+ await prisma.estoqueSaldo.create({data:{produtoId:product.id,quantidade:"10.000"}});
+ const closingDraft=await salvarRascunho(args);
+ const closingCtx={...args,id:closingDraft.id,versao:1};
+ await reservarOperacoesFechamento(closingCtx);
+ await prepararExecucaoUnificada({...closingCtx,dados:proper});
+ await registrarRecebimentoManualSomenteSandbox({...closingCtx,dados:declared});
+ await criarVendasFilhasSomenteSandbox(closingCtx);
+ await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox({
+  ...closingCtx,simularFalhaAposEmpresaId:ids.co1
+ }),/M3_FALHA_SIMULADA_TRANSACAO/);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:closingDraft.id}}}),0);
+ assert.equal(await prisma.parcelaRecebivelManualUnificado.count(),0);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:product.id}
+ })).quantidade),10,"Rollback must restore stock");
+ assert.equal(await prisma.venda.count({where:{
+  comandaId:closingDraft.id,status:"FINALIZADA"
+ }}),0);
+ const closings=await Promise.allSettled([
+  efetivarRecebimentosManuaisSomenteSandbox(closingCtx),
+  efetivarRecebimentosManuaisSomenteSandbox(closingCtx)
+ ]);
+ assert(closings.some(x=>x.status==="fulfilled"),
+  "One close must commit: "+closings.map(x=>String(x.reason?.message||x.status)).join(", "));
+ const closed=await efetivarRecebimentosManuaisSomenteSandbox(closingCtx);
+ assert.equal(closed.reutilizada,true);
+ assert.equal(closed.vendas.length,2);
+ assert.equal(await prisma.pagamento.count({where:{
+  venda:{comandaId:closingDraft.id}
+ }}),2,"Exactly one payment per manual declaration line");
+ assert.equal(await prisma.parcelaRecebivelManualUnificado.count(),3);
+ const receipts=await prisma.parcelaRecebivelManualUnificado.findMany({
+  orderBy:{indice:"asc"}
+ });
+ assert(receipts.every(r=>r.status==="AGUARDANDO_REPASSE"&&r.vencimentoEm===null));
+ assert.deepEqual(receipts.map(r=>Number(r.valor)),[60,60,60]);
+ assert.equal(await prisma.venda.count({where:{
+  comandaId:closingDraft.id,status:"FINALIZADA"
+ }}),2);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{
+  origemTipo:"VENDA",origemId:{in:closed.vendas.map(v=>v.vendaId)}
+ }}),1);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:product.id}
+ })).quantidade),9);
+ assert.equal((await prisma.comanda.findUnique({where:{id:closingDraft.id}})).status,"FECHADA");
+ assert.equal(await prisma.documentoFiscal.count({where:{
+  venda:{comandaId:closingDraft.id}
+ }}),0,"M.3B must not emit fiscal documents");
+ const lines=await prisma.linhaRecebimentoManualUnificado.findMany({
+  where:{registro:{reserva:{comandaId:closingDraft.id}}}
+ });
+ assert(lines.every(l=>l.pagamentoId));
+ assert.equal(await prisma.movimentacaoCaixa.count({where:{
+  referenciaTipo:"PAGAMENTO",referenciaId:{in:lines.map(l=>l.pagamentoId)}
+ }}),0,"No fake cash movement for debit or credit");
+ await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox({
+  ...closingCtx,organizacaoId:ids.other
+ }),/RASCUNHO_NAO_ENCONTRADO/);
+
+ // Insufficient stock cannot finalize ANY company nor consume a declaration.
+ const depleted=await salvarRascunho({...args,itens:[
+  {empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:25},
+  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:1}
+ ]});
+ const shortage={...args,id:depleted.id,versao:1};
+ await reservarOperacoesFechamento(shortage);
+ const shortAllocation={versao:1,alocacoes:[
+  {empresaId:ids.co1,sessaoCaixaId:session1.id,pagamentos:[{forma:"DINHEIRO",valorCentavos:450000}]},
+  {empresaId:ids.co2,sessaoCaixaId:session2.id,pagamentos:[{forma:"PIX",valorCentavos:7000}]}
+ ]};
+ await prepararExecucaoUnificada({...shortage,dados:shortAllocation});
+ await registrarRecebimentoManualSomenteSandbox({...shortage,dados:{
+  versao:1,alocacoes:shortAllocation.alocacoes.map(a=>({
+   ...a,pagamentos:a.pagamentos.map(p=>({...p,confirmadoPeloAtendente:true}))
+  }))
+ }});
+ await criarVendasFilhasSomenteSandbox(shortage);
+ await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox(shortage),
+  /M3_ESTOQUE_INSUFICIENTE/);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:depleted.id}}}),0);
+ assert.equal(await prisma.venda.count({where:{
+  comandaId:depleted.id,status:"FINALIZADA"
+ }}),0);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:product.id}
+ })).quantidade),9);
+
 });
