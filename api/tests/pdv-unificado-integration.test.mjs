@@ -15,6 +15,7 @@ import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
+import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -28,7 +29,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  ]});
  const permission=await prisma.permissao.upsert({where:{codigo:"pdv.acessar"},update:{},create:{codigo:"pdv.acessar",nome:"Acessar PDV"}});
  const cancelPermission=await prisma.permissao.upsert({where:{codigo:"pdv.cancelar_venda"},update:{},create:{codigo:"pdv.cancelar_venda",nome:"Cancelar venda"}});
- const manager=await prisma.cargo.create({data:{empresaId:ids.co1,nome:"Gestor CI",permissoes:{create:[{permissaoId:permission.id},{permissaoId:cancelPermission.id}]}}});
+ const financePermission=await prisma.permissao.upsert({where:{codigo:"financeiro.gerenciar"},update:{},create:{codigo:"financeiro.gerenciar",nome:"Gerenciar financeiro"}});
+ const manager=await prisma.cargo.create({data:{empresaId:ids.co1,nome:"Gestor CI",permissoes:{create:[{permissaoId:permission.id},{permissaoId:cancelPermission.id},{permissaoId:financePermission.id}]}}});
  const cargo=await prisma.cargo.create({data:{empresaId:ids.co2,nome:"Operador CI",permissoes:{create:[{permissaoId:permission.id},{permissaoId:cancelPermission.id}]}}});
  await prisma.usuarioEmpresa.createMany({data:[{usuarioId:ids.user,empresaId:ids.co1,cargoId:manager.id},{usuarioId:ids.user,empresaId:ids.co2,cargoId:cargo.id}]});
  await prisma.itemCatalogo.createMany({data:[
@@ -794,5 +796,89 @@ test("cross-company saving respects prices, access, rollback and version",async(
   vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
   estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
  },frozen,"Read-only quote preview must never book money, sales or stock");
+
+
+ // M.4B — approved quote to exactly one durable unified DRAFT in disposable CI.
+ const convArgs={...previewArgs};
+ const physicalBefore={
+  comanda:await prisma.comanda.count(),vendas:await prisma.venda.count(),
+  pagamentos:await prisma.pagamento.count(),
+  caixa:await prisma.movimentacaoCaixa.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),
+  fiscal:await prisma.documentoFiscal.count(),
+  credit:await prisma.creditoClienteMovimento.count()
+ };
+ await assert.rejects(()=>converterOrcamentoEmRascunhoSomenteSandbox({
+  ...convArgs,simularFalhaDepoisDaComanda:true
+ }),/M4B_FALHA_SIMULADA_TRANSACAO/);
+ assert.equal(await prisma.conversaoOrcamentoPdv.count(),0);
+ assert.equal(await prisma.comanda.count(),physicalBefore.comanda,
+  "Conversion must roll back draft creation on any failure");
+ await prisma.cargoPermissao.delete({where:{
+  cargoId_permissaoId:{cargoId:manager.id,permissaoId:financePermission.id}
+ }});
+ await assert.rejects(()=>converterOrcamentoEmRascunhoSomenteSandbox(convArgs),
+  /M4B_PERMISSOES_INSUFICIENTES/);
+ await prisma.cargoPermissao.create({data:{
+  cargoId:manager.id,permissaoId:financePermission.id
+ }});
+ await assert.rejects(()=>converterOrcamentoEmRascunhoSomenteSandbox({
+  ...convArgs,organizacaoId:ids.other
+ }),/M4B_PERMISSOES_INSUFICIENTES|ORCAMENTO_NAO_ENCONTRADO/);
+ const conversionRace=await Promise.allSettled([
+  converterOrcamentoEmRascunhoSomenteSandbox(convArgs),
+  converterOrcamentoEmRascunhoSomenteSandbox(convArgs)
+ ]);
+ assert(conversionRace.some(x=>x.status==="fulfilled"),
+  "Exactly one conversion must complete: "+
+  conversionRace.map(x=>x.reason?.message||x.status).join(", "));
+ const conversion=await converterOrcamentoEmRascunhoSomenteSandbox(convArgs);
+ assert.equal(conversion.reutilizada,true);
+ assert.equal(conversion.modo,"RASCUNHO_PDV_UNIFICADO_CI");
+ assert.equal(conversion.total,"180.00");
+ assert.equal(conversion.checkoutHabilitado,false);
+ assert.equal(await prisma.conversaoOrcamentoPdv.count({
+  where:{orcamentoId:sameItemQuote.id}
+ }),1);
+ assert.equal(await prisma.conversaoOrcamentoPdvItem.count({
+  where:{conversao:{orcamentoId:sameItemQuote.id}}
+ }),1);
+ const fromQuote=await prisma.comanda.findUnique({
+  where:{id:conversion.rascunhoId},include:{itens:true}
+ });
+ assert.equal(fromQuote.rascunhoUnificado,true);
+ assert.equal(fromQuote.status,"ABERTA");
+ assert.equal(fromQuote.itens.length,1);
+ assert.equal(fromQuote.itens[0].itemCatalogoId,ids.it1);
+ assert.equal(await prisma.auditoria.count({where:{
+  entidade:"OrcamentoCliente",entidadeId:sameItemQuote.id,
+  acao:"ORCAMENTO_CONVERTIDO_RASCUNHO_CI"
+ }}),1);
+ await assert.rejects(()=>converterOrcamentoEmRascunhoSomenteSandbox({
+  ...convArgs,vinculos:[{orcamentoItemId:quoteRow.id,itemCatalogoId:ids.it2}]
+ }),/M4B_CONVERSAO_DIVERGENTE/);
+ const unchanged={
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  caixa:await prisma.movimentacaoCaixa.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),
+  fiscal:await prisma.documentoFiscal.count(),
+  credit:await prisma.creditoClienteMovimento.count()
+ };
+ assert.deepEqual(unchanged,{
+  vendas:physicalBefore.vendas,pagamentos:physicalBefore.pagamentos,
+  caixa:physicalBefore.caixa,estoque:physicalBefore.estoque,
+  fiscal:physicalBefore.fiscal,credit:physicalBefore.credit
+ });
+ // Draft edits invalidate replay; immutable conversion record prevents a second draft.
+ const changeDraft=await salvarRascunho({
+  ...args,clienteId:ids.client,itens:[{empresaId:ids.co1,
+   itemCatalogoId:ids.it1,quantidade:1}]
+ },{id:conversion.rascunhoId,versao:1});
+ assert.equal(changeDraft.versao,2);
+ await assert.rejects(()=>converterOrcamentoEmRascunhoSomenteSandbox(convArgs),
+  /M4B_CONVERSAO_JA_ALTERADA/);
+ assert.equal(await prisma.conversaoOrcamentoPdv.count({
+  where:{orcamentoId:sameItemQuote.id}
+ }),1);
 
 });
