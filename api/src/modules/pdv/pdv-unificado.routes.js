@@ -2,7 +2,7 @@
 import {Router} from "express";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
-import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,listarCaixasDisponiveisUnificados} from "./pdv-unificado-preparacao.service.js";
+import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,listarCaixasDisponiveisUnificados,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "./pdv-unificado-preparacao.service.js";
 import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
 const r=Router();
@@ -37,7 +37,7 @@ r.post("/simulacao",async(req,res,next)=>{try{
 }});
 
 function erroRascunho(e,res,next){
- const errors={CLIENTE_NAO_ENCONTRADO:[404,"Cliente não encontrado."],EMPRESA_SEM_ACESSO:[403,"Acesso negado a uma das empresas."],PET_INVALIDO:[400,"Pet não pertence ao tutor."],ITEM_INVALIDO:[400,"Item inválido para a empresa."],PET_OBRIGATORIO:[400,"Selecione o pet para este serviço."],QUANTIDADE_INVALIDA:[400,"Quantidade inválida."],RASCUNHO_NAO_ENCONTRADO:[404,"Rascunho não encontrado."],RASCUNHO_BLOQUEADO:[409,"Rascunho não pode ser modificado."],RASCUNHO_DESATUALIZADO:[409,"A comanda foi alterada. Recarregue antes de salvar."],RASCUNHO_CLIENTE_IMUTAVEL:[409,"Não é permitido trocar o tutor deste rascunho."],RASCUNHO_RESERVADO:[409,"Comanda reservada para fechamento. Cancele a reserva antes de editar."],RESERVA_NAO_ENCONTRADA:[404,"Reserva não encontrada."],RESERVA_CANCELADA:[409,"Reserva cancelada. Atualize a comanda para gerar nova revisão."],RESERVA_NAO_EDITAVEL:[409,"Reserva não pode ser modificada."],CANCELAMENTO_SEM_PERMISSAO:[403,"O cancelamento exige permissão em todas as empresas participantes."],PRE_FECHAMENTO_COM_PENDENCIAS:[409,"Existem pendências na comanda. Revise antes de reservar."]};
+ const errors={CLIENTE_NAO_ENCONTRADO:[404,"Cliente não encontrado."],EMPRESA_SEM_ACESSO:[403,"Acesso negado a uma das empresas."],PET_INVALIDO:[400,"Pet não pertence ao tutor."],ITEM_INVALIDO:[400,"Item inválido para a empresa."],PET_OBRIGATORIO:[400,"Selecione o pet para este serviço."],QUANTIDADE_INVALIDA:[400,"Quantidade inválida."],RASCUNHO_NAO_ENCONTRADO:[404,"Rascunho não encontrado."],RASCUNHO_BLOQUEADO:[409,"Rascunho não pode ser modificado."],RASCUNHO_DESATUALIZADO:[409,"A comanda foi alterada. Recarregue antes de salvar."],RASCUNHO_CLIENTE_IMUTAVEL:[409,"Não é permitido trocar o tutor deste rascunho."],RASCUNHO_RESERVADO:[409,"Comanda reservada para fechamento. Cancele a reserva antes de editar."],RESERVA_NAO_ENCONTRADA:[404,"Reserva não encontrada."],RESERVA_CANCELADA:[409,"Reserva cancelada. Atualize a comanda para gerar nova revisão."],RESERVA_NAO_EDITAVEL:[409,"Reserva não pode ser modificada."],PREPARACAO_INVALIDADA:[409,"A preparação foi invalidada com o cancelamento da reserva."],PREPARACAO_DIVERGENTE:[409,"Já existe uma preparação diferente para esta reserva. Não altere a alocação sem nova revisão."],RESERVA_PLANO_DIVERGENTE:[409,"Valores e itens da reserva divergem do plano atualizado."],ALOCACAO_COM_PENDENCIAS:[409,"Revise os caixas e valores alocados antes de preparar a execução."],CANCELAMENTO_SEM_PERMISSAO:[403,"O cancelamento exige permissão em todas as empresas participantes."],PRE_FECHAMENTO_COM_PENDENCIAS:[409,"Existem pendências na comanda. Revise antes de reservar."]};
  if(e.code==="P2002")return res.status(409).json({success:false,message:"Esta reserva já existe. Recarregue a comanda."});
  if(e.code==="P2034")return res.status(409).json({success:false,message:"Conflito simultâneo. Recarregue e tente novamente."});
  const result=errors[e.message];return result?res.status(result[0]).json({success:false,message:result[1]}):next(e);
@@ -115,5 +115,18 @@ r.get("/rascunhos/:id/caixas-disponiveis",async(req,res,next)=>{try{
  const parsed=z.coerce.number().int().positive().safeParse(req.query.versao);
  if(!parsed.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
  return res.json({success:true,dados:await listarCaixasDisponiveisUnificados({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/preparacao-execucao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await consultarPreparacaoUnificada({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.post("/rascunhos/:id/preparacao-execucao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=conferenciaAlocacaoSchema.safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Alocações inválidas.",errors:parsed.error.flatten().fieldErrors});
+ const result=await prepararExecucaoUnificada({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,dados:parsed.data});
+ return res.status(result.reutilizada?200:201).json({success:true,dados:result});
 }catch(e){erroRascunho(e,res,next);}});
 export default r;
