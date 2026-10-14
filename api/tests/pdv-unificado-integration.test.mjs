@@ -616,4 +616,72 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox(closingCtx),
   /RESERVA_NAO_EDITAVEL/);
 
+
+ // M.3C — lote FEFO + dinheiro físico, sem dupla saída no caixa.
+ await prisma.produto.update({where:{id:product.id},data:{controlaLote:true}});
+ const lote=await prisma.loteProduto.create({data:{
+  produtoId:product.id,numeroLote:"CI_M3C_LOTE_"+suffix,quantidadeAtual:"10.000"
+ }});
+ const cashDraft=await salvarRascunho(args);
+ const cashCtx={...args,id:cashDraft.id,versao:1};
+ const cashPayments={versao:1,alocacoes:[
+  {empresaId:ids.co1,sessaoCaixaId:session1.id,pagamentos:[
+   {forma:"DINHEIRO",valorCentavos:18000,confirmadoPeloAtendente:true}
+  ]},
+  {empresaId:ids.co2,sessaoCaixaId:session2.id,pagamentos:[
+   {forma:"PIX",valorCentavos:14000,confirmadoPeloAtendente:true}
+  ]}
+ ]};
+ await reservarOperacoesFechamento(cashCtx);
+ await prepararExecucaoUnificada({...cashCtx,dados:{versao:1,
+  alocacoes:cashPayments.alocacoes.map(a=>({
+   empresaId:a.empresaId,sessaoCaixaId:a.sessaoCaixaId,
+   pagamentos:a.pagamentos.map(p=>({forma:p.forma,valorCentavos:p.valorCentavos}))
+  }))
+ }});
+ await registrarRecebimentoManualSomenteSandbox({...cashCtx,dados:cashPayments});
+ await criarVendasFilhasSomenteSandbox(cashCtx);
+ await efetivarRecebimentosManuaisSomenteSandbox(cashCtx);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:lote.id}})).quantidadeAtual),9);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),9);
+ const cashSales=await prisma.venda.findMany({where:{comandaId:cashDraft.id}});
+ const cashSaleIds=cashSales.map(v=>v.id);
+ const cashPayment=await prisma.pagamento.findFirst({where:{
+  vendaId:cashSales.find(s=>s.empresaId===ids.co1).id,forma:"DINHEIRO"
+ }});
+ assert.equal(cashPayment.status,"APROVADO");
+ assert.equal(await prisma.movimentacaoCaixa.count({where:{
+  referenciaTipo:"PAGAMENTO",referenciaId:cashPayment.id,tipo:"VENDA"
+ }}),1);
+ // A title tied to this sale prevents automatic reimbursement, even in CI.
+ const title=await prisma.tituloFinanceiro.create({data:{
+  organizacaoId:ids.org,empresaId:ids.co1,tipo:"RECEBER",
+  descricao:"Bloqueio de vínculo financeiro M3C CI",valorOriginal:"180.00",
+  vendaId:cashSales.find(s=>s.empresaId===ids.co1).id
+ }});
+ const cashReverse={...cashCtx,dados:{
+  motivo:"Devolução de dinheiro e cancelamento Pix conferidos fora do PDV",
+  confirmouDevolucaoExterna:true,referenciaExterna:"LOTE_CI_"+suffix
+ }};
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(cashReverse),
+  /M3C_FINANCEIRO_CONCILIADO_OU_VINCULADO/);
+ await prisma.tituloFinanceiro.delete({where:{id:title.id}});
+ const cashBack=await estornarFechamentoManualSomenteSandbox(cashReverse);
+ assert.equal(cashBack.reutilizada,false);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:lote.id}})).quantidadeAtual),10);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),10);
+ assert.equal((await prisma.pagamento.findUnique({where:{id:cashPayment.id}})).status,"ESTORNADO");
+ assert.equal(await prisma.movimentacaoCaixa.count({where:{
+  referenciaTipo:"ESTORNO_MANUAL_UNIFICADO",referenciaId:cashBack.id,tipo:"VENDA"
+ }}),1,"Reversal is a cash AUDIT marker only");
+ assert.equal(await prisma.movimentacaoCaixa.count({where:{
+  tipo:"ESTORNO",referenciaId:{in:cashSaleIds}
+ }}),0,"Must NOT double-subtract cash");
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{
+  origemTipo:"ESTORNO_MANUAL_UNIFICADO",origemId:cashBack.id,loteId:lote.id
+ }}),1,"Lot-specific compensation must exist");
+ assert.equal((await prisma.pagamento.aggregate({where:{
+  sessaoCaixaId:session1.id,forma:"DINHEIRO",status:"APROVADO"
+ },_sum:{valor:true}}))._sum.valor,null,"Legacy cash sums only approved money");
+
 });
