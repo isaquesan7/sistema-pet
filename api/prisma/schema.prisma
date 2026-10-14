@@ -648,6 +648,7 @@ model Usuario {
   intencoesUnificadasCriadas IntencaoAutorizacaoUnificada[]
   recebimentosManuaisUnificadosCriados RegistroRecebimentoManualUnificado[]
   estornosUnificadosRealizados EstornoFechamentoManualUnificado[]
+  conversoesOrcamentoPdv ConversaoOrcamentoPdv[]
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -1039,6 +1040,7 @@ model ItemCatalogo {
   fiscalConfig    ConfiguracaoFiscalItem?
 
   comandaItens ComandaItem[]
+  conversoesOrcamentoItens ConversaoOrcamentoPdvItem[]
   vendaItens   VendaItem[]
 
   pacoteModeloItens  PacoteModeloItem[]
@@ -1399,6 +1401,7 @@ model Comanda {
   itens  ComandaItem[]
   vendas Venda[]
   reservasFechamento ReservaFechamentoUnificado[]
+  conversaoOrcamentoPdv ConversaoOrcamentoPdv?
   atendimentosClinicos AtendimentoClinico[]
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
@@ -3339,6 +3342,7 @@ model OrcamentoCliente {
   empresa Empresa @relation(fields:[empresaId], references:[id],onDelete:Restrict)
   cliente Cliente @relation(fields:[clienteId], references:[id],onDelete:Restrict)
   itens OrcamentoClienteItem[]
+  conversaoPdv ConversaoOrcamentoPdv?
   @@index([organizacaoId,clienteId,status])
   @@index([empresaId,createdAt])
   @@map("orcamentos_clientes")
@@ -3352,6 +3356,7 @@ model OrcamentoClienteItem {
   valorUnitario Decimal @db.Decimal(12,2)
   total Decimal @db.Decimal(12,2)
   orcamento OrcamentoCliente @relation(fields:[orcamentoId],references:[id],onDelete:Cascade)
+  conversaoItem ConversaoOrcamentoPdvItem?
   @@index([orcamentoId])
   @@map("orcamentos_cliente_itens")
 }
@@ -3381,4 +3386,46 @@ model CreditoClienteMovimento {
   cliente Cliente @relation(fields:[clienteId],references:[id],onDelete:Restrict)
   @@index([organizacaoId,clienteId,createdAt])
   @@map("creditos_cliente_movimentos")
+}
+
+// PointVet M.4B — quote-to-unified-draft transition. Unique quote+draft makes
+// conversion idempotent; item mapping and actor remain immutable audit evidence.
+// Sandbox-only service; no sale or fiscal document is issued by this model.
+model ConversaoOrcamentoPdv {
+  id String @id @default(cuid())
+  orcamentoId String @unique
+  comandaId String @unique
+  organizacaoId String
+  empresaId String
+  clienteId String
+  usuarioId String
+  fingerprint String
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  orcamento OrcamentoCliente @relation(fields:[orcamentoId],references:[id],onDelete:Restrict)
+  comanda Comanda @relation(fields:[comandaId],references:[id],onDelete:Restrict)
+  usuario Usuario @relation(fields:[usuarioId],references:[id],onDelete:Restrict)
+  itens ConversaoOrcamentoPdvItem[]
+
+  @@index([organizacaoId,empresaId,clienteId])
+  @@map("conversoes_orcamento_pdv")
+}
+
+model ConversaoOrcamentoPdvItem {
+  id String @id @default(cuid())
+  conversaoId String
+  orcamentoItemId String @unique
+  itemCatalogoId String
+  quantidade Decimal @db.Decimal(12,3)
+  valorUnitario Decimal @db.Decimal(12,2)
+  valorTotal Decimal @db.Decimal(12,2)
+
+  conversao ConversaoOrcamentoPdv @relation(fields:[conversaoId],references:[id],onDelete:Restrict)
+  orcamentoItem OrcamentoClienteItem @relation(fields:[orcamentoItemId],references:[id],onDelete:Restrict)
+  itemCatalogo ItemCatalogo @relation(fields:[itemCatalogoId],references:[id],onDelete:Restrict)
+
+  @@index([conversaoId])
+  @@index([itemCatalogoId])
+  @@map("conversoes_orcamento_pdv_itens")
 }
