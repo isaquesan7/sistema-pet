@@ -1533,6 +1533,8 @@ model OutboxAutorizacaoUnificada {
   tentativas        Int @default(0)
   tokenExecucao     String?
   ultimaTentativaEm DateTime?
+  leaseExpiraEm     DateTime?
+  motivoRevisao     String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
