@@ -1,3 +1,12 @@
+# HOMOLOGAÇÃO DO INCREMENTO M.3A + M.3B — 14/10/2026
+**CI de implementação CONCLUÍDO COM SUCESSO**: [GitHub Actions #38638213355](https://github.com/isaquesan7/sistema-pet/actions/runs/38638213355), jobs **validate** e **isolated-postgres** SUCCESS no commit **`0a8f20cc33db2f0b4ae69638d961f9b972cce875`**. SHA anterior de implementação M.3B `ca53c06b8b93230725513b4e89afc2ba8d2f9f74`, M.3A `8e579407e925b92c11ee4dea44067c52a5bb87e1`.
+- **Escopo demonstrado**: migration M.3A em PostgreSQL 16 descartável, schema Prisma, testes unitários, integração multiempresa com fechamento M.3B, pagamentos manuais, 3 parcelas de cartão pendentes, verificação de permissões, rollback injetado, concorrência e estoque insuficiente, além dos testes de fundação anteriores.
+- **Limites**: sem HTTP/checkout real, sem emissão fiscal, sem PSP, sem baixa do crédito do cliente, sem conciliação/estorno financeiro ou repasse; cartão **não significa saldo de caixa disponível**. PDV legado permanece como estava. A implantação das migrations em produção está PROIBIDA nesta fase.
+- **Próximo M.3C**: estorno/compensação auditável, proteção a parcelas já conciliadas, testes de estoque/lotes e recuperação de inconsistência; depois M.4 fiscal/Orçamentos PR #35 e mesmo CNPJ; M.5 backup, staging e canário com autorização.
+- O **HEAD após este commit documental requer novo CI**: confirmar a execução exata antes de tratá-lo como homologado. PR #36 continua DRAFT.
+
+---
+
 # UPDATE M.3B — 14/10/2026 (implementação somente PostgreSQL CI)
 - **Novo orquestrador de fechamento transacional sandbox**: `pdv-unificado-fechamento-manual-sandbox.service.js` executa `Serializable` com lock de comanda, caixa e estoque, permissão de todas as empresas e validação de pet/preço/snapshot antes da finalização; usa exclusivamente as linhas M.2 imutáveis e suas vendas-filhas ABERTAS. Repetição após commit confere vínculos; `pagamentoId @unique` impede consumo duplo.
 - **Dinheiro**: `Pagamento APROVADO` + `MovimentacaoCaixa VENDA` auditável (não soma caixa duas vezes no fechamento legado). Pix/débito/transferência: declarados manualmente, sem PSP. **Cartão crédito**: `Pagamento PENDENTE` + N parcelas `AGUARDANDO_REPASSE`, sem inventar calendário de vencimento nem saldo bancário. Nada é enviado a gateway; nenhuma nota fiscal emitida.
