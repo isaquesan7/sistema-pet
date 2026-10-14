@@ -176,7 +176,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const diagnosisSandbox=await diagnosticarRecuperacaoFechamento(sandboxArgs);
  assert(diagnosisSandbox.operacoes.every(o=>o.diagnostico==="ESTADO_REQUER_REVISAO"),"Draft sale must never be considered finalized");
  await assert.rejects(()=>cancelarReservaFechamento({...sandboxArgs,motivo:"Venda ABERTA com vínculo"}),/RESERVA_NAO_EDITAVEL/);
- await assert.rejects(()=>salvarRascunho(args,{id:sandboxDraft.id,versao:1}),/RASCUNHO_RESERVADO/);
+ await assert.rejects(()=>salvarRascunho(args,{id:sandboxDraft.id,versao:1}),/RASCUNHO_BLOQUEADO/);
  await assert.rejects(()=>criarVendasFilhasSomenteSandbox({...sandboxArgs,organizacaoId:ids.other}),/RASCUNHO_NAO_ENCONTRADO/);
 
  // Reprice after preparation: stale snapshot must not create a sale.
