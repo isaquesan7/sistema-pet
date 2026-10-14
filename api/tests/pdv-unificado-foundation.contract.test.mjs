@@ -51,3 +51,15 @@ test("pre-closing review cannot issue payments, sales or invoices",()=>{
  assert.match(routes,/\/rascunhos\/:id\/pre-fechamento/);
  assert.match(service,/checkoutHabilitado:false,pagamentosHabilitados:false,emissaoFiscalHabilitada:false/);
 });
+
+test("financial allocation conference and recovery are strictly read-only",()=>{
+ const svc=get("../src/modules/pdv/pdv-unificado-preparacao.service.js");
+ assert.match(svc,/export async function conferirAlocacaoFechamento/);
+ assert.match(svc,/export async function diagnosticarRecuperacaoFechamento/);
+ assert.match(svc,/creditoClienteDisponivel:false/);
+ assert.match(svc,/execucaoDisponivel:false/);
+ assert.doesNotMatch(svc,/\.venda\.create\(|\.pagamento\.create\(|\.documentoFiscal\.create\(|\.movimentacaoEstoque\.create\(/);
+ assert.match(routes,/\/rascunhos\/:id\/conferencia-alocacao/);
+ assert.match(routes,/\/rascunhos\/:id\/diagnostico-recuperacao/);
+ assert.doesNotMatch(routes,/\/rascunhos\/:id\/executar/);
+});
