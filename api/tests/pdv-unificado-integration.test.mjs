@@ -4,7 +4,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
-import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
+import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -44,6 +44,37 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(planned.operacoes.length,2);
  assert.equal(new Set(planned.operacoes.map(o=>o.chaveIdempotencia)).size,2);
  assert.deepEqual(planned.operacoes,repeated.operacoes,"Idempotency keys must be deterministic");
+ const reservedDraft=await salvarRascunho(args);
+ const reservationArgs={...args,id:reservedDraft.id,versao:1};
+ const concurrent=await Promise.allSettled([
+  reservarOperacoesFechamento(reservationArgs),
+  reservarOperacoesFechamento(reservationArgs)
+ ]);
+ assert(concurrent.some(x=>x.status==="fulfilled"),"At least one reservation must commit");
+ const initialReservation=await consultarReservaFechamento(reservationArgs);
+ assert.equal(initialReservation.status,"RESERVADA");
+ assert.equal(initialReservation.operacoes.length,2);
+ assert.equal(new Set(initialReservation.operacoes.map(x=>x.chaveIdempotencia)).size,2);
+ assert(initialReservation.operacoes.every(x=>x.vendaId===null));
+ assert.equal(await prisma.reservaFechamentoUnificado.count({where:{comandaId:reservedDraft.id}}),1);
+ assert.equal(await prisma.reservaOperacaoUnificada.count({where:{reserva:{comandaId:reservedDraft.id}}}),2);
+ const replay=await reservarOperacoesFechamento(reservationArgs);
+ assert.equal(replay.reutilizada,true);
+ assert.equal(replay.id,initialReservation.id);
+ assert.deepEqual(replay.operacoes.map(x=>x.id).sort(),initialReservation.operacoes.map(x=>x.id).sort());
+ await assert.rejects(()=>salvarRascunho(args,{id:reservedDraft.id,versao:1}),/RASCUNHO_RESERVADO/);
+ await assert.rejects(()=>reservarOperacoesFechamento({...reservationArgs,organizacaoId:ids.other}),/RASCUNHO_NAO_ENCONTRADO/);
+ assert.equal(await prisma.venda.count(),0);
+ assert.equal(await prisma.pagamento.count(),0);
+ const cancelled=await cancelarReservaFechamento({...reservationArgs,motivo:"Revisão de itens no teste isolado"});
+ assert.equal(cancelled.status,"CANCELADA");
+ assert(cancelled.operacoes.every(x=>x.status==="CANCELADA"));
+ assert.equal((await cancelarReservaFechamento({...reservationArgs,motivo:"Repetição segura"})).status,"CANCELADA");
+ await assert.rejects(()=>reservarOperacoesFechamento(reservationArgs),/RESERVA_CANCELADA/);
+ const afterCancel=await salvarRascunho(args,{id:reservedDraft.id,versao:1});
+ assert.equal(afterCancel.versao,2);
+ assert.equal(await prisma.reservaOperacaoUnificada.count({where:{reservaId:cancelled.id}}),2);
+
  await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"75.00"}});
  const changed=await conferirPreFechamento({...args,id:draft.id,versao:1});
  assert(changed.pendencias.some(i=>i.codigo==="PRECO_ALTERADO"));
