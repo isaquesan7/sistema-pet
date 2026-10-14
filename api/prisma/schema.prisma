@@ -637,6 +637,8 @@ model Usuario {
   entradasEstoque      EntradaEstoque[]
   inventariosEstoque   InventarioEstoque[]
   vendas               Venda[]
+  reservasUnificadasCriadas ReservaFechamentoUnificado[] @relation("ReservaCriadaPor")
+  reservasUnificadasCanceladas ReservaFechamentoUnificado[] @relation("ReservaCanceladaPor")
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -1415,10 +1417,14 @@ model ReservaFechamentoUnificado {
   status          StatusReservaFechamentoUnificado @default(RESERVADA)
   canceladaEm     DateTime?
   motivoCancelamento String? @db.Text
+  criadoPorId     String
+  canceladoPorId  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   comanda         Comanda @relation(fields: [comandaId], references: [id], onDelete: Restrict)
+  criadoPor       Usuario @relation("ReservaCriadaPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
+  canceladoPor    Usuario? @relation("ReservaCanceladaPor", fields: [canceladoPorId], references: [id], onDelete: Restrict)
   operacoes       ReservaOperacaoUnificada[]
 
   @@unique([comandaId, versaoRascunho])
