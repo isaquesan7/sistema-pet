@@ -118,11 +118,15 @@ export async function registrarRecebimentoManualSomenteSandbox({
    }
   }
   const registro=await tx.registroRecebimentoManualUnificado.create({
-   data:{reservaId:reserva.id,criadoPorId:usuarioId,fingerprint:conferido.fingerprint,
-    linhas:{create:linhas}},
-   include:{linhas:{include:{operacao:{select:{empresaId:true}}}}}
+   data:{reservaId:reserva.id,criadoPorId:usuarioId,fingerprint:conferido.fingerprint}
   });
-  return toResult(registro,false);
+  await tx.linhaRecebimentoManualUnificado.createMany({
+   data:linhas.map(line=>({...line,registroId:registro.id}))
+  });
+  const persisted=await tx.registroRecebimentoManualUnificado.findUnique({
+   where:{id:registro.id},include:{linhas:{include:{operacao:{select:{empresaId:true}}}}}
+  });
+  return toResult(persisted,false);
  },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
 }
 /** Read requires access to all represented companies; never leaks cross-tenant data. */
