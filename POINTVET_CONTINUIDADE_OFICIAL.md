@@ -1,3 +1,13 @@
+# DECISÃO ATUAL DE PRODUTO — PAGAMENTOS MANUAIS, SEM MAQUININHAS/PSP
+
+**14/10/2026 — SOBRESCREVE O PLANEJAMENTO ANTIGO DE INTEGRAÇÃO PSP NESTE ARQUIVO.** O usuário decidiu explicitamente: **não integrar adquirentes, gateways ou maquininhas na primeira versão**. No fechamento o atendente registra manualmente `DINHEIRO`, `PIX`, `CARTAO_DEBITO`, `CARTAO_CREDITO` ou `TRANSFERENCIA`, com caixa e registros financeiros por empresa/CNPJ. Comprovante, referência/maquininha são opcionais; cartão de crédito informa parcelas. Confirmação do atendente NÃO é confirmação eletrônica do banco e repasses/taxas podem ser separados. `CREDITO_CLIENTE` permanece bloqueado até ledger homologado do PR #35. **PSP deixou de ser impedimento do release. Não perguntar novamente qual maquininha/PSP o cliente usa.**
+
+**[LEITURA OBRIGATÓRIA: POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md](./POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md)** — contrato, roadmap M.1–M.5 e bloqueios atuais. O código PSP/webhooks/outbox das fases 20.2.4B anteriores permanece apenas como **histórico de sandbox**, não é mais a estratégia de recebimento, não deve ser exposto em produção e não obriga integração de provedor.
+
+**PRÓXIMA ETAPA OFICIAL:** M.2, registro auditável e idempotente dos pagamentos informados por atendente, sem lançamento real até homologação de M.3. Depois M.3 fechamento transacional multiempresa, caixa, estoque; M.4 fiscal, estorno e integração Orçamentos/Crédito PR #35; M.5 backup, staging e canário. CNPJ compartilhado por mais de uma unidade ainda exige modelagem. PR #36 segue DRAFT, sem merge/deploy.
+
+---
+
 # POINTVET — CONTINUIDADE OFICIAL DE DESENVOLVIMENTO
 
 > **LEIA ESTE ARQUIVO PRIMEIRO AO RETOMAR EM OUTRO CHAT.**  
@@ -209,6 +219,15 @@ Em cada continuação, antes de avançar: confirmar HEAD de PR #36 e PR #35, ver
 - **PR #35:** continua DRAFT. Orçamentos no perfil do tutor e PDV compartilhado + Crédito do Cliente com razão/estornos são **pendências explícitas**; revisão necessária antes de implantação. Não transformar crédito pré-pago em forma de pagamento sem ledger transacional. 
 - **Outros bloqueios de release:** mesmo CNPJ em múltiplas unidades (atual `Empresa.cnpj @unique`), fiscal segregado, backup/restauração e canário.
 - **Sem merge, deploy ou migrações em produção.** Após este commit documental conferir novamente CI do HEAD.
+
+## 8H. Mudança de direção aprovada — recebimentos MANUAIS, Fase M.1
+- **Decisão do responsável:** não exigir integração com maquininhas/gateways/PSP, pois os estabelecimentos usam vários terminais diferentes. Forma de pagamento declarada pelo atendente será registrada e contabilizada por empresa, sem integrar hardware.
+- **Documento canônico complementar:** [POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md](./POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md), obrigatório para os próximos chats. Ele substitui os marcos de PSP real como bloqueio do release e contém roadmap M.1–M.5. Não remover histórico dos experimentos, apenas não continuá-los para PSP real sem novo pedido.
+- **Código Fase M.1:** `api/src/modules/pdv/pdv-unificado-recebimento-manual.contract.js` — valida formas `DINHEIRO/PIX/CARTAO_DEBITO/CARTAO_CREDITO/TRANSFERENCIA`, total por empresa em centavos, sessão de caixa pertencente ao snapshot, parcelamento de crédito 1–24, confirmação explícita do atendente e referência opcional; fingerprint do conteúdo ligado à organização e reserva. Sem `Pagamento`, `Venda`, estoque ou fiscal criado.
+- **Testes:** `api/tests/pdv-unificado-recebimento-manual.contract.test.mjs`, execução CI após instalar zod, cobrindo pagamento misto, cartão/parcelas, total, empresa, caixa, marca de confirmação, adulterações, crédito do cliente proibido e fingerprint.
+- **Importante:** M.1 é apenas preparação; não afirmar que a contabilização financeira já funciona. Para M.2 criar registro durável, auditoria do atendente e unicidade; para M.3 efetivar pagamento e movimento de caixa da empresa na mesma transação com stock/fiscal segundo regra aprovada.
+- **Outras pendências:** PR #35 Orçamentos/Crédito no perfil e PDV, fiscal segregado, suporte a mesmo CNPJ em várias unidades, testes de backup/restore, E2E e piloto.
+- **CI/HEAD:** atualizar após última validação; não há autorização de deploy ou migration em produção nesta etapa.
 
 ## 9. Marcadores de status
 - **IMPLEMENTADO NA BRANCH** ≠ **HOMOLOGADO** ≠ **EM PRODUÇÃO**.
