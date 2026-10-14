@@ -1406,6 +1406,7 @@ enum StatusReservaFechamentoUnificado {
 
 enum StatusReservaOperacaoUnificada {
   RESERVADA
+  VENDA_RASCUNHO
   CANCELADA
   CONCLUIDA
 }
