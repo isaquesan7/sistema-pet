@@ -1492,6 +1492,13 @@ enum StatusRegistroRecebimentoManualUnificado {
   REGISTRADO
 }
 
+// M.3A — futuras parcelas a receber, nunca repasse já conciliado.
+enum StatusParcelaRecebivelManualUnificado {
+  AGUARDANDO_REPASSE
+  CONCILIADA
+  ESTORNADA
+}
+
 model RegistroRecebimentoManualUnificado {
   id                String @id @default(cuid())
   reservaId         String @unique
@@ -1519,17 +1526,42 @@ model LinhaRecebimentoManualUnificado {
   valor            Decimal @db.Decimal(12,2)
   parcelas         Int @default(1)
   referencia       String? @db.VarChar(120)
+  // M.3A: vínculo unívoco futuro com pagamento efetivado no sandbox.
+  pagamentoId      String? @unique
   confirmadoEm     DateTime @default(now())
   createdAt        DateTime @default(now())
 
   registro         RegistroRecebimentoManualUnificado @relation(fields: [registroId], references: [id], onDelete: Restrict)
   operacao         ReservaOperacaoUnificada @relation(fields: [operacaoId], references: [id], onDelete: Restrict)
   sessaoCaixa      SessaoCaixa @relation(fields: [sessaoCaixaId], references: [id], onDelete: Restrict)
+  pagamento        Pagamento? @relation(fields: [pagamentoId], references: [id], onDelete: Restrict)
+  parcelasRecebiveis ParcelaRecebivelManualUnificado[]
 
   @@unique([operacaoId, indice])
   @@index([registroId])
   @@index([sessaoCaixaId])
   @@map("linhas_recebimento_manual_unificado")
+}
+
+// M.3A — cada parcela tem identidade e saldo individual por linha de cartão;
+// vencimento não é presumido: sem acordo de prazo informado, permanece nulo.
+// O registro de parcelas será feito só no fechamento atômico posterior.
+model ParcelaRecebivelManualUnificado {
+  id             String @id @default(cuid())
+  linhaId        String
+  indice         Int
+  quantidadeTotal Int
+  valor          Decimal @db.Decimal(12,2)
+  status         StatusParcelaRecebivelManualUnificado @default(AGUARDANDO_REPASSE)
+  vencimentoEm   DateTime? @db.Date
+  conciliadoEm   DateTime?
+  createdAt      DateTime @default(now())
+
+  linha LinhaRecebimentoManualUnificado @relation(fields: [linhaId], references: [id], onDelete: Restrict)
+
+  @@unique([linhaId, indice])
+  @@index([status])
+  @@map("parcelas_recebiveis_manual_unificado")
 }
 
 // 20.2.4B — fila de preparação para futuro gateway. NÃO representa cobrança.
@@ -1841,6 +1873,7 @@ model Pagamento {
   venda       Venda        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
   sessaoCaixa SessaoCaixa? @relation(fields: [sessaoCaixaId], references: [id])
   tituloFinanceiro TituloFinanceiro?
+  linhaRecebimentoManualUnificado LinhaRecebimentoManualUnificado?
 
   @@index([vendaId])
   @@index([sessaoCaixaId])
