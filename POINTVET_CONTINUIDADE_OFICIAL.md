@@ -1,3 +1,22 @@
+# UPDATE M.4B.3 — DEVOLUÇÃO CONTÁBIL CONCILIADA DE CRÉDITO, CI ISOLADO (14/10/2026)
+**Código no PR #36 (Draft), sem merge, migração ou deploy.** A M.4B.2 exigia somente declaração do atendente para estorno de entrada pré-paga; a M.4B.3 agora **exige a conciliação contábil de SAÍDA já existente**, além da declaração. Não há integração com banco, Pix, máquina/cartão ou gateway. **Prova contábil lançada pela equipe não constitui confirmação independente da instituição financeira**.
+
+## Implementado em M.4B.3
+- Migration aditiva opcional `20261015001500_credit_refund_outbound_reconciliation` acrescenta `CreditoClienteMovimento.devolucaoConciliacaoId @unique` e FK a `ConciliacaoFinanceira`; nomes de relações distintos para crédito de ENTRADA versus devolução de SAÍDA, preservando legado. Migração só em PostgreSQL descartável de CI.
+- Para **estornar uma ENTRADA de adiantamento**, `estornarCreditoCausalSomenteSandbox` exige `confirmouDevolucaoExterna=true`, `devolucaoConciliacaoId` da mesma empresa e conta financeira ativa, `ConciliacaoFinanceira` com `origem=BAIXA_TITULO` e `direcao=SAIDA`, baixa única e título financeiro `PAGAR/PAGO/OUTRO` do **mesmo cliente** marcado `DEVOLUCAO ADIANTAMENTO CLIENTE`, sem fornecedor, venda ou pagamento associados. Conciliação, baixa, título e estorno precisam ter valor idêntico, sem juros/descontos. **Um comprovante só pode ser consumido uma vez.**
+- Estorno de `UTILIZACAO` **simulada** permanece operação puramente contábil, sem conciliação de devolução: evita emitir duplicidade financeira para um débito que não movimentou dinheiro. Nenhum estorno de estorno.
+- Recalcula o saldo em centavos, impede estornar crédito já utilizado se o saldo restante for insuficiente, exige idempotência por solicitação/payload, grava fingerprint, referência causal, operador e evidências imutáveis; `Serializable`, lock do cliente, rollback e auditoria M.4B.2 preservados.
+- `checarRazaoCreditoCausal` falha fechado para estorno de ENTRADA antigo sem `devolucaoConciliacaoId` e para reembolso indevidamente atribuído a UTILIZACAO; `conferirEvidenciasCreditoAtualizadas` verifica **também a prova de SAÍDA viva** em toda leitura de saldo e nova operação. Se direção/valor/conta/baixa/título foram alterados, `saldoConfiavel=false` e movimentos seguintes são bloqueados, sem inventar devolução.
+- Testes de PostgreSQL descartável cobrem falta de documento de saída, conciliação com direção incorreta, título não pago, valor divergente, tentativa de usar conciliação de entrada, falha após gravação com rollback, replay exato, replay alterado, alteração posterior da fonte e nenhuma venda/pagamento/caixa/estoque/fiscal. Testes e compile em [CI #38657192556](https://github.com/isaquesan7/sistema-pet/actions/runs/38657192556): `validate` e `isolated-postgres` SUCCESS no commit de testes `f1dc3024606e74f6e704bf5d6567daf0be8691be`.
+
+## Limites / próximos passos exatos
+- **Não há endpoint HTTP de escrita** para crédito ou devolução. `CREDITO_CLIENTE` continua desativado no PDV Unificado e não é forma de pagamento. O fluxo de teste **não cria títulos, baixas, conciliações nem realiza transferências**; somente confere registros de contabilidade que a fixture CI preparou.
+- Antes de qualquer produção: identificar conciliações efetivamente corroboradas por registros externos/bancários conforme processo da organização, política de autenticação e autorização de estorno com segregação de funções, trilhas antifraude e controle de documentos; desenhar vínculo de uso de crédito com venda única/idempotente e cancelamento.
+- **Próxima M.4C:** contrato e matriz fiscal por venda-filha/emissor CNPJ, separação serviço/produto por município/UF, documentação de autorização/cancelamento/contingência, sem transmissão fiscal real em CI; solução para **mesmo CNPJ em várias unidades** (pessoa jurídica vs unidade operacional) com compatibilidade e migração planejada. **M.5:** restore de backup, staging, rollback, canário por tenant e autorização explícita. Não remover `Empresa.cnpj @unique` sem redesign.
+- PR #36 permanece Draft, `main` preservada, produção da Pet King e backup/notificações intocados. Fonte de verdade: este arquivo + Issue #37 + PR #36, atualizado com HEAD exato após cada CI.
+
+---
+
 # UPDATE M.4B.2 — RAZÃO CAUSAL DO CRÉDITO PRÉ-PAGO EM CI (14/10/2026)
 **Branch `feat/pointvet-20-1-unified-pdv-foundation` / PR #36 DRAFT**, sem merge, deploy, migração real, credenciamento bancário, maquininha ou PSP. **CREDITO_CLIENTE CONTINUA DESABILITADO COMO FORMA DE PAGAMENTO.**
 
