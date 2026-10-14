@@ -48,3 +48,14 @@
 
 ### Revisão de permissão para cancelamento
 O cancelamento exige **pdv.cancelar_venda em cada empresa** com uma operação na reserva, além da validação por organização e do vínculo ativo. A reserva registra `criadoPorId`, `canceladoPorId`, horário e motivo do cancelamento. Em teste isolado, a revogação dessa permissão em apenas uma das empresas impede o cancelamento do grupo inteiro; restaurada a permissão, todas as operações são canceladas atomicamente sem apagar suas chaves.
+
+## Incremento 20.2.2 — Conferência de alocação e recuperação sem execução
+- Novo serviço `pdv-unificado-preparacao.service.js`, sem chamadas para `venda.create`, `pagamento.create`, estoque ou fiscal.
+- POST `/api/pdv-unificado/rascunhos/:id/conferencia-alocacao`: exige a reserva válida, alocação **para cada empresa**, sessão de caixa ABERTA e pertencente à mesma empresa, totais iguais aos valores da reserva em centavos e formas de pagamento explicitamente permitidas. Registra apenas um resultado de conferência na resposta; não registra pagamento no banco.
+- GET `/api/pdv-unificado/rascunhos/:id/caixas-disponiveis`: devolve somente caixas abertos das empresas que participam da reserva acessível ao operador.
+- GET `/api/pdv-unificado/rascunhos/:id/diagnostico-recuperacao`: examina vínculos de operações com vendas, identificando referências incompatíveis sem reexecutar cobrança ou fazer correções automáticas.
+- UI exibe caixa e valor separados por empresa, mensagem de pendências e alerta para estados que exigem revisão manual. Sem botão de cobrança.
+- `CREDITO_CLIENTE` e `OUTRO` são intencionalmente rejeitados nesta conferência até haver contrato financeiro seguro; Crédito do Cliente segue no PR #35.
+- Em ambientes de integração PostgreSQL descartáveis, testes validam alocação correta, troca de caixa entre empresas, soma divergente, empresa omitida, crédito não habilitado e diagnóstico de reserva ativa/cancelada.
+- Conferência **não é autorização para venda**: entre conferência e execução futura, preços, permissões e caixas podem mudar. A execução precisará revalidar tudo atomicamente, além de tratar split, crédito, fiscal, autorização externa e recuperação.
+- O PDV individual continua intacto. PR ainda é draft e migrations não podem ser aplicadas no banco da Pet King.
