@@ -38,3 +38,7 @@ Antes de habilitar emissão no PDV Unificado:
 A presença das rotas no código deste PR DRAFT **não autoriza acesso em produção**: não fazer merge/deploy nem executar migrations reais. Sem integração PSP de pagamento. Tests devem validar zero \`Venda\`/\`Pagamento\`/\`MovimentacaoEstoque\`/\`DocumentoFiscal\` na aprovação e na prévia de orçamento, isolamento por tenant, preço alterado, mapeamento, concorrência, crédito somente consulta.
 
 **Handoff:** conferir SHA exato e GitHub Actions (\`validate\`, \`isolated-postgres\`) **após cada commit**. Issue #37 e PR #36 guardam a sequência. PR #35 não foi mesclado e deve continuar histórico isolado até decisão explícita de fechamento.
+
+
+## 6. M.4B.1 — vínculo idempotente somente na base CI
+Já implementados: `ConversaoOrcamentoPdv` (unique orçamento/comanda, operador, fingerprint e snapshot), `ConversaoOrcamentoPdvItem` (vínculo imutável a cada item/catálogo), transação de conversão CI com lock de orçamento e validação via simulação do PDV, e drawer de pesquisa/mapeamento do catálogo na ficha do tutor **apenas para prévia**. O serviço de conversão **não possui rota HTTP**; nenhuma migração ou checkout na produção. Próximos gates: razão causal de crédito pré-pago; distribuição/auditoria de descontos; segregação fiscal e modelo mesmo CNPJ/unidades; homologação de backup/restauração e rollout M.5. Não incluir integração de maquininha ou PSP.

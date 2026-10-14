@@ -869,6 +869,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
   caixa:physicalBefore.caixa,estoque:physicalBefore.estoque,
   fiscal:physicalBefore.fiscal,credit:physicalBefore.credit
  });
+ // Replaying a tampered line MUST fail even when draft revision is unchanged.
+ await prisma.comandaItem.update({where:{id:fromQuote.itens[0].id},
+  data:{valorTotal:"179.00"}});
+ await assert.rejects(()=>converterOrcamentoEmRascunhoSomenteSandbox(convArgs),
+  /M4B_CONVERSAO_JA_ALTERADA/);
+ await prisma.comandaItem.update({where:{id:fromQuote.itens[0].id},
+  data:{valorTotal:"180.00"}});
+ assert.equal((await converterOrcamentoEmRascunhoSomenteSandbox(convArgs)).reutilizada,true);
  // Draft edits invalidate replay; immutable conversion record prevents a second draft.
  const changeDraft=await salvarRascunho({
   ...args,clienteId:ids.client,itens:[{empresaId:ids.co1,

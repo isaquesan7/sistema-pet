@@ -22,3 +22,7 @@
 
 ## M.4A — port para o ramo único em 14/10/2026
 A base PR #35 foi transplantada **como código adaptado**, não mesclada. Controle de organização/empresa/tutor/pet, valores de centavos e milésimos, transação Serializable e Auditoria por criação/alteração. O crédito permanece leitura somente e `saldoConfiavel=false` em caso de ESTORNO sem vinculação causal. Não há baixa de crédito no PDV, uso de orçamento como venda, transferência de orçamento entre CNPJs, PSP ou fiscal. Código ainda não habilitado para produção. Próxima etapa é exigir vínculo item-orçamento/catálogo + revisão de descontos e segregação por empresa antes de permitir conversão para rascunho do PDV.
+
+
+## Incremento M.4B.1 — transição do orçamento aprovado em rascunho isolado (14/10/2026)
+O fluxo de desenvolvimento está em `api/src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js` e migration `20261014234500_quote_to_unified_draft`. Mantém entidade de conversão única por orçamento, `Comanda.rascunhoUnificado=true`, vínculos dos itens e fingerprint; idempotente, serializável e trilha `Auditoria`. No painel, “Conferir no PDV” apenas pesquisa catálogo e mostra prévia, sem conversão. O único serviço de conversão exige CI isolado e **não está montado em rota HTTP**. Nada foi cobrado, nem foi emitida nota ou criado crédito. [Handoff](POINTVET_CONTINUIDADE_OFICIAL.md) e [arquitetura fiscal](POINTVET_M4_FISCAL_ORCAMENTOS_ARQUITETURA.md).
