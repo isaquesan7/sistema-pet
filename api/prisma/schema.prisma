@@ -661,7 +661,6 @@ model Usuario {
   atendimentosVeterinario AtendimentoClinico[] @relation("AtendimentoVeterinario")
   prescricoesClinicas PrescricaoClinica[] @relation("PrescricaoVeterinario")
   baixasFinanceiras BaixaFinanceira[]
-  linhasRecebimentoManualUnificado LinhaRecebimentoManualUnificado[]
   conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias      Auditoria[]
   arquivosCriados ArquivoPetRise[] @relation("ArquivoCriadoPorUsuario")
@@ -1736,6 +1735,7 @@ model SessaoCaixa {
   pagamentos    Pagamento[]
   movimentacoes MovimentacaoCaixa[]
   baixasFinanceiras BaixaFinanceira[]
+  linhasRecebimentoManualUnificado LinhaRecebimentoManualUnificado[]
 
   @@index([caixaId])
   @@index([usuarioAberturaId])
