@@ -214,7 +214,31 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_NOVA_"+suffix,resultado:"RECUSADA"}),/EVENTO_NAO_AUTORIZADO|RESULTADO_TERMINAL/);
  const denyCtx={...sandboxArgs,intencaoId:second.id};
  const secondClaim=await reclamarOutboxSomenteSandbox(denyCtx);
- const denial=await registrarEventoSomenteSandbox({...denyCtx,token:secondClaim.token,chaveEvento:"CI_RECUSADA_"+suffix,resultado:"RECUSADA"});
+ const assinaturaSegredo="somente-teste-pointvet-psp-sem-chave-real-2026";
+ const timestamp=Math.floor(Date.now()/1000);
+ const rawBody=JSON.stringify({versao:1,intencaoChave:second.chaveIdempotencia,
+  empresaId:second.empresaId,recebedorCnpj:second.empresaId===ids.co1?"99999999999999":"88888888888888",
+  valorCentavos:Math.round(Number(second.valor)*100),eventoId:"PSP_RECUSADA_"+suffix,
+  resultado:"RECUSADA",token:secondClaim.token});
+ const webhook={...sandboxArgs,rawBody,timestamp,secret:assinaturaSegredo,
+  signature:assinarWebhookPSPSimulado({rawBody,timestamp,secret:assinaturaSegredo})};
+ await assert.rejects(()=>receberWebhookPSPSomenteSandbox({...webhook,
+   signature:"sha256="+("0".repeat(64))}),/WEBHOOK_ASSINATURA_INVALIDA/);
+ await assert.rejects(()=>receberWebhookPSPSomenteSandbox({...webhook,
+   rawBody:rawBody.replace("RECUSADA","CONFIRMADA")}),/WEBHOOK_ASSINATURA_INVALIDA/);
+ await assert.rejects(()=>receberWebhookPSPSomenteSandbox({...webhook,
+   agoraMs:Date.now()+600000}),/WEBHOOK_EXPIRADO/);
+ const tamperedValue=JSON.stringify({...JSON.parse(rawBody),valorCentavos:1});
+ await assert.rejects(()=>receberWebhookPSPSomenteSandbox({...webhook,rawBody:tamperedValue,
+   signature:assinarWebhookPSPSimulado({rawBody:tamperedValue,timestamp,secret:assinaturaSegredo})}),/WEBHOOK_VALOR_DIVERGENTE/);
+ const wrongReceiver=JSON.stringify({...JSON.parse(rawBody),recebedorCnpj:"77777777777777"});
+ await assert.rejects(()=>receberWebhookPSPSomenteSandbox({...webhook,rawBody:wrongReceiver,
+   signature:assinarWebhookPSPSimulado({rawBody:wrongReceiver,timestamp,secret:assinaturaSegredo})}),/WEBHOOK_RECEBEDOR_OU_INTENCAO_INVALIDA/);
+ await assert.rejects(()=>receberWebhookPSPSomenteSandbox({...webhook,
+   organizacaoId:ids.other}),/WEBHOOK_RECEBEDOR_OU_INTENCAO_INVALIDA/);
+ const denial=await receberWebhookPSPSomenteSandbox(webhook);
+ const replayWebhook=await receberWebhookPSPSomenteSandbox(webhook);
+ assert.equal(replayWebhook.reutilizada,true);
  assert.equal(denial.status,"RECUSADA_SIMULADA");
  assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
  assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
