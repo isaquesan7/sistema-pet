@@ -642,6 +642,7 @@ model Usuario {
   reservasUnificadasCanceladas ReservaFechamentoUnificado[] @relation("ReservaCanceladaPor")
   preparacoesUnificadas CriacaoPreparacaoUnificada[]
   intencoesUnificadasCriadas IntencaoAutorizacaoUnificada[]
+  recebimentosManuaisUnificadosCriados RegistroRecebimentoManualUnificado[]
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -660,6 +661,7 @@ model Usuario {
   atendimentosVeterinario AtendimentoClinico[] @relation("AtendimentoVeterinario")
   prescricoesClinicas PrescricaoClinica[] @relation("PrescricaoVeterinario")
   baixasFinanceiras BaixaFinanceira[]
+  linhasRecebimentoManualUnificado LinhaRecebimentoManualUnificado[]
   conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias      Auditoria[]
   arquivosCriados ArquivoPetRise[] @relation("ArquivoCriadoPorUsuario")
@@ -1436,6 +1438,7 @@ model ReservaFechamentoUnificado {
   canceladoPor    Usuario? @relation("ReservaCanceladaPor", fields: [canceladoPorId], references: [id], onDelete: Restrict)
   operacoes       ReservaOperacaoUnificada[]
   preparacao      CriacaoPreparacaoUnificada?
+  recebimentoManual RegistroRecebimentoManualUnificado?
 
   @@unique([comandaId, versaoRascunho])
   @@index([status])
@@ -1457,6 +1460,7 @@ model ReservaOperacaoUnificada {
   empresa           Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   venda             Venda? @relation(fields: [vendaId], references: [id], onDelete: Restrict)
   intencoesAutorizacao IntencaoAutorizacaoUnificada[]
+  recebimentosManuais LinhaRecebimentoManualUnificado[]
 
   @@unique([reservaId, empresaId])
   @@index([empresaId, status])
@@ -1481,6 +1485,52 @@ model CriacaoPreparacaoUnificada {
   @@index([fingerprint])
   @@index([status])
   @@map("preparacoes_execucao_unificada")
+}
+
+// M.2 — declaração MANUAL do atendente, sem Pagamento nem baixa de caixa.
+// Uma declaração por reserva e linhas únicas por operação/índice.
+enum StatusRegistroRecebimentoManualUnificado {
+  REGISTRADO
+}
+
+model RegistroRecebimentoManualUnificado {
+  id                String @id @default(cuid())
+  reservaId         String @unique
+  criadoPorId       String
+  fingerprint       String
+  status            StatusRegistroRecebimentoManualUnificado @default(REGISTRADO)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reserva           ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  criadoPor         Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+  linhas            LinhaRecebimentoManualUnificado[]
+
+  @@index([createdAt])
+  @@map("registros_recebimento_manual_unificado")
+}
+
+model LinhaRecebimentoManualUnificado {
+  id               String @id @default(cuid())
+  registroId       String
+  operacaoId       String
+  indice           Int
+  sessaoCaixaId    String
+  forma            FormaPagamento
+  valor            Decimal @db.Decimal(12,2)
+  parcelas         Int @default(1)
+  referencia       String? @db.VarChar(120)
+  confirmadoEm     DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  registro         RegistroRecebimentoManualUnificado @relation(fields: [registroId], references: [id], onDelete: Restrict)
+  operacao         ReservaOperacaoUnificada @relation(fields: [operacaoId], references: [id], onDelete: Restrict)
+  sessaoCaixa      SessaoCaixa @relation(fields: [sessaoCaixaId], references: [id], onDelete: Restrict)
+
+  @@unique([operacaoId, indice])
+  @@index([registroId])
+  @@index([sessaoCaixaId])
+  @@map("linhas_recebimento_manual_unificado")
 }
 
 // 20.2.4B — fila de preparação para futuro gateway. NÃO representa cobrança.
