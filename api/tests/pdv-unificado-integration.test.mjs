@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
 import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
+import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -146,6 +147,48 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const afterCancel=await salvarRascunho(args,{id:reservedDraft.id,versao:1});
  assert.equal(afterCancel.versao,2);
  assert.equal(await prisma.reservaOperacaoUnificada.count({where:{reservaId:cancelled.id}}),2);
+ // Phase 20.2.4A — real Venda ABERTA rows in disposable DB only.
+ const guard=process.env.POINTVET_UNIFIED_SALES_SANDBOX;
+ process.env.POINTVET_UNIFIED_SALES_SANDBOX="0";
+ await assert.rejects(()=>criarVendasFilhasSomenteSandbox({...reservationArgs}),/EXECUCAO_SANDBOX_DESABILITADA/);
+ process.env.POINTVET_UNIFIED_SALES_SANDBOX=guard;
+
+ const sandboxDraft=await salvarRascunho(args);
+ const sandboxArgs={...args,id:sandboxDraft.id,versao:1};
+ await reservarOperacoesFechamento(sandboxArgs);
+ await prepararExecucaoUnificada({...sandboxArgs,dados:proper});
+ // Test rollback after first seller has been inserted but before the second.
+ await assert.rejects(()=>criarVendasFilhasSomenteSandbox({...sandboxArgs,simularFalhaAposEmpresaId:ids.co1}),/FALHA_SIMULADA_TRANSACAO/);
+ assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id}}),0,"SQL rollback must undo the first seller");
+ assert.equal(await prisma.vendaItem.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ const saleRuns=await Promise.allSettled([criarVendasFilhasSomenteSandbox(sandboxArgs),criarVendasFilhasSomenteSandbox(sandboxArgs)]);
+ assert(saleRuns.some(x=>x.status==="fulfilled"),"At least one transaction must commit");
+ const replaySales=await criarVendasFilhasSomenteSandbox(sandboxArgs);
+ assert.equal(replaySales.reutilizada,true);
+ assert.equal(replaySales.vendas.length,2);
+ assert(replaySales.vendas.every(v=>v.estado==="VENDA_RASCUNHO"&&Boolean(v.vendaId)));
+ assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id}}),2);
+ assert.equal(await prisma.vendaItem.count({where:{venda:{comandaId:sandboxDraft.id}}}),2);
+ assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ assert.equal(await prisma.documentoFiscal.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ const diagnosisSandbox=await diagnosticarRecuperacaoFechamento(sandboxArgs);
+ assert(diagnosisSandbox.operacoes.every(o=>o.diagnostico==="ESTADO_REQUER_REVISAO"),"Draft sale must never be considered finalized");
+ await assert.rejects(()=>cancelarReservaFechamento({...sandboxArgs,motivo:"Venda ABERTA com vínculo"}),/RESERVA_NAO_EDITAVEL/);
+ await assert.rejects(()=>salvarRascunho(args,{id:sandboxDraft.id,versao:1}),/RASCUNHO_RESERVADO/);
+ await assert.rejects(()=>criarVendasFilhasSomenteSandbox({...sandboxArgs,organizacaoId:ids.other}),/RASCUNHO_NAO_ENCONTRADO/);
+
+ // Reprice after preparation: stale snapshot must not create a sale.
+ const staleDraft=await salvarRascunho(args);
+ const staleArgs={...args,id:staleDraft.id,versao:1};
+ await reservarOperacoesFechamento(staleArgs);
+ await prepararExecucaoUnificada({...staleArgs,dados:proper});
+ await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"79.00"}});
+ await assert.rejects(()=>criarVendasFilhasSomenteSandbox(staleArgs),/PRE_FECHAMENTO_COM_PENDENCIAS/);
+ assert.equal(await prisma.venda.count({where:{comandaId:staleDraft.id}}),0);
+ await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"70.00"}});
+
 
  await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"75.00"}});
  const changed=await conferirPreFechamento({...args,id:draft.id,versao:1});
