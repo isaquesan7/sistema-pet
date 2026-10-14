@@ -2,6 +2,7 @@
  * Never saves a comanda, sells inventory, accepts payment or generates fiscal documents.
  */
 import {z} from "zod";
+import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
 const itemSchema=z.object({empresaId:z.string().min(1),itemCatalogoId:z.string().min(1),petId:z.string().nullable().optional(),quantidade:z.number().positive().max(10000)}).strict();
 export const previewSchema=z.object({clienteId:z.string().min(1),itens:z.array(itemSchema).min(1).max(100)}).strict();
@@ -112,4 +113,20 @@ export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,i
  return {rascunhoId:id,versao,draftStatus:draft.status,cliente:draft.cliente,empresas,total:serialize(total),pendencias:issues,aptoParaFechamentoFuturo:issues.length===0,
   checkoutHabilitado:false,pagamentosHabilitados:false,emissaoFiscalHabilitada:false,
   observacao:"Pré-conferência sem cobrança, faturamento, baixa de estoque ou emissão fiscal."};
+}
+
+/** Pure, deterministic allocation plan: one future sale per company, never an executed sale.
+ * Keys are scoped to draft+revision+company; no payment or invoice is attempted here.
+ */
+export async function planejarFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
+ const revisao=await conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao});
+ if(revisao.pendencias.length)throw Error("PRE_FECHAMENTO_COM_PENDENCIAS");
+ const grupos=revisao.empresas.map(company=>({
+  empresaId:company.empresaId,cnpj:company.cnpj,empresa:company.nome,total:company.total,
+  chaveIdempotencia:createHash("sha256").update(["POINTVET20",organizacaoId,id,String(versao),company.empresaId].join(":")).digest("hex"),
+  estado:"SOMENTE_PLANEJADO"
+ }));
+ if(new Set(grupos.map(g=>g.empresaId)).size!==grupos.length)throw Error("EMPRESA_DUPLICADA");
+ return {rascunhoId:id,versao,estado:"PLANEJAMENTO_SEM_EXECUCAO",total:revisao.total,operacoes:grupos,
+  podeExecutar:false,checkoutHabilitado:false,observacao:"Plano determinístico para futura idempotência. Nenhuma venda, cobrança, movimentação ou documento fiscal é criado."};
 }
