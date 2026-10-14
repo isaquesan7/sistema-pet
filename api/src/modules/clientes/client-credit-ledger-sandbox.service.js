@@ -11,6 +11,7 @@ import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "../pdv/pdv-unificado-venda-sandbox.service.js";
 import {valorCreditoCentavos,checarRazaoCreditoCausal} from "./client-credit-ledger.contract.js";
+import {conferirEvidenciasCreditoAtualizadas} from "./client-credit-evidence.service.js";
 
 const fail=x=>{throw Error(x);};
 const digest=o=>createHash("sha256").update(JSON.stringify(o)).digest("hex");
@@ -61,6 +62,8 @@ async function ledger(tx,x){
  },orderBy:[{createdAt:"asc"},{id:"asc"}]});
  const sum=checarRazaoCreditoCausal(all);
  if(!sum.saldoConfiavel)fail("M4B2_RAZAO_NAO_HOMOLOGADO_"+sum.motivo);
+ const proof=await conferirEvidenciasCreditoAtualizadas(tx,all,x);
+ if(!proof.valido)fail("M4B2_RAZAO_NAO_HOMOLOGADO_"+proof.motivo);
  return sum.saldoCentavos;
 }
 async function replay(tx,x,tipo,fingerprint){

@@ -2,6 +2,7 @@
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
 import {checarRazaoCreditoCausal} from "./client-credit-ledger.contract.js";
+import {conferirEvidenciasCreditoAtualizadas} from "./client-credit-evidence.service.js";
 const money=z.number().finite().min(0).max(100000000).refine(v=>Math.abs(v*100-Math.round(v*100))<1e-6&&Number.isSafeInteger(Math.round(v*100)),{message:"MOEDA_CENTAVOS_INVALIDOS"});
 const quantity=z.number().positive().max(100000).refine(v=>Math.abs(v*1000-Math.round(v*1000))<1e-6,{message:"QUANTIDADE_MILESIMOS_INVALIDA"});
 export const createSchema=z.object({
@@ -68,11 +69,15 @@ export async function creditLedger(org,empresa,cliente){
   organizacaoId:org,empresaId:empresa,clienteId:cliente
  },orderBy:[{createdAt:"desc"},{id:"desc"}]});
  const audit=checarRazaoCreditoCausal(rows);
- // Existing ledger can include historic noncausal rows; fail closed rather than
- // making unknown ESTORNO look like real spendable credit.
- return {saldo:audit.saldoConfiavel?audit.saldoCentavos/100:null,
-  saldoConfiavel:audit.saldoConfiavel,
-  motivoSaldoIndisponivel:audit.motivo,
+ // A posted reconciliation can be edited later. Its CURRENT evidence must
+ // still match the original provenance before reporting a trusted balance.
+ const proof=audit.saldoConfiavel?
+  await conferirEvidenciasCreditoAtualizadas(prisma,rows,{organizacaoId:org,empresaId:empresa,clienteId:cliente}):
+  {valido:false,motivo:audit.motivo};
+ const confiavel=audit.saldoConfiavel&&proof.valido;
+ return {saldo:confiavel?audit.saldoCentavos/100:null,
+  saldoConfiavel:confiavel,
+  motivoSaldoIndisponivel:confiavel?null:proof.motivo,
   movimentos:rows.slice(0,200).map(x=>({...x,valor:Number(x.valor)})),
   lancamentosHabilitados:false,usoNoPdvHabilitado:false};
 }

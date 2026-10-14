@@ -10,6 +10,7 @@ on:
       - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
       - "api/src/modules/clientes/client-finance.service.js"
       - "api/src/modules/clientes/client-credit-ledger.contract.js"
+      - "api/src/modules/clientes/client-credit-evidence.service.js"
       - "api/src/modules/clientes/client-credit-ledger-sandbox.service.js"
       - "api/tests/client-credit-ledger.contract.test.mjs"
       - "api/tests/client-credit-ledger.integration.test.mjs"
@@ -91,6 +92,7 @@ jobs:
           node --check api/src/app.js
           node --check api/src/modules/clientes/client-finance.service.js
           node --check api/src/modules/clientes/client-credit-ledger.contract.js
+          node --check api/src/modules/clientes/client-credit-evidence.service.js
           node --check api/src/modules/clientes/client-credit-ledger-sandbox.service.js
           node --test api/tests/client-credit-ledger.contract.test.mjs
           node --check api/src/modules/clientes/client-quote-pdv-preview.service.js
