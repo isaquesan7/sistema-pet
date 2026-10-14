@@ -70,6 +70,7 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-fechamento-manual.contract.js
           node --check api/src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-estorno-manual.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js
           node --check api/src/app.js
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs
