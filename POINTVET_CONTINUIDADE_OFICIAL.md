@@ -59,7 +59,8 @@ As etapas externas (PSP fiscal/gateway) NÃO entram em uma transação SQL únic
 
 ## 5. ORDEM OFICIAL de implementação (não pular marcos)
 - **20.2.3 — IMPLEMENTADA NA BRANCH, CI HOMOLOGADO**: preparação persistente das vendas-filhas sem executar; snapshot de alocações, itens e caixas por empresa, idempotência por reserva, fingerprint do conteúdo, travamento/revalidação em transação serializável e invalidação ao cancelar reserva. **Ainda não cria Venda, pagamentos, fiscal ou estoque.**
-- **20.2.4 — PRÓXIMO INCREMENTO: Projeto e testes de venda transacional no sandbox**: só após 20.2.3 e design revisado. Reutilizar lógica de `api/src/modules/pdv/pdv.service.js`, mas **não chamar** `criarVendaNoTx` nem `fecharComandaEmpresa` indiscriminadamente, pois hoje criam venda FINALIZADA, pagamentos, recebível, baixas de estoque e disparam fiscal fora da transação. Criar orquestrador idempotente auditável com transações, estoque e recuperação sem duplicar.
+- **20.2.4A — IMPLEMENTADA + CI VERDE (SOMENTE SANDBOX):** registros de `Venda` e `VendaItem` em estado **ABERTA**, separados por empresa e vinculados à reserva, em transação serializável que desfaz tudo se uma operação falhar. Proteção tripla contra execução em produção (NODE_ENV=test, `POINTVET_UNIFIED_SALES_SANDBOX=1`, banco real `pointvet_unified_ci`). **Nenhum endpoint público e nenhuma autorização de venda/pagamento/fiscal/estoque.**
+- **20.2.4B — PRÓXIMO INCREMENTO: desenho e testes dos estados financeiros/outbox/recuperação e fluxo de autorização**: somente após revisar segurança de concorrência e modelo de recebimento multi-CNPJ. Não liberar cobranças reais. Reutilizar lógica de `api/src/modules/pdv/pdv.service.js`, mas **não chamar** `criarVendaNoTx` nem `fecharComandaEmpresa` indiscriminadamente, pois hoje criam venda FINALIZADA, pagamentos, recebível, baixas de estoque e disparam fiscal fora da transação. Criar orquestrador idempotente auditável com transações, estoque e recuperação sem duplicar.
 - **20.3 — Pagamentos multi-CNPJ**: recebedores e caixas corretos, split apenas com PSP compatível, callbacks, autorização, rejeição/estorno parcial, idempotência, conciliação. Não aceitar crédito sem ledger real.
 - **20.4 — Fiscal multiempresa**: emissão por CNPJ e tipo de operação, NF-e/NFC-e/NFS-e conforme situação legal, regras por município/UF, obrigatoriedade, estados e recuperação; conferir com especialista fiscal.
 - **20.5 — Orçamentos/Crédito**: revisar PR #35, resolver incompatibilidades/migrations, criar serviço único de orçamento entre perfil e PDV, conversão em comanda com chaves idempotentes, razão de crédito com saldos consistentes.
@@ -89,6 +90,7 @@ As etapas externas (PSP fiscal/gateway) NÃO entram em uma transação SQL únic
 | 14/10/2026 | 20.2.1 — reserva idempotente por empresa e cancelamento | implementado na branch, CI isolado |
 | 14/10/2026 | 20.2.2 — conferência caixa/alocação/diagnóstico read-only | implementado na branch, CI isolado |
 | 14/10/2026 | 20.2.3 — preparação persistente de vendas por empresa | **implementado na branch; CI validate + isolated-postgres SUCCESS, run 38566501137 (commit c85a5ea9e15ca12e2a2b03e55b7a7da26ce3cad3)** |
+| 14/10/2026 | 20.2.4A — Venda/VendaItem ABERTA em sandbox com rollback atômico | **CI SUCCESS — run 38571495511, commit 0c99dc2740f1427ab704d8756fe360289e0939e7; nenhum deploy** |
 
 ### Modelo de atualização de handoff por incremento
 `Data; fase; branch; commit HEAD; arquivo(s); migration(s); testes com ID de run; limitações; riscos; ação exata seguinte; deploy/produção: NÃO`.
@@ -118,6 +120,24 @@ As etapas externas (PSP fiscal/gateway) NÃO entram em uma transação SQL únic
 
 ### Protocolo de handoff obrigatório
 Em cada continuação, antes de avançar: confirmar HEAD de PR #36 e PR #35, verificar divergência com `main` e CI **do HEAD**; depois fazer commit de código, esperar CI, atualizar esta seção com SHA/run/erros e próxima decisão, atualizar a issue #37 e o corpo do PR #36; nunca escrever "concluído" para etapa não homologada.
+
+## 8B. Incremento 20.2.4A — vendas-filhas SOMENTE no sandbox
+- **Arquivos:** `api/src/modules/pdv/pdv-unificado-venda-sandbox.service.js`, `api/prisma/schema.prisma`, `api/prisma/migrations/20261014140000_unified_sandbox_sale_state/migration.sql`, `api/tests/pdv-unificado-integration.test.mjs`, workflow CI.
+- **Novo enum:** `StatusReservaOperacaoUnificada.VENDA_RASCUNHO`, que não significa venda confirmada. `Venda.status = ABERTA` para cada empresa; `VendaItem` associa linhas a itens da comanda. `ReservaOperacaoUnificada.vendaId` permanece único.
+- **Serviço:** `criarVendasFilhasSomenteSandbox({organizacaoId,usuarioId,empresaId,id,versao,simularFalhaAposEmpresaId?})`. Não importado pelas rotas HTTP nem pela interface. Trava tripla: `NODE_ENV === "test"`, `POINTVET_UNIFIED_SALES_SANDBOX === "1"`, `DATABASE_URL` e `SELECT current_database()` exigem **`pointvet_unified_ci`**. Não trocar ou afrouxar esses gates.
+- **Transação `Serializable`:** lock de comanda (`FOR UPDATE`), valida organização, versão, autorização de todas as empresas, reserva/preparação, itens/preços/pets, alocações por caixa, totais e chaves idempotentes. Um único commit cria todas vendas-filhas ABERTAS e seus itens; falha depois da primeira empresa provoca rollback integral.
+- **Replay:** retorna as vendas-filhas previamente criadas se todas estão vinculadas e íntegras. Não cria duplicidade. Se existe ligação parcial/inconsistente, retorna erro e exige análise, nunca cria nova venda no escuro.
+- **Testes CI:** fault injection após primeira empresa, zero vendas após rollback, concorrência de duas requisições, replay, vínculos por empresa, edição/cancelamento negados após vinculação, detecção de mudança de preço, zero `FINALIZADA`, zero `Pagamento`, zero movimentações de estoque, zero `DocumentoFiscal`. **Run 38571495511, jobs `validate` + `isolated-postgres` SUCCESS no commit `0c99dc2740f1427ab704d8756fe360289e0939e7`.**
+- **Limites:** Esta etapa NÃO é fechamento real. Não há gateway, autorização de pagamento, outbox, emissão fiscal, conciliação, split ou consumo de crédito. O serviço não deve ser publicado ou exposto em produção. `Venda.ABERTA` no sandbox é apenas prova de integridade transacional.
+- **PRs:** PR #36 DRAFT, PR #35 Orçamentos e Crédito permanece DRAFT (sem migrações em produção). Issue #37 é o índice do handoff.
+
+### 20.2.4B — instrução exata de retomada
+1. Ler `POINTVET_CONTINUIDADE_OFICIAL.md`, issue #37, PRs #35/#36 e confirmar CI/HEAD e `main`; revisar a lógica de checkout legado que registra pagamentos e estoque/fiscal.
+2. Modelar uma máquina de estados por operação/venda/recebedor: `PREPARADA → AGUARDANDO_AUTORIZACAO → AUTORIZADA/RECUSADA/PARCIAL → CONCILIADA`, com estados concretos adequados, logs, auditoria e constraints. Não pular a autorização externa verificada.
+3. Definir transação SQL + outbox/reconciliação para gateway e fiscal, sem chamadas externas na transação; tratar perda de resposta, webhook duplicado, mudança de credenciais/empresa e estorno. Exigir idempotência no PSP e ledger/caixa segregado.
+4. Fazer testes em PostgreSQL descartável, sem habilitar endpoint de venda real. Para múltiplos CNPJs não implementar "pagamento único" antes de escolher/adaptar provedor split.
+5. **Orçamentos e Crédito:** manter PR #35 no escopo; Orçamentos únicos no perfil e PDV, conversão idempotente; Crédito do Cliente só entra quando saldo/movimentos transacionais estiverem homologados.
+6. Antes de qualquer merge/deploy: segurança multi-tenant, suporte a várias unidades mesmo CNPJ, backup/restauração e validação fiscal; preferência por organização continua opcional e NÃO é flag de checkout.
 
 ## 9. Marcadores de status
 - **IMPLEMENTADO NA BRANCH** ≠ **HOMOLOGADO** ≠ **EM PRODUÇÃO**.
