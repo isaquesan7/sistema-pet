@@ -578,6 +578,7 @@ model Empresa {
   entradasEstoque      EntradaEstoque[]
   inventariosEstoque   InventarioEstoque[]
   comandaItens         ComandaItem[]
+  operacoesUnificadas  ReservaOperacaoUnificada[]
   caixas               Caixa[]
   vendas               Venda[]
 
@@ -1384,6 +1385,7 @@ model Comanda {
 
   itens  ComandaItem[]
   vendas Venda[]
+  reservasFechamento ReservaFechamentoUnificado[]
   atendimentosClinicos AtendimentoClinico[]
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
@@ -1391,6 +1393,57 @@ model Comanda {
   @@index([status])
   @@index([createdAt])
   @@map("comandas")
+}
+
+// Preparação de fechamento segregado por empresa. Sem criação automática de vendas.
+enum StatusReservaFechamentoUnificado {
+  RESERVADA
+  CANCELADA
+}
+
+enum StatusReservaOperacaoUnificada {
+  RESERVADA
+  CANCELADA
+  CONCLUIDA
+}
+
+model ReservaFechamentoUnificado {
+  id              String @id @default(cuid())
+  comandaId       String
+  versaoRascunho  Int
+  valorTotal      Decimal @db.Decimal(12, 2)
+  status          StatusReservaFechamentoUnificado @default(RESERVADA)
+  canceladaEm     DateTime?
+  motivoCancelamento String? @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  comanda         Comanda @relation(fields: [comandaId], references: [id], onDelete: Restrict)
+  operacoes       ReservaOperacaoUnificada[]
+
+  @@unique([comandaId, versaoRascunho])
+  @@index([status])
+  @@map("reservas_fechamento_unificado")
+}
+
+model ReservaOperacaoUnificada {
+  id                String @id @default(cuid())
+  reservaId         String
+  empresaId         String
+  chaveIdempotencia String @unique
+  valorTotal        Decimal @db.Decimal(12, 2)
+  status            StatusReservaOperacaoUnificada @default(RESERVADA)
+  vendaId           String? @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reserva           ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  empresa           Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  venda             Venda? @relation(fields: [vendaId], references: [id], onDelete: Restrict)
+
+  @@unique([reservaId, empresaId])
+  @@index([empresaId, status])
+  @@map("reservas_operacoes_unificadas")
 }
 
 model ComandaItem {
@@ -1522,6 +1575,7 @@ model Venda {
   pagamentos        Pagamento[]
   pacotesCliente    PacoteCliente[]
   documentosFiscais DocumentoFiscal[]
+  operacaoUnificada ReservaOperacaoUnificada?
   titulosFinanceiros TituloFinanceiro[]
 
   @@index([empresaId])
