@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "POINTVET_CONTINUIDADE_OFICIAL.md"
+      - "POINTVET_GATES_PUBLICACAO.md"
       - "POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md"
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013181500_unified_pdv_org_optin/**"
@@ -26,6 +27,7 @@ on:
       - "api/prisma/migrations/20261014113000_unified_sale_preparation/**"
       - "api/prisma/migrations/20261014140000_unified_sandbox_sale_state/**"
       - "api/prisma/migrations/20261014153000_unified_auth_outbox_sandbox/**"
+      - "api/prisma/migrations/20261014170000_unified_outbox_lease_reconciliation/**"
       - "admin-web/src/pages/SettingsPage.jsx"
       - ".github/workflows/pointvet-unified-pdv-foundation.yml"
   workflow_dispatch:
