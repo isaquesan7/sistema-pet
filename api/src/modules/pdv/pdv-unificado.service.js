@@ -186,14 +186,14 @@ function normalizarReserva(reserva,reutilizada){
   checkoutHabilitado:false,pagamentosHabilitados:false,emissaoFiscalHabilitada:false};
 }
 /** Tenant and all-company authorization required even for reading a reservation. */
-export async function consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
- const comanda=await prisma.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+export async function consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
+ const comanda=await db.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
   select:{id:true,itens:{select:{empresaId:true}}}});
  if(!comanda)throw Error("RASCUNHO_NAO_ENCONTRADO");
- const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},db);
  const permitidos=new Set(acessiveis.map(e=>e.id));
  if(comanda.itens.some(i=>!permitidos.has(i.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
- const reserva=await prisma.reservaFechamentoUnificado.findUnique({
+ const reserva=await db.reservaFechamentoUnificado.findUnique({
   where:{comandaId_versaoRascunho:{comandaId:id,versaoRascunho:versao}},
   include:{operacoes:{include:{empresa:{select:{nomeFantasia:true,cnpj:true}}}}}
  });
@@ -221,6 +221,7 @@ export async function cancelarReservaFechamento({organizacaoId,usuarioId,empresa
   if(reserva.operacoes.some(op=>!canceladores.has(op.empresaId)))throw Error("CANCELAMENTO_SEM_PERMISSAO");
   if(reserva.operacoes.some(op=>op.vendaId||op.status==="CONCLUIDA"))throw Error("RESERVA_NAO_EDITAVEL");
   if(reserva.status==="CANCELADA")return normalizarReserva(reserva,true);
+  await tx.criacaoPreparacaoUnificada.updateMany({where:{reservaId:reserva.id,status:"PREPARADA"},data:{status:"INVALIDADA",invalidadaEm:new Date()}});
   const updated=await tx.reservaFechamentoUnificado.updateMany({
    where:{id:reserva.id,status:"RESERVADA"},
    data:{status:"CANCELADA",canceladaEm:new Date(),motivoCancelamento:motivo,canceladoPorId:usuarioId}
