@@ -2,7 +2,7 @@
 import {Router} from "express";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
-import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento} from "./pdv-unificado.service.js";
+import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
@@ -63,4 +63,13 @@ r.get("/rascunhos/:id/pre-fechamento",async(req,res,next)=>{try{
  if(!versao.success)return res.status(400).json({success:false,message:"Informe a versão do rascunho."});
  return res.json({success:true,dados:await conferirPreFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:versao.data})});
 }catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/plano-fechamento",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const versao=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!versao.success)return res.status(400).json({success:false,message:"Informe a versão do rascunho."});
+ return res.json({success:true,dados:await planejarFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:versao.data})});
+}catch(e){
+ if(e.message==="PRE_FECHAMENTO_COM_PENDENCIAS")return res.status(409).json({success:false,message:"Há pendências no pré-fechamento. Revise os itens antes de planejar as operações."});
+ erroRascunho(e,res,next);
+}});
 export default r;
