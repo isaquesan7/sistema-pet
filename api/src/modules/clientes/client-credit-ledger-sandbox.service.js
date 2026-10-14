@@ -11,7 +11,7 @@ import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "../pdv/pdv-unificado-venda-sandbox.service.js";
 import {valorCreditoCentavos,checarRazaoCreditoCausal} from "./client-credit-ledger.contract.js";
-import {conferirEvidenciasCreditoAtualizadas} from "./client-credit-evidence.service.js";
+import {conferirEvidenciasCreditoAtualizadas,obterConciliacaoDevolucaoContabil} from "./client-credit-evidence.service.js";
 
 const fail=x=>{throw Error(x);};
 const digest=o=>createHash("sha256").update(JSON.stringify(o)).digest("hex");
@@ -173,11 +173,12 @@ export async function estornarCreditoCausalSomenteSandbox(input){
  exigirBancoIsolado();
  const x=paramsBase(input);
  const {movimentoOriginalId,motivo,confirmouDevolucaoExterna=false,
-  simularFalhaAposLancamento=false}=input;
+  devolucaoConciliacaoId=null,simularFalhaAposLancamento=false}=input;
  if(!movimentoOriginalId||typeof motivo!=="string"||motivo.trim().length<10||
     motivo.trim().length>500)fail("M4B2_MOTIVO_ESTORNO_OBRIGATORIO");
  const m=motivo.trim(),fingerprint=digest({
-  version:1,tipo:"ESTORNO",movimentoOriginalId,motivo:m,confirmouDevolucaoExterna
+  version:2,tipo:"ESTORNO",movimentoOriginalId,motivo:m,
+  confirmouDevolucaoExterna,devolucaoConciliacaoId
  });
  return prisma.$transaction(async tx=>{
   await lockedContext(tx,x);
@@ -199,18 +200,33 @@ export async function estornarCreditoCausalSomenteSandbox(input){
   const after=saldo+(original.tipo==="ENTRADA"?-amount:amount);
   if(after<0)fail("M4B2_ESTORNO_SALDO_INSUFICIENTE");
   if(!Number.isSafeInteger(after)||after>999999999999)fail("M4B2_SALDO_INVALIDO");
+  if(original.tipo==="UTILIZACAO"&&devolucaoConciliacaoId)
+   fail("M4B3_DEVOLUCAO_NAO_SE_APLICA_A_DEBITO");
+  // Only an existing, reconciled outgoing financial payment can account
+  // for the return of a previous prepaid deposit. No new payment is made.
+  const refund=original.tipo==="ENTRADA"?
+   await obterConciliacaoDevolucaoContabil(tx,{
+    devolucaoConciliacaoId,organizacaoId:x.organizacaoId,empresaId:x.empresaId,
+    clienteId:x.clienteId,valorCentavos:amount
+   }):null;
+  if(refund&&await tx.creditoClienteMovimento.count({
+   where:{devolucaoConciliacaoId:refund.devolucaoConciliacaoId}
+  }))fail("M4B3_DEVOLUCAO_JA_UTILIZADA");
   const created=await tx.creditoClienteMovimento.create({data:{
    organizacaoId:x.organizacaoId,empresaId:x.empresaId,clienteId:x.clienteId,
    tipo:"ESTORNO",valor:(amount/100).toFixed(2),
-   reverteMovimentoId:original.id,motivo:m,responsavelId:x.usuarioId,
+   reverteMovimentoId:original.id,
+   devolucaoConciliacaoId:refund?.devolucaoConciliacaoId||null,
+   motivo:m,responsavelId:x.usuarioId,
    idempotencia:key(x,"ESTORNO"),solicitacaoFingerprint:fingerprint,
    evidencia:{tipo:"ESTORNO_CAUSAL_CI",originalId:original.id,
     originalTipo:original.tipo,semDevolucaoBancaria:true,
     devolucaoExternaDeclarada:original.tipo==="ENTRADA"&&confirmouDevolucaoExterna===true,
-    semPagamento:true}
+    ...refund,semPagamento:true}
   }});
   await event(tx,x,"CREDITO_CLIENTE_ESTORNO_CAUSAL_CI",created,{
    reverteMovimentoId:original.id,motivo:m,valorCentavos:amount,
+   devolucaoConciliacaoId:refund?.devolucaoConciliacaoId||null,
    saldoAntesCentavos:saldo,saldoDepoisCentavos:after
   });
   if(simularFalhaAposLancamento)fail("M4B2_FALHA_SIMULADA_TRANSACAO");

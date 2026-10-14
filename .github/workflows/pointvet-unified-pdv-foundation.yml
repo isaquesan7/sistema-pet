@@ -15,6 +15,7 @@ on:
       - "api/tests/client-credit-ledger.contract.test.mjs"
       - "api/tests/client-credit-ledger.integration.test.mjs"
       - "api/prisma/migrations/20261014235900_client_credit_causal_ledger/**"
+      - "api/prisma/migrations/20261015001500_credit_refund_outbound_reconciliation/**"
       - "api/src/modules/clientes/client-quote-pdv-preview.service.js"
       - "api/src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js"
       - "api/prisma/migrations/20261014234500_quote_to_unified_draft/**"
