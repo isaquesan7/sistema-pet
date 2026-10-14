@@ -215,7 +215,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const secondClaim=await reclamarOutboxSomenteSandbox(denyCtx);
  const denial=await registrarEventoSomenteSandbox({...denyCtx,token:secondClaim.token,chaveEvento:"CI_RECUSADA_"+suffix,resultado:"RECUSADA"});
  assert.equal(denial.status,"RECUSADA_SIMULADA");
- assert.equal((await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
+ assert.equal(await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
  assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
  assert.equal(await prisma.movimentacaoEstoque.count(),0);
  assert.equal(await prisma.documentoFiscal.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
