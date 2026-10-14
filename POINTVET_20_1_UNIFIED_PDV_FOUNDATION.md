@@ -44,4 +44,7 @@
 - POST `/api/pdv-unificado/rascunhos/:id/cancelar-reserva` exige `pdv.cancelar_venda`, versão e motivo; cancela apenas reservas sem venda vinculada, preservando registros e chaves para auditoria. Para reservar novamente, é necessário atualizar a comanda e criar nova revisão.
 - **Nenhuma reserva cria Venda, Pagamento, DocumentoFiscal ou MovimentacaoEstoque.** O checkout segue desativado. Isto prepara idempotência futura, mas não implementa adquirência, split, conciliação, impostos nem NFC-e/NFS-e.
 - Testes de integração CI criam duas empresas e validam reserva simultânea, replay, unicidade, bloqueio da edição, cancelamento repetido e recuperação via nova revisão, tudo em PostgreSQL descartável.
-- **Pendências de homologação:** backup/restore e rollout reversível, auditoria completa de usuário nas reservas, CNPJ compartilhado entre estabelecimentos, regras financeiras e fiscais, e integração do PR #35 de Orçamentos e Crédito do Cliente.
+- **Pendências de homologação:** backup/restore e rollout reversível, auditoria completa de eventos e rastreabilidade além dos IDs de criador/cancelador já persistidos, CNPJ compartilhado entre estabelecimentos, regras financeiras e fiscais, e integração do PR #35 de Orçamentos e Crédito do Cliente.
+
+### Revisão de permissão para cancelamento
+O cancelamento exige **pdv.cancelar_venda em cada empresa** com uma operação na reserva, além da validação por organização e do vínculo ativo. A reserva registra `criadoPorId`, `canceladoPorId`, horário e motivo do cancelamento. Em teste isolado, a revogação dessa permissão em apenas uma das empresas impede o cancelamento do grupo inteiro; restaurada a permissão, todas as operações são canceladas atomicamente sem apagar suas chaves.
