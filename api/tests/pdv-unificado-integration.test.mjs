@@ -7,6 +7,7 @@ import prisma from "../src/config/prisma.js";
 import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
+import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -173,6 +174,52 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
  assert.equal(await prisma.movimentacaoEstoque.count(),0);
  assert.equal(await prisma.documentoFiscal.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+
+ // 20.2.4B — durable sandbox auth intents and outbox; no gateway/network or real payment.
+ process.env.POINTVET_UNIFIED_SALES_SANDBOX="0";
+ await assert.rejects(()=>enfileirarAutorizacoesSomenteSandbox(sandboxArgs),/EXECUCAO_SANDBOX_DESABILITADA/);
+ process.env.POINTVET_UNIFIED_SALES_SANDBOX=guard;
+ const staged=await Promise.allSettled([
+  enfileirarAutorizacoesSomenteSandbox(sandboxArgs),
+  enfileirarAutorizacoesSomenteSandbox(sandboxArgs)
+ ]);
+ assert(staged.some(x=>x.status==="fulfilled"),"Sandbox intents must stage once");
+ const again=await enfileirarAutorizacoesSomenteSandbox(sandboxArgs);
+ assert.equal(again.reutilizada,true);
+ assert.equal(again.operacoes.length,2);
+ assert(again.operacoes.every(o=>o.estado==="PREPARADA_SANDBOX"&&o.outboxStatus==="PENDENTE"));
+ const intentCount=await prisma.intencaoAutorizacaoUnificada.count({where:{operacao:{reserva:{comandaId:sandboxDraft.id}}}});
+ assert.equal(intentCount,2,"One intent per allocated payment");
+ const jobs=await prisma.outboxAutorizacaoUnificada.findMany({where:{intencao:{operacao:{reserva:{comandaId:sandboxDraft.id}}}}}});
+ assert.equal(jobs.length,2);
+ const [first,second]=again.operacoes;
+ const authContext={...sandboxArgs,intencaoId:first.id};
+ const claim=await reclamarOutboxSomenteSandbox(authContext);
+ assert.equal(claim.status,"EM_SIMULACAO");
+ assert.equal(claim.podeEnviar,false,"No real PSP dispatch in sandbox");
+ const duplicatedClaim=await reclamarOutboxSomenteSandbox(authContext);
+ assert.equal(duplicatedClaim.reutilizada,true);
+ assert.equal(duplicatedClaim.token,claim.token);
+ const uncertain=await registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_INDETERMINADA_"+suffix,resultado:"INDETERMINADA"});
+ assert.equal(uncertain.status,"INDETERMINADA_SIMULADA");
+ assert.equal(uncertain.outbox,"REVISAO_MANUAL");
+ assert.equal((await reclamarOutboxSomenteSandbox(authContext)).podeEnviar,false);
+ const reconciled=await registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_RECONCILIADA_"+suffix,resultado:"CONFIRMADA"});
+ assert.equal(reconciled.status,"CONFIRMADA_SIMULADA");
+ assert.equal(reconciled.outbox,"CONCLUIDO_SIMULADO");
+ const sameEvent=await registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_RECONCILIADA_"+suffix,resultado:"CONFIRMADA"});
+ assert.equal(sameEvent.reutilizada,true);
+ await assert.rejects(()=>registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_RECONCILIADA_"+suffix,resultado:"RECUSADA"}),/EVENTO_CONFLITANTE/);
+ await assert.rejects(()=>registrarEventoSomenteSandbox({...authContext,token:claim.token,chaveEvento:"CI_NOVA_"+suffix,resultado:"RECUSADA"}),/EVENTO_NAO_AUTORIZADO|RESULTADO_TERMINAL/);
+ const denyCtx={...sandboxArgs,intencaoId:second.id};
+ const secondClaim=await reclamarOutboxSomenteSandbox(denyCtx);
+ const denial=await registrarEventoSomenteSandbox({...denyCtx,token:secondClaim.token,chaveEvento:"CI_RECUSADA_"+suffix,resultado:"RECUSADA"});
+ assert.equal(denial.status,"RECUSADA_SIMULADA");
+ assert.equal((await prisma.venda.count({where:{comandaId:sandboxDraft.id,status:"FINALIZADA"}}),0);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+ assert.equal(await prisma.movimentacaoEstoque.count(),0);
+ assert.equal(await prisma.documentoFiscal.count({where:{venda:{comandaId:sandboxDraft.id}}}),0);
+
  const diagnosisSandbox=await diagnosticarRecuperacaoFechamento(sandboxArgs);
  assert(diagnosisSandbox.operacoes.every(o=>o.diagnostico==="ESTADO_REQUER_REVISAO"),"Draft sale must never be considered finalized");
  await assert.rejects(()=>cancelarReservaFechamento({...sandboxArgs,motivo:"Venda ABERTA com vínculo"}),/RESERVA_NAO_EDITAVEL/);
