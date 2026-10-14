@@ -9,7 +9,7 @@ function fixture(){
   {id:"op2",reservaId:"res1",empresaId:"estetica",chaveIdempotencia:"key2",status:"VENDA_RASCUNHO",vendaId:"ven2",valorTotal:"140.00"}
  ];
  return {
-  reserva:{id:"res1",status:"RESERVADA",comandaId:"com1",versaoRascunho:1},
+  reserva:{id:"res1",status:"RESERVADA",comandaId:"com1",versao:1},
   snapshot:{comandaId:"com1",versaoRascunho:1,total:"320.00",operacoes:[
    {empresaId:"loja",cnpj:"111",chaveIdempotencia:"key1",sessaoCaixaId:"cx1",total:"180.00",itens:[{comandaItemId:"ci1"}]},
    {empresaId:"estetica",cnpj:"222",chaveIdempotencia:"key2",sessaoCaixaId:"cx2",total:"140.00",itens:[{comandaItemId:"ci2"}]}

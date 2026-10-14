@@ -28,7 +28,7 @@ export function planejarEfetivacaoManualUnificada({reserva,snapshot,registro,ope
  if(!reserva||reserva.status!=="RESERVADA"||!registro||registro.status!=="REGISTRADO"||
     registro.reservaId!==reserva.id||!snapshot||
     snapshot.comandaId!==reserva.comandaId||
-    snapshot.versaoRascunho!==reserva.versaoRascunho||
+    snapshot.versaoRascunho!==reserva.versao||
     !Array.isArray(snapshot.operacoes)||!snapshot.operacoes.length||
     !Array.isArray(operacoes)||!Array.isArray(vendas)||!Array.isArray(registro.linhas))
   throw Error("M3_PREPARACAO_INVALIDA");
