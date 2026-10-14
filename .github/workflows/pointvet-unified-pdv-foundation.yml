@@ -2,6 +2,8 @@ name: PointVet Unified PDV Foundation
 on:
   pull_request:
     paths:
+      - "POINTVET_CONTINUIDADE_OFICIAL.md"
+      - "POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md"
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013181500_unified_pdv_org_optin/**"
       - "api/src/modules/pdv/pdv-unificado.routes.js"
