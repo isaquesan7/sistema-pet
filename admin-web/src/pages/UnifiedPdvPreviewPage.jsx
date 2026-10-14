@@ -71,18 +71,28 @@ function UnifiedAllocationConference({draft,reservation,dirty}){
   enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
   queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/diagnostico-recuperacao`,{params:{versao:draft.versao}})).data.dados
  });
+ function alocar(){
+  return reservation.operacoes.map(op=>{
+   const own=(sessions.data||[]).filter(s=>s.empresaId===op.empresaId);
+   const fields=forms[op.empresaId]||{};
+   return {empresaId:op.empresaId,sessaoCaixaId:fields.sessaoCaixaId||own[0]?.sessaoCaixaId||"",
+    pagamentos:[{forma:fields.forma||"PIX",valorCentavos:Math.round(Number(fields.valor??op.valor)*100)}]};
+  });
+ }
+ const payload=()=>({versao:draft.versao,alocacoes:alocar()});
  const conference=useMutation({
-  mutationFn:async()=>{
-   const alocacoes=reservation.operacoes.map(op=>{
-    const own=(sessions.data||[]).filter(s=>s.empresaId===op.empresaId);
-    const fields=forms[op.empresaId]||{};
-    return {empresaId:op.empresaId,sessaoCaixaId:fields.sessaoCaixaId||own[0]?.sessaoCaixaId||"",
-     pagamentos:[{forma:fields.forma||"PIX",valorCentavos:Math.round(Number(fields.valor??op.valor)*100)}]};
-   });
-   return (await api.post(`/pdv-unificado/rascunhos/${draft.id}/conferencia-alocacao`,{versao:draft.versao,alocacoes})).data.dados;
-  }
+  mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/conferencia-alocacao`,payload())).data.dados
  });
- function set(companyId,patch){setForms(current=>({...current,[companyId]:{...current[companyId],...patch}}));conference.reset();}
+ const preparation=useQuery({
+  queryKey:["unified-preparation",draft?.id,draft?.versao],
+  enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
+  queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/preparacao-execucao`,{params:{versao:draft.versao}})).data.dados
+ });
+ const prepare=useMutation({
+  mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/preparacao-execucao`,payload())).data.dados,
+  onSuccess:async()=>{await preparation.refetch();}
+ });
+ function set(companyId,patch){setForms(current=>({...current,[companyId]:{...current[companyId],...patch}}));conference.reset();prepare.reset();}
  return <section className="panel pv-detail-panel"><h2>Conferência de pagamentos por empresa</h2>
   <p>Simulação somente leitura. Selecione um caixa aberto para cada empresa. Não existe cobrança, split, utilização de crédito nem emissão fiscal nesta etapa.</p>
   {sessions.isError&&<p className="alert alert--error">{getApiErrorMessage(sessions.error)}</p>}
@@ -104,6 +114,18 @@ function UnifiedAllocationConference({draft,reservation,dirty}){
   <button className="ghost-button" type="button" disabled={dirty||sessions.isLoading||conference.isPending||!(sessions.data||[]).length} onClick={()=>conference.mutate()}>{conference.isPending?"Conferindo...":"Conferir alocação (sem cobrar)"}</button>
   {dirty&&<p>Salve as alterações locais antes de conferir a alocação.</p>}
   {conference.isError&&<p className="alert alert--error">{getApiErrorMessage(conference.error)}</p>}
+  {conference.data?.preConferenciaAprovada&&!preparation.data&&<div className="pv-unified-total">
+   <strong>Próximo estágio: preparação imutável</strong>
+   <p>Grava a distribuição validada por empresa para recuperação segura. Continua sem vendas, pagamentos, baixa de estoque ou notas.</p>
+   <button className="ghost-button" type="button" disabled={dirty||prepare.isPending} onClick={()=>prepare.mutate()}>{prepare.isPending?"Preparando...":"Salvar preparação (sem vender)"}</button>
+  </div>}
+  {prepare.isError&&<p className="alert alert--error">{getApiErrorMessage(prepare.error)}</p>}
+  {preparation.isError&&<p className="alert alert--error">{getApiErrorMessage(preparation.error)}</p>}
+  {preparation.data&&<div className="pv-unified-total">
+   <strong>Preparação {preparation.data.status==="PREPARADA"?"registrada":"invalidada"} — {preparation.data.id.slice(0,8)}</strong>
+   <p>Snapshot auditável de {preparation.data.operacoes.length} operação(ões). Nenhum pagamento ou venda executado.</p>
+   {preparation.data.operacoes.map(op=><div key={op.empresaId}><span>{op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}
+  </div>}
   {conference.data&&<div className="pv-unified-total">
    <strong>{conference.data.preConferenciaAprovada?"Alocações consistentes — execução ainda desativada":"Alocações com pendências"}</strong>
    {conference.data.pendencias.map((e,i)=><p key={i}>{e.codigo} — empresa {e.empresaId}</p>)}
