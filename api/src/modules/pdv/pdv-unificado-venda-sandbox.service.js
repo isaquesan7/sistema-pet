@@ -13,7 +13,7 @@ import {planejarFechamento,consultarReservaFechamento} from "./pdv-unificado.ser
 import {conferirAlocacaoFechamento} from "./pdv-unificado-preparacao.service.js";
 
 const DATABASE_ISOLATED="pointvet_unified_ci";
-function exigirBancoIsolado(){
+export function exigirBancoIsolado(){
  if(process.env.NODE_ENV!=="test"||
     process.env.POINTVET_UNIFIED_SALES_SANDBOX!=="1")throw Error("EXECUCAO_SANDBOX_DESABILITADA");
  const url=process.env.DATABASE_URL;
