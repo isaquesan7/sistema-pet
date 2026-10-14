@@ -2,7 +2,7 @@
 import {Router} from "express";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
-import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento} from "./pdv-unificado.service.js";
+import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
@@ -36,7 +36,8 @@ r.post("/simulacao",async(req,res,next)=>{try{
 }});
 
 function erroRascunho(e,res,next){
- const errors={CLIENTE_NAO_ENCONTRADO:[404,"Cliente não encontrado."],EMPRESA_SEM_ACESSO:[403,"Acesso negado a uma das empresas."],PET_INVALIDO:[400,"Pet não pertence ao tutor."],ITEM_INVALIDO:[400,"Item inválido para a empresa."],PET_OBRIGATORIO:[400,"Selecione o pet para este serviço."],QUANTIDADE_INVALIDA:[400,"Quantidade inválida."],RASCUNHO_NAO_ENCONTRADO:[404,"Rascunho não encontrado."],RASCUNHO_BLOQUEADO:[409,"Rascunho não pode ser modificado."],RASCUNHO_DESATUALIZADO:[409,"A comanda foi alterada. Recarregue antes de salvar."],RASCUNHO_CLIENTE_IMUTAVEL:[409,"Não é permitido trocar o tutor deste rascunho."]};
+ const errors={CLIENTE_NAO_ENCONTRADO:[404,"Cliente não encontrado."],EMPRESA_SEM_ACESSO:[403,"Acesso negado a uma das empresas."],PET_INVALIDO:[400,"Pet não pertence ao tutor."],ITEM_INVALIDO:[400,"Item inválido para a empresa."],PET_OBRIGATORIO:[400,"Selecione o pet para este serviço."],QUANTIDADE_INVALIDA:[400,"Quantidade inválida."],RASCUNHO_NAO_ENCONTRADO:[404,"Rascunho não encontrado."],RASCUNHO_BLOQUEADO:[409,"Rascunho não pode ser modificado."],RASCUNHO_DESATUALIZADO:[409,"A comanda foi alterada. Recarregue antes de salvar."],RASCUNHO_CLIENTE_IMUTAVEL:[409,"Não é permitido trocar o tutor deste rascunho."],RASCUNHO_RESERVADO:[409,"Comanda reservada para fechamento. Cancele a reserva antes de editar."],RESERVA_NAO_ENCONTRADA:[404,"Reserva não encontrada."],RESERVA_CANCELADA:[409,"Reserva cancelada. Atualize a comanda para gerar nova revisão."],RESERVA_NAO_EDITAVEL:[409,"Reserva não pode ser modificada."],PRE_FECHAMENTO_COM_PENDENCIAS:[409,"Existem pendências na comanda. Revise antes de reservar."]};
+ if(e.code==="P2002")return res.status(409).json({success:false,message:"Esta reserva já existe. Recarregue a comanda."});
  if(e.code==="P2034")return res.status(409).json({success:false,message:"Conflito simultâneo. Recarregue e tente novamente."});
  const result=errors[e.message];return result?res.status(result[0]).json({success:false,message:result[1]}):next(e);
 }
@@ -72,4 +73,24 @@ r.get("/rascunhos/:id/plano-fechamento",async(req,res,next)=>{try{
  if(e.message==="PRE_FECHAMENTO_COM_PENDENCIAS")return res.status(409).json({success:false,message:"Há pendências no pré-fechamento. Revise os itens antes de planejar as operações."});
  erroRascunho(e,res,next);
 }});
+r.get("/rascunhos/:id/reserva",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const versao=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!versao.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await consultarReservaFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:versao.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.post("/rascunhos/:id/reservar",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const dados=z.object({versao:z.number().int().positive()}).strict().safeParse(req.body);
+ if(!dados.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ const reserva=await reservarOperacoesFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:dados.data.versao});
+ return res.status(reserva.reutilizada?200:201).json({success:true,dados:reserva});
+}catch(e){erroRascunho(e,res,next);}});
+r.post("/rascunhos/:id/cancelar-reserva",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const dados=z.object({versao:z.number().int().positive(),motivo:z.string().trim().min(5).max(250)}).strict().safeParse(req.body);
+ if(!dados.success)return res.status(400).json({success:false,message:"Versão ou motivo inválido."});
+ const reserva=await cancelarReservaFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,...dados.data});
+ return res.json({success:true,dados:reserva});
+}catch(e){erroRascunho(e,res,next);}});
 export default r;
