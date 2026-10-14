@@ -9,6 +9,7 @@ import prisma from "./config/prisma.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 
 import clientesRoutes from "./modules/clientes/clientes.routes.js";
+import clientFinanceRoutes from "./modules/clientes/client-finance.routes.js";
 import petsRoutes from "./modules/pets/pets.routes.js";
 import organizacoesRoutes from "./modules/organizacoes/organizacoes.routes.js";
 import catalogoRoutes from "./modules/catalogo/catalogo.routes.js";
@@ -144,6 +145,8 @@ app.use(
   "/api/clientes",
   clientesRoutes
 );
+// M.4A: quotes and read-only credit; never a payment/checkout entry point.
+app.use("/api/clientes-financeiro", clientFinanceRoutes);
 
 // ======================================================
 // ROTA DOS PETS
