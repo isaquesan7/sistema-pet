@@ -151,6 +151,53 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const afterCancel=await salvarRascunho(args,{id:reservedDraft.id,versao:1});
  assert.equal(afterCancel.versao,2);
  assert.equal(await prisma.reservaOperacaoUnificada.count({where:{reservaId:cancelled.id}}),2);
+
+ // M.2: durable manual declarations with neither money movement nor checkout.
+ const declarationDraft=await salvarRascunho(args);
+ const declarationArgs={...args,id:declarationDraft.id,versao:1};
+ await reservarOperacoesFechamento(declarationArgs);
+ await prepararExecucaoUnificada({...declarationArgs,dados:proper});
+ const declared={versao:1,alocacoes:[
+  {empresaId:ids.co1,sessaoCaixaId:session1.id,pagamentos:[
+   {forma:"CARTAO_CREDITO",valorCentavos:18000,parcelas:3,confirmadoPeloAtendente:true,referencia:"recibo CI"}
+  ]},
+  {empresaId:ids.co2,sessaoCaixaId:session2.id,pagamentos:[
+   {forma:"CARTAO_DEBITO",valorCentavos:14000,confirmadoPeloAtendente:true}
+  ]}
+ ]};
+ const declarationContext={...declarationArgs,dados:declared};
+ const declarationConcurrent=await Promise.allSettled([
+  registrarRecebimentoManualSomenteSandbox(declarationContext),
+  registrarRecebimentoManualSomenteSandbox(declarationContext)
+ ]);
+ assert(declarationConcurrent.some(x=>x.status==="fulfilled"),
+  "At least one manual declaration must persist: "+declarationConcurrent.map(x=>String(x.reason?.message||x.status)).join(","));
+ const registered=await consultarRecebimentoManualSomenteSandbox(declarationArgs);
+ assert.equal(registered.status,"REGISTRADO");
+ assert.equal(registered.criadoPorId,ids.user);
+ assert.equal(registered.linhas.length,2);
+ assert.equal(registered.linhas.find(x=>x.empresaId===ids.co1).parcelas,3);
+ assert.equal(registered.gerouPagamento,false);
+ assert.equal(registered.gerouMovimentoCaixa,false);
+ assert.equal(await prisma.registroRecebimentoManualUnificado.count({where:{reserva:{comandaId:declarationDraft.id}}}),1);
+ assert.equal(await prisma.linhaRecebimentoManualUnificado.count({where:{registro:{reserva:{comandaId:declarationDraft.id}}}}),2);
+ const repeatedDeclaration=await registrarRecebimentoManualSomenteSandbox(declarationContext);
+ assert.equal(repeatedDeclaration.reutilizada,true);
+ assert.equal(repeatedDeclaration.id,registered.id);
+ const differing=structuredClone(declared);
+ differing.alocacoes[0].pagamentos[0].referencia="outro recibo";
+ await assert.rejects(()=>registrarRecebimentoManualSomenteSandbox({...declarationArgs,dados:differing}),/REGISTRO_MANUAL_DIVERGENTE/);
+ const notConfirmed=structuredClone(declared);
+ notConfirmed.alocacoes[1].pagamentos[0].confirmadoPeloAtendente=false;
+ await assert.rejects(()=>registrarRecebimentoManualSomenteSandbox({...declarationArgs,dados:notConfirmed}),/RECEBIMENTO_NAO_CONFIRMADO/);
+ const wrongCash=structuredClone(declared);
+ wrongCash.alocacoes[1].sessaoCaixaId=session1.id;
+ await assert.rejects(()=>registrarRecebimentoManualSomenteSandbox({...declarationArgs,dados:wrongCash}),/CAIXA_DIVERGENTE/);
+ await assert.rejects(()=>registrarRecebimentoManualSomenteSandbox({...declarationArgs,organizacaoId:ids.other,dados:declared}),/RASCUNHO_NAO_ENCONTRADO/);
+ await assert.rejects(()=>cancelarReservaFechamento({...declarationArgs,motivo:"Reversão exige auditoria"}),/REGISTRO_MANUAL_EXIGE_REVERSAO/);
+ assert.equal(await prisma.venda.count({where:{comandaId:declarationDraft.id}}),0);
+ assert.equal(await prisma.pagamento.count(),0);
+ assert.equal(await prisma.movimentacaoCaixa.count(),0);
  // Phase 20.2.4A — real Venda ABERTA rows in disposable DB only.
  const guard=process.env.POINTVET_UNIFIED_SALES_SANDBOX;
  process.env.POINTVET_UNIFIED_SALES_SANDBOX="0";
