@@ -14,6 +14,7 @@ import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomen
 import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
 import {conciliarParcelaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js";
+import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
@@ -887,11 +888,40 @@ test("cross-company saving respects prices, access, rollback and version",async(
   pagamentos:await prisma.pagamento.count(),caixa:await prisma.movimentacaoCaixa.count(),
   estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
  };
+ // M.5.6: scoped read-only card receivables report before any settlement.
+ const reportCtx={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id};
+ const beforeReport=await consultarResumoRecebiveisCartaoSomenteSandbox(reportCtx);
+ assert.deepEqual(beforeReport.totais,{original:"180.00",pendente:"180.00",
+  conciliadoDeclarado:"0.00",estornado:"0.00"});
+ assert.equal(beforeReport.linhas[0].situacao,"AGUARDANDO_REPASSE");
+ assert.equal(beforeReport.provaBancariaIndependente,false);
+ const debitOnly=await consultarResumoRecebiveisCartaoSomenteSandbox({
+  ...reportCtx,empresaId:ids.co2
+ });
+ assert.equal(debitOnly.totais.original,"0.00",
+  "A conta da outra empresa nao recebe as parcelas deste pagamento");
+ await assert.rejects(()=>consultarResumoRecebiveisCartaoSomenteSandbox({
+  ...reportCtx,organizacaoId:ids.other
+ }),/M56_SEM_ACESSO_FINANCEIRO/);
+ await assert.rejects(()=>consultarResumoRecebiveisCartaoSomenteSandbox({
+  ...reportCtx,comandaId:"m56-cross-tenant-nonexistent"
+ }),/M56_COMANDA_NAO_ENCONTRADA/);
  const settled=await conciliarParcelaCartaoSomenteSandbox(settlement);
  assert.equal(settled.status,"CONCILIADA");
  assert.equal(settled.confirmacaoAutomaticaBanco,false);
  assert.equal(settled.gerouCaixa,false);
  assert.equal(settled.gerouPagamento,false);
+ const partialReport=await consultarResumoRecebiveisCartaoSomenteSandbox(reportCtx);
+ assert.equal(partialReport.totais.original,"180.00");
+ assert.equal(partialReport.totais.conciliadoDeclarado,"60.00");
+ assert.equal(partialReport.totais.pendente,"120.00");
+ assert.equal(partialReport.linhas[0].situacao,"REPASSE_PARCIAL_DECLARADO");
+ assert.equal(partialReport.statusPagamentoAlterado,false);
+ assert.equal((await prisma.pagamento.findUnique({where:{id:lines.find(
+  l=>l.forma==="CARTAO_CREDITO").pagamentoId}})).status,"PENDENTE",
+  "Nao reconhecer pagamento inteiro enquanto houver parcelas pendentes");
+
  assert.equal((await conciliarParcelaCartaoSomenteSandbox(settlement)).reutilizada,true);
  await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
   ...settlement,dados:{...settlement.dados,referenciaExterna:"CI-DIFFERENT-"+suffix}
@@ -948,6 +978,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
   "One reversal must commit: "+concurrentReverse.map(x=>x.reason?.message||x.status).join(", "));
  const reverse=await estornarFechamentoManualSomenteSandbox(reverseCtx);
  assert.equal(reverse.reutilizada,true);
+ const reverseReport=await consultarResumoRecebiveisCartaoSomenteSandbox(reportCtx);
+ assert.equal(reverseReport.totais.estornado,"180.00");
+ assert.equal(reverseReport.totais.pendente,"0.00");
+ assert.equal(reverseReport.totais.conciliadoDeclarado,"0.00");
+ assert.equal(reverseReport.linhas[0].situacao,"ESTORNADO");
+
  assert.equal(reverse.houveRefundPorAPI,false);
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),1);
  assert.equal(await prisma.venda.count({where:{
