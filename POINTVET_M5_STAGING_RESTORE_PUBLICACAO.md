@@ -39,3 +39,7 @@ Na primeira inspeção do ensaio, todas as linhas de todas as tabelas, índices 
 
 ## M.5.2 — preparativos de segregação e canário, somente contratos CI
 A M.5.1 efetivamente ensaiou pg_dump/pg_restore com dados sintéticos. A M.5.2 projeta os requisitos de uma infraestrutura verdadeiramente isolada, com contratos puros de identidade de staging vs production, rede/Postgres e storage exclusivos, e-mails sink, webhooks/gateways/fiscal offline, dados sintéticos e monitoramento de canário sem ativação. Ainda **NÃO ocorreu** criação de staging nem restauração de backup de produção. Detalhes: [M.5.2 — Staging e canário](POINTVET_M52_STAGING_ISOLAMENTO_CANARIO.md).
+
+
+## M.5.3 — testes HTTP reais em localhost CI e gate de rollback apenas declaratório
+A M.5.3 executa `src/app.js` em um listener 127.0.0.1 e banco descartável, sem uso de staging ou produção, valida GETs públicos, acesso negado aos módulos protegidos e ausência de mutações. Gate puro de rollback exige dois commits completos distintos, release anterior, compatibilidade de migrations, restore REAL em staging, sinais de parada do canário, sem executar nada. [Detalhes M.5.3](POINTVET_M53_SMOKE_ROLLBACK_STAGING.md).
