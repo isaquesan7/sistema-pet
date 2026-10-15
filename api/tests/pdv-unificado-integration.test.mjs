@@ -26,6 +26,7 @@ import {discriminarTarifasAntecipacoesM520} from "../src/modules/pdv/pdv-unifica
 import {planejarDevolucaoAposRepasseM521,simularDevolucaoAposRepasseM521} from "../src/modules/pdv/pdv-unificado-estorno-pos-repasse.contract.js";
 import {registrarDevolucaoExternaDeclaradaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-devolucao-declarada-sandbox.service.js";
 import {consultarHistoricoDevolucoesM523} from "../src/modules/pdv/pdv-unificado-devolucoes-historico.service.js";
+import {consultarDiagnosticoDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
@@ -1079,6 +1080,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(noRefundDeclarations.totais.devolucoesDeclaradas,"0.00");
  assert.equal(noRefundDeclarations.totais.brutoSemDeclaracaoNoLivro,"60.00");
  assert.equal(noRefundDeclarations.permiteNovoReembolso,false);
+ const initialDocumentReview=await consultarDiagnosticoDevolucoesM524(stepsCtx);
+ assert.equal(initialDocumentReview.totais.declaracoesExternasNaoVerificadas,"0.00");
+ assert.equal(initialDocumentReview.habilitaRegistroDeDevolucao,false);
+ assert.equal(initialDocumentReview.preparacoes[0].pendencias.includes(
+  "NENHUMA_DEVOLUCAO_EXTERNA_CONFERIDA"),true);
+ await assert.rejects(()=>consultarDiagnosticoDevolucoesM524({
+  ...stepsCtx,organizacaoId:ids.other
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
+
  await assert.rejects(()=>consultarHistoricoDevolucoesM523({
   ...stepsCtx,organizacaoId:ids.other
  }),/M57_SEM_ACESSO_FINANCEIRO/);
@@ -1361,6 +1371,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(refundHistoryOne.preparacoes[0].movimentos[0].referenciaExterna,
   customerRefundData.referenciaExterna);
  assert.equal(refundHistoryOne.bancoVerificadoIndependentemente,false);
+ const firstReview=await consultarDiagnosticoDevolucoesM524(stepsCtx);
+ assert.equal(firstReview.totais.declaracoesExternasNaoVerificadas,"20.00");
+ assert.equal(firstReview.preparacoes[0].pendencias.includes(
+  "COMPROVANTES_EXTERNOS_NAO_VERIFICADOS"),true);
+ assert.equal(firstReview.preparacoes[0].pendencias.includes(
+  "RECUPERACAO_TARIFA_NAO_VERIFICADA"),true);
+ assert.equal(firstReview.confrontoDeDocumentosExternosRealizado,false);
+
 
  await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
   ...customerRefundCtx,dados:{...customerRefundData,
@@ -1387,6 +1405,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(refundHistoryFull.totais.brutoSemDeclaracaoNoLivro,"0.00");
  assert.equal(refundHistoryFull.preparacoes[0].movimentos.length,2);
  assert.equal(refundHistoryFull.geraMovimentoFinanceiro,false);
+ const completeDeclarationReview=await consultarDiagnosticoDevolucoesM524(stepsCtx);
+ assert.equal(completeDeclarationReview.totais.declaracoesExternasNaoVerificadas,"60.00");
+ assert.equal(completeDeclarationReview.totais.brutoSemDeclaracaoNoLivro,"0.00");
+ assert.equal(completeDeclarationReview.politicaFiscalHomologada,false);
+ assert.equal(completeDeclarationReview.habilitaCheckout,false);
+
 
  assert.equal(await prisma.devolucaoClienteManualUnificada.count({where:{
   preparacaoId:preRecord.preparacaoId
@@ -1543,6 +1567,11 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(historyAfterInternalCorrection.preparacoes[0].estadoRepasseInterno,
   "REPASSE_INTERNO_COMPENSADO");
  assert.equal(historyAfterInternalCorrection.totais.devolucoesDeclaradas,"0.00");
+ const correctionReview=await consultarDiagnosticoDevolucoesM524(stepsCtx);
+ assert.equal(correctionReview.preparacoes[0].pendencias.includes(
+  "TRATAMENTO_FISCAL_POR_EMISSOR_PENDENTE"),true);
+ assert.equal(correctionReview.totais.declaracoesExternasNaoVerificadas,"0.00");
+
 
  await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox(
   customerRefundCtx
