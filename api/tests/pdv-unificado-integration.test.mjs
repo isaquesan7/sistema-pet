@@ -1118,11 +1118,20 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(reviewedSteps.preparacoes[0].etapa,
   "SEGUNDA_CONFERENCIA_DOCUMENTAL_DECLARADA");
  assert.equal(reviewedSteps.preparacoes[0].valorLiquido,"58.80");
+ const reviewVersion=reviewedSteps.preparacoes[0].revisaoFinanceira;
+ assert.equal(reviewVersion.fingerprintPreparacaoEsperado,preRecord.fingerprint);
+ assert.equal(reviewVersion.fingerprintParecerEsperado,documentaryReview.fingerprint);
+ assert.equal(reviewVersion.contaFinanceiraIdEsperada,bank.id);
+ assert.equal(reviewVersion.valorLiquidoEsperado,"58.80");
+ assert.equal(reviewVersion.habilitaConfirmacaoReal,false);
+ assert.equal(reviewVersion.codigoRevisao.length,64);
+
  const trainingPlan=planejarIntencoesManuaisM517({
   organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
   fluxo:reviewedSteps
  });
  assert.equal(trainingPlan.planos[0].operacaoSimulavel,"SIMULAR_CONFIRMACAO");
+ assert.equal(trainingPlan.planos[0].revisaoFinanceira.codigoRevisao,reviewVersion.codigoRevisao);
  const dryConfirmation=simularIntencaoManualM517({
   planejamento:trainingPlan,preparacaoId:preRecord.preparacaoId,
   operacao:"SIMULAR_CONFIRMACAO",
@@ -1196,9 +1205,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // statement outside PointVet. No bank API, payment approval or duplicate sale.
  const manualData={confirmouCreditoNoExtrato:true,
   referenciaExtrato:prePedido.referenciaExtrato,
-  fingerprintPreparacaoEsperado:preRecord.fingerprint,
-  fingerprintParecerEsperado:documentaryReview.fingerprint,
-  contaFinanceiraIdEsperada:bank.id,valorLiquidoEsperado:"58.80"};
+  fingerprintPreparacaoEsperado:reviewVersion.fingerprintPreparacaoEsperado,
+  fingerprintParecerEsperado:reviewVersion.fingerprintParecerEsperado,
+  contaFinanceiraIdEsperada:reviewVersion.contaFinanceiraIdEsperada,
+  valorLiquidoEsperado:reviewVersion.valorLiquidoEsperado};
  const manualCtx={organizacaoId:ids.org,empresaId:ids.co1,
   usuarioId:ids.user,preparacaoId:preRecord.preparacaoId,dados:manualData};
  await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
@@ -1241,6 +1251,11 @@ test("cross-company saving respects prices, access, rollback and version",async(
   "REPASSE_INTERNO_CONFIRMADO_MANUALMENTE");
  assert.equal(postedSteps.preparacoes[0].confirmacaoManualInterna,true);
  assert.equal(postedSteps.integracaoBancaria,false);
+ const postedVersion=postedSteps.preparacoes[0].revisaoFinanceira;
+ assert.notEqual(postedVersion.codigoRevisao,reviewVersion.codigoRevisao);
+ assert.equal(postedVersion.lancamentoOriginalIdEsperado,manualEntry.conciliacaoId);
+ assert.equal(postedVersion.habilitaCorrecaoReal,false);
+
  const correctionTraining=planejarIntencoesManuaisM517({
   organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
   fluxo:postedSteps
@@ -1300,9 +1315,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const correctionData={confirmouCorrecaoExterna:true,
   referenciaCorrecao:"CI-REVERSAL-"+suffix,
   motivo:"Correção documental de repasse verificado manualmente no CI",
-  fingerprintPreparacaoEsperado:preRecord.fingerprint,
-  contaFinanceiraIdEsperada:bank.id,valorLiquidoEsperado:"58.80",
-  lancamentoOriginalIdEsperado:manualEntry.conciliacaoId};
+  fingerprintPreparacaoEsperado:postedVersion.fingerprintPreparacaoEsperado,
+  contaFinanceiraIdEsperada:postedVersion.contaFinanceiraIdEsperada,
+  valorLiquidoEsperado:postedVersion.valorLiquidoEsperado,
+  lancamentoOriginalIdEsperado:postedVersion.lancamentoOriginalIdEsperado};
  const correctionCtx={organizacaoId:ids.org,empresaId:ids.co1,
   usuarioId:reviewerId,conciliacaoId:manualEntry.conciliacaoId,
   dados:correctionData};
@@ -1348,6 +1364,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(correctedSteps.preparacoes[0].correcaoInterna,true);
  assert.equal(correctedSteps.confirmacaoDisponivelNaTela,false);
  assert.equal(correctedSteps.provaBancariaIndependente,false);
+ assert.notEqual(correctedSteps.preparacoes[0].revisaoFinanceira.codigoRevisao,
+  postedVersion.codigoRevisao);
+ assert.equal(correctedSteps.preparacoes[0].revisaoFinanceira.habilitaCheckout,false);
+
  const afterCorrectionPlan=planejarIntencoesManuaisM517({
   organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
   fluxo:correctedSteps
