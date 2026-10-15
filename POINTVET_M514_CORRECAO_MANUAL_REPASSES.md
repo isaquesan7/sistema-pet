@@ -1,0 +1,22 @@
+# PointVet M.5.14 — correção auditável de repasse manual e histórico no Financeiro
+
+**Escopo:** o PointVet não integra banco, Open Finance, adquirentes nem maquininhas. Um funcionário confere o extrato **fora do sistema** e registra a confirmação manual. Esta fase constrói uma **correção de saldo INTERNO** por contralançamento quando um repasse foi registrado incorretamente. Nenhuma transferência, estorno bancário, Pix automático ou emissão fiscal acontece pelo PointVet.
+
+## Implementado somente na branch de desenvolvimento
+
+1. Migração aditiva `api/prisma/migrations/20261015221500_manual_card_repass_compensation/migration.sql`: enum `OrigemConciliacaoFinanceira.ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO`. Não há exclusão nem atualização do lançamento original.
+2. `api/src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js`: apenas `NODE_ENV=test`, flag de sandbox e PostgreSQL `pointvet_unified_ci`, verificado na transação. Exige usuário ativo e `financeiro.gerenciar`, comanda bloqueada em transação Serializable, mesma empresa e organização do repasse de origem, segundo funcionário (diferente do operador que confirmou o repasse), motivo de 12 a 500 caracteres, referência de correção e confirmação explícita feita fora do PointVet. Verifica existência/auditoria do repasse líquido original.
+3. Cria **uma ENTRADA original e uma SAÍDA compensatória**, ambas imutáveis, no mesmo valor **LÍQUIDO** da conta interna de origem. O saldo conciliado interno volta ao valor anterior. A nova SAÍDA usa `origemId=conciliacaoOriginal.id`; o índice existente `@@unique([origem,origemId])` e o lock da comanda impedem correções duplicadas e serializam concorrência. Auditoria de compensação em mesma transação; repetição idêntica é idempotente, qualquer referência/motivo/operador diferente falha fechado.
+4. `pdv-unificado-repasse-manual-sandbox.service.js` passa a recusar replay do repasse já compensado. `financeiro.service.js` bloqueia `desconciliar` genérico tanto da confirmação como do contralançamento, e já bloqueia o reconhecimento indevido pelo bruto do cartão unificado. **Não altera `Pagamento.status`, venda, fluxo de caixa, títulos, estoque, receitas realizadas ou fiscal.**
+5. `api/src/modules/pdv/pdv-unificado-repasse-historico.service.js` e GET `/api/pdv-unificado/recebiveis-cartao/comandas/:comandaId/lancamentos`: lista de leitura, limitada à empresa, com os movimentos manuais de entrada e correção. Reusa validações M.5.7 de tenant, módulos e permissões PDV + Financeiro e opt-in da organização. Não permite POST, PUT, DELETE ou correção operacional em HTTP.
+6. `admin-web/src/components/UnifiedCardReceivablesPanel.jsx` apresenta o histórico financeiro manual na aba Repasses cartão, com entradas, saídas, conta interna, operador e situação (inclusive compensado). É **somente leitura** e não cria botões de confirmação ou correção.
+
+## Testes
+
+`api/tests/pdv-unificado-integration.test.mjs`: segunda pessoa, recusa de autocompensação e empresa errada, confirmação obrigatória, falha injetada seguida de rollback, chamadas concorrentes, replay idempotente, unicidade, alteração de referência proibida, auditoria, saldo líquido devolvido, manutenção do registro original e recusa de reativação, sem alterar títulos, caixa, Pagamento ou fiscal. Inclui consulta do histórico. A fixture CI apaga **somente os próprios dados sintéticos** antes do ensaio independente de estorno legado; nenhum endpoint de exclusão foi criado.
+
+`api/tests/pointvet-m543-http-checkout-barrier.integration.test.mjs` verifica autenticação, módulos/empresa, opt-out, IDs inválidos e rota exclusivamente GET com `Cache-Control:no-store`. Build admin e migrations executam no workflow isolado.
+
+## Regras de publicação
+
+**A M.5.14 não é uma devolução bancária.** O contralançamento corrige o controle interno após informação de um funcionário autorizado de que realizou a correção necessária fora do PointVet. A restituição efetiva, se devida, ocorre externamente e continua responsabilidade do estabelecimento. A futura interface de confirmação/correção exigirá fluxo de segurança e revisão explícita, além de política fiscal/contábil de estorno pós-repasse. Antes de publicar o PDV ainda faltam ensaios em staging **real segregado e autorizado**, fiscal multiemissor, backup/restore/rollback reais aprovados e piloto opt-in. **PR #36 DRAFT; nenhum merge, deploy ou operação na produção Pet King foi executado.**
