@@ -87,8 +87,11 @@ fingerprint() {
 fingerprint "$SOURCE" "$scratch/source.fp"
 fingerprint "$RESTORE" "$scratch/restore.fp"
 [[ -s "$scratch/source.fp" ]] || die "empty fingerprint list"
-cmp -s "$scratch/source.fp" "$scratch/restore.fp" ||
+if ! cmp -s "$scratch/source.fp" "$scratch/restore.fp"; then
+ echo "POINTVET_M5: SAFE comparison diagnostic (table names, counts and fingerprints only)" >&2
+ diff -u "$scratch/source.fp" "$scratch/restore.fp" | head -n 80 >&2 || true
  die "data / schema / sequence mismatch after restore"
+fi
 DATABASE_URL="postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/$RESTORE" \
  npm run db:status > "$scratch/prisma.log" 2>&1 ||
  die "restored migration history is not compatible with Prisma"
