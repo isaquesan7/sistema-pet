@@ -104,6 +104,7 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/etapas"],
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/discriminacao"],
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/devolucao-previa"],
+  ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/devolucoes-historico"],
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/simulacao-manual"],
   ["POST","/api/pdv-unificado/simulacao"],
   ["POST","/api/pdv-unificado/rascunhos"],
@@ -142,6 +143,10 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  await request("GET",cardList+"/m57-missing/etapas",404,{token,company:companyA});
  await request("GET",cardList+"/m57-missing/discriminacao",404,{token,company:companyA});
  await request("GET",cardList+"/m57-missing/devolucao-previa",404,{token,company:companyA});
+ await request("GET",cardList+"/m57-missing/devolucoes-historico",404,{token,company:companyA});
+ await request("GET",cardList+"/%3Fbad/devolucoes-historico",400,{token,company:companyA});
+ await request("POST",cardList+"/m57-missing/devolucoes-historico",404,{token,company:companyA});
+ await request("PATCH",cardList+"/m57-missing/devolucoes-historico",404,{token,company:companyA});
  await request("GET",cardList+"/%3Fbad/devolucao-previa",400,{token,company:companyA});
  await request("POST",cardList+"/m57-missing/devolucao-previa",404,{token,company:companyA});
  await request("PATCH",cardList+"/m57-missing/devolucao-previa",404,{token,company:companyA});
@@ -164,6 +169,7 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  await request("GET",cardList+"/m57-missing/etapas",403,{token,company:companyB});
  await request("GET",cardList+"/m57-missing/discriminacao",403,{token,company:companyB});
  await request("GET",cardList+"/m57-missing/devolucao-previa",403,{token,company:companyB});
+ await request("GET",cardList+"/m57-missing/devolucoes-historico",403,{token,company:companyB});
  await request("GET",cardList+"/m57-missing/simulacao-manual",403,{token,company:companyB});
  await prisma.cargoPermissao.delete({where:{cargoId_permissaoId:{
   cargoId:role.id,permissaoId:financePerm.id
@@ -189,6 +195,7 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/etapas",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/discriminacao",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/devolucao-previa",403,{token,company:companyA});
+ await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/devolucoes-historico",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/simulacao-manual",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
  await request("POST","/api/pdv-unificado/simulacao",403,{token,company:companyA});
