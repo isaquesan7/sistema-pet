@@ -96,6 +96,10 @@ export async function registrarRepasseCartaoManualSomenteSandbox({
    where:{origem_origemId:{origem:ORIGEM,origemId:pre.id}}
   });
   if(old){
+   const wasCompensated=await tx.conciliacaoFinanceira.count({where:{
+    origem:"ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO",origemId:old.id
+   }});
+   if(wasCompensated)fail("REPASSE_COMPENSADO");
    const audits=await tx.auditoria.findMany({where:{
     organizacaoId,empresaId,entidade:"CONCILIACAO_FINANCEIRA",
     entidadeId:old.id,acao:"REPASSE_CARTAO_MANUAL_CONFIRMADO_CI"
