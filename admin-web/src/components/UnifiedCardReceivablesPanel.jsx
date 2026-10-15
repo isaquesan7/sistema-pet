@@ -54,6 +54,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/etapas")).data.dados
  });
+ const breakdown=useQuery({
+  queryKey:["unified-card-m520-fees",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/discriminacao")).data.dados
+ });
  const dryRun=useQuery({
   queryKey:["unified-card-m517-preview",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
@@ -96,7 +102,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -122,6 +128,27 @@ export default function UnifiedCardReceivablesPanel(){
      </tr>)}</tbody>
     </table></div>
     <p><WalletCards size={14} aria-hidden="true"/> Recebíveis de cartão informados manualmente. O PointVet não se conecta ao banco nem à maquininha.</p>
+    <h3>Composição dos repasses — sem lançar despesas</h3>
+    <p>Taxas de cartão e antecipação informadas pelo estabelecimento. A tabela é apenas demonstrativa: nenhum valor abaixo constitui despesa paga, novo faturamento ou dinheiro confirmado automaticamente pelo banco.</p>
+    {breakdown.isLoading?<p>Conferindo taxas e antecipações...</p>:null}
+    {breakdown.isError?<p className="alert alert--error" role="alert">Não foi possível validar a composição financeira. {getApiErrorMessage(breakdown.error)}</p>:null}
+    {breakdown.data?.leituraSomente&&breakdown.data?.autorizaCheckout===false?
+     <div className="table-scroll"><table className="data-table">
+      <thead><tr><th>Conjunto</th><th>Bruto vinculado</th><th>Taxas informadas</th><th>Desconto por antecipação</th><th>Líquido</th></tr></thead>
+      <tbody>
+       <tr><td>Pré-baixas preparadas (inclui pendentes e corrigidas)</td>
+        <td>{money(breakdown.data.preparacoes.bruto)}</td>
+        <td>{money(breakdown.data.preparacoes.tarifasInformadas)}</td>
+        <td>{money(breakdown.data.preparacoes.descontosAntecipacaoInformados)}</td>
+        <td>{money(breakdown.data.preparacoes.liquidoPrevisto)}</td></tr>
+       <tr><td>Repasses internos ativos (exclui correções)</td>
+        <td>{money(breakdown.data.repassesAtivos.brutoCorrespondente)}</td>
+        <td>{money(breakdown.data.repassesAtivos.tarifasInformadas)}</td>
+        <td>{money(breakdown.data.repassesAtivos.descontosAntecipacaoInformados)}</td>
+        <td>{money(breakdown.data.repassesAtivos.liquidoNoSaldoInterno)}</td></tr>
+      </tbody>
+     </table></div>:null}
+    {breakdown.data?<p>Entradas internas: <strong>{money(breakdown.data.movimentosInternos.entradasLiquidas)}</strong> · Correções: <strong>{money(breakdown.data.movimentosInternos.correcoesLiquidas)}</strong> · Efeito líquido: <strong>{money(breakdown.data.movimentosInternos.efeitoLiquido)}</strong>.</p>:null}
     <h3>Etapas da conferência manual — somente consulta</h3>
     <p>O fluxo mostra exclusivamente eventos registrados no PointVet. Uma etapa documental concluída não significa depósito confirmado automaticamente pela instituição financeira.</p>
     {workflow.isLoading?<p>Verificando etapas...</p>:null}
