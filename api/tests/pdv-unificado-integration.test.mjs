@@ -703,9 +703,9 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal((await diagnosticarFluxoFiscalSomenteSandbox({
   organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
  })).eventosConferidos,1,"Rejected review must rollback head and event");
- const review=await registrarEventoFiscalSimuladoSomenteSandbox(reviewRequest);
- assert.equal(review.estado,"INDETERMINADA_CI");
- assert.equal(review.transmissaoHabilitada,false);
+ const manualReview=await registrarEventoFiscalSimuladoSomenteSandbox(reviewRequest);
+ assert.equal(manualReview.estado,"INDETERMINADA_CI");
+ assert.equal(manualReview.transmissaoHabilitada,false);
  assert.equal((await registrarEventoFiscalSimuladoSomenteSandbox(reviewRequest)).reutilizada,true);
  await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
   ...reviewRequest,descricaoVerificacao:"Alteracao indevida do texto de revisao"
