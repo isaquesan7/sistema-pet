@@ -42,16 +42,16 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+encodeURIComponent(effectiveId))).data.dados
  });
  const history=useQuery({
-  queryKey:["unified-card-postings",companyId,selectedOrganization?.id,effectiveId],
+  queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
-   encodeURIComponent(effectiveId)+"/lancamentos")).data.dados||[]
+   encodeURIComponent(effectiveId)+"/conferencia")).data.dados
  });
  if(!allowed)return <section className="panel"><h2>Repasses de cartão</h2>
   <p>Somente funcionários com acesso ao PDV e permissão de gestão financeira podem consultar os recebíveis.</p></section>;
  return <section className="panel">
   <div className="panel__heading"><div><h2>Repasses de cartão — PDV Unificado</h2>
-   <p>Conferência por CNPJ selecionado, sem atualização de caixa, títulos ou saldo bancário.</p></div>
+   <p>Conferência manual por CNPJ selecionado. Esta tela não movimenta caixa, títulos nem saldo de contas.</p></div>
    <ShieldCheck size={20} aria-hidden="true"/>
   </div>
   {eligibility.isLoading?<p>Verificando disponibilidade…</p>:null}
@@ -98,10 +98,25 @@ export default function UnifiedCardReceivablesPanel(){
     <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
     {history.isLoading?<p>Carregando histórico...</p>:null}
     {history.isError?<p className="alert alert--error" role="alert">{getApiErrorMessage(history.error)}</p>:null}
-    {history.isSuccess&&!(history.data||[]).length?<p>Nenhum repasse contabilizado internamente para esta comanda.</p>:null}
-    {history.data?.length?<div className="table-scroll"><table className="data-table">
+    {history.data?.resumo?<div>
+     <div className="finance-open-grid" aria-label="Resumo do efeito no saldo interno desta comanda">
+      <div className="panel finance-open-card"><span>Entradas líquidas manuais</span><strong>{money(history.data.resumo.entradaLiquidaDeclarada)}</strong></div>
+      <div className="panel finance-open-card"><span>Correções manuais</span><strong>{money(history.data.resumo.correcoesLiquidas)}</strong></div>
+      <div className="panel finance-open-card"><span>Efeito líquido no saldo interno</span><strong>{money(history.data.resumo.efeitoLiquidoNoSaldoInterno)}</strong></div>
+     </div>
+     <p><strong>Escopo:</strong> apenas os repasses desta comanda e deste CNPJ. Não corresponde ao saldo total da conta, ao faturamento, à receita nova nem a depósito confirmado automaticamente pelo banco.</p>
+     <h3>Como conferir um repasse manualmente</h3>
+     <ol>
+      <li>Consulte o comprovante ou extrato na instituição de sua escolha, fora do PointVet.</li>
+      <li>Compare empresa, comanda, parcelas, valor bruto, taxa, antecipação e líquido.</li>
+      <li>Uma pessoa autorizada deve registrar a confirmação; correções exigem revisão de outro funcionário e preservam o histórico.</li>
+     </ol>
+     <p><strong>Confirmação e correção nesta tela ainda não estão habilitadas.</strong> O checkout unificado permanece bloqueado até a homologação operacional.</p>
+    </div>:null}
+    {history.isSuccess&&!(history.data?.movimentos||[]).length?<p>Nenhum repasse contabilizado internamente para esta comanda.</p>:null}
+    {history.data?.movimentos?.length?<div className="table-scroll"><table className="data-table">
      <thead><tr><th>Movimento</th><th>Conta interna</th><th>Valor líquido</th><th>Conferido por</th><th>Situação</th></tr></thead>
-     <tbody>{history.data.map(item=><tr key={item.id}>
+     <tbody>{history.data.movimentos.map(item=><tr key={item.id}>
       <td>{item.tipo==="CORRECAO_MANUAL"?"Correção manual (saída)":"Repasse manual (entrada)"}</td>
       <td>{item.conta}</td><td>{money(item.valor)}</td><td>{item.operador}</td>
       <td>{item.tipo==="CORRECAO_MANUAL"?"Contralançamento registrado":item.possuiCorrecao?"Compensado":"Declarado pelo operador"}</td>
