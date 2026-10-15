@@ -76,7 +76,7 @@ SELECT 'SCHEMA:CONSTRAINT',count(*)::bigint,
  JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public';
 SELECT 'SCHEMA:SEQUENCE',count(*)::bigint,
  md5(coalesce(string_agg(sequencename||':'||coalesce(last_value::text,'NULL')||
- ':'||start_value::text||':'||increment::text,chr(10)
+ ':'||start_value::text||':'||increment_by::text,chr(10)
  ORDER BY sequencename),''))
  FROM pg_sequences WHERE schemaname='public';
 SQL
