@@ -1,3 +1,8 @@
+# UPDATE M.5.4.2 — JANELA DE MUDANÇA APENAS DECLARATIVA (15/10/2026)
+Adicionado contrato puro `pointvet-m542-janela-staging.contract.js` com testes CI. Exige escopo exclusivamente STAGING SINTÉTICO, responsáveis distintos, SHA candidato fixado, ticket, plano de interrupção, infraestrutura segregada e todas as flags externas/produção desligadas. Mesmo com declaração completa NÃO autoriza deploy, migration, restore, rollback, canário ou produção. Não cria nem acessa Railway/staging, não muda Pet King, backup, DNS, fiscal ou pagamentos. Ver [M.5.4](POINTVET_M54_EVIDENCIAS_STAGING.md). Confirmar CI no HEAD final. **Próximo gate:** aprovação operacional explícita de staging segregado; restore real, canário e produção exigem aprovações separadas.
+
+---
+
 # UPDATE M.5.4.1 — PROVENIÊNCIA DE EVIDÊNCIAS OFFLINE (15/10/2026)
 Após M.5.4 CI verde (#38673989948), foram incluídos contrato de revisão de proveniência `pointvet-m541-auditoria-evidencias.contract.js` e testes com SHA por evidência, referência, hash declarado, coletor e revisor distintos, detecção de extras/campos sensíveis e bloqueio total de ações externas, integrados ao workflow. **Não equivale a auditoria externa** nem staging efetivo. PR #36 DRAFT, sem merge, sem deploy, nenhum serviço/backup/dado real tocado. Ver [M.5.4](POINTVET_M54_EVIDENCIAS_STAGING.md). Próximo: validar CI no HEAD final e obter autorização específica antes de staging operacional.
 
