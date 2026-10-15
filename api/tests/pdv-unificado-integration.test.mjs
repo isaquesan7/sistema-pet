@@ -17,6 +17,7 @@ import {conciliarParcelaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unifi
 import {planejarBaixaCartaoM59} from "../src/modules/pdv/pdv-unificado-baixa-cartao.contract.js";
 import {registrarPreBaixaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-pre-baixa-sandbox.service.js";
 import {registrarParecerPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js";
+import {diagnosticarPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-diagnostico-pre-baixa-sandbox.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas} from "../src/modules/financeiro/financeiro.service.js";
@@ -1108,6 +1109,36 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
   ...reviewCtx,evidencia:{...reviewEvidence,evidenciaSha256:"d".repeat(64)}
  }),/M511_PARECER_IMUTAVEL_DIVERGENTE/);
+ // M.5.12: re-read every document, parcel, authorization and audit.
+ // Consistent INTERNAL documentary trail must still NOT allow bank posting.
+ const diagnosisCtx={organizacaoId:ids.org,empresaId:ids.co1,
+  usuarioId:ids.user,preparacaoId:preRecord.preparacaoId};
+ const goodDiagnosis=await diagnosticarPreBaixaSomenteSandbox(diagnosisCtx);
+ assert.equal(goodDiagnosis.integridadeInternaAprovada,true,
+  JSON.stringify(goodDiagnosis.pendencias));
+ assert.equal(goodDiagnosis.podeExecutarBaixa,false);
+ assert.equal(goodDiagnosis.podeCreditarBanco,false);
+ assert.equal(goodDiagnosis.podePublicarPdv,false);
+ await assert.rejects(()=>diagnosticarPreBaixaSomenteSandbox({
+  ...diagnosisCtx,empresaId:ids.co2
+ }),/M512_SEM_PERMISSAO_FINANCEIRA/);
+ await assert.rejects(()=>diagnosticarPreBaixaSomenteSandbox({
+  ...diagnosisCtx,organizacaoId:ids.other
+ }),/M512_SEM_PERMISSAO_FINANCEIRA/);
+ const oldEvidence="c".repeat(64);
+ await prisma.parecerPreBaixaCartaoManualUnificada.update({
+  where:{id:documentaryReview.parecerId},data:{evidenciaSha256:"d".repeat(64)}
+ });
+ const tampered=await diagnosticarPreBaixaSomenteSandbox(diagnosisCtx);
+ assert.equal(tampered.integridadeInternaAprovada,false);
+ assert(tampered.pendencias.includes("PARECER_OU_SNAPSHOT_DIVERGENTE"));
+ assert.equal(tampered.podeExecutarBaixa,false);
+ await prisma.parecerPreBaixaCartaoManualUnificada.update({
+  where:{id:documentaryReview.parecerId},data:{evidenciaSha256:oldEvidence}
+ });
+ const restored=await diagnosticarPreBaixaSomenteSandbox(diagnosisCtx);
+ assert.equal(restored.integridadeInternaAprovada,true,
+  "Restoring the synthetic CI evidence should restore dossier consistency");
  const [legacyAfter,flowAfter,pendingAfter,bankAfter]=await Promise.all([
   resumoFinanceiro(financialScope),fluxoFinanceiro(financialScope),
   pendentesConciliacao({empresaId:ids.co1}),listarContas(ids.co1)
