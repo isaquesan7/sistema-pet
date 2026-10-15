@@ -12,6 +12,10 @@ on:
       - "api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js"
       - "api/src/modules/fiscal/fiscal-unificado-venda.contract.js"
       - "api/src/modules/fiscal/fiscal-unificado-protocolo-ci.contract.js"
+      - "api/src/modules/fiscal/fiscal-unificado-integridade-ci.contract.js"
+      - "api/tests/fiscal-unificado-integridade-ci.contract.test.mjs"
+      - "api/prisma/migrations/20261015044500_fiscal_ci_chained_audit/**"
+      - "POINTVET_M4D2_AUDITORIA_INVESTIGACAO_MANUAL.md"
       - "api/src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js"
       - "api/tests/fiscal-unificado-protocolo-ci.contract.test.mjs"
       - "api/prisma/migrations/20261015031500_unified_fiscal_ci_protocol/**"
@@ -114,6 +118,8 @@ jobs:
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-venda.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-protocolo-ci.contract.js
+          node --check api/src/modules/fiscal/fiscal-unificado-integridade-ci.contract.js
+          node --test api/tests/fiscal-unificado-integridade-ci.contract.test.mjs
           node --check api/src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js
           node --test api/tests/fiscal-unificado-protocolo-ci.contract.test.mjs
           node --check api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js
