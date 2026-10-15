@@ -10,7 +10,7 @@ const base=()=>({organizacaoId:"org-A",empresaId:"empresa-A",comandaId:"comanda-
   descontoAntecipacao:"0.00",liquidoDeclarado:"58.80",parecerDocumental:null}],
  entradas:[],correcoes:[]});
 const review=()=>({preparacaoId:"prep-A",empresaId:"empresa-A",organizacaoId:"org-A",
- conferenteId:"second-A",status:"CONFERENCIA_DOCUMENTAL_DECLARADA"});
+ conferenteId:"second-A",status:"CONFERENCIA_DOCUMENTAL_DECLARADA",fingerprint:"b".repeat(64)});
 const entry=()=>({id:"in-A",origemId:"prep-A",empresaId:"empresa-A",
  contaFinanceiraId:"conta-A",origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",
  direcao:"ENTRADA",valor:"58.80",usuarioId:"maker-A"});
@@ -25,6 +25,11 @@ test("M.5.16 shows the four operational steps without granting bank access",()=>
   const result=projetarEtapasRepassesM516(a);
   assert.equal(result.preparacoes[0].etapa,stage);
   assert.equal(result.preparacoes[0].valorLiquido,"58.80");
+  assert.equal(result.preparacoes[0].revisaoFinanceira.codigoRevisao.length,64);
+  assert.equal(result.preparacoes[0].revisaoFinanceira.habilitaConfirmacaoReal,false);
+  assert.equal(result.preparacoes[0].revisaoFinanceira.fingerprintParecerEsperado,
+   stage==="AGUARDANDO_SEGUNDA_CONFERENCIA"?null:"b".repeat(64));
+
   for(const k of ["integracaoBancaria","provaBancariaIndependente",
    "permissoesParaEscritaConcedidas","confirmacaoDisponivelNaTela",
    "correcaoDisponivelNaTela","checkoutDisponivel"])assert.equal(result[k],false,k);
