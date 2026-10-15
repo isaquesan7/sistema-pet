@@ -1,3 +1,10 @@
+# UPDATE M.4C.2 — PREPARAÇÃO FISCAL SEGREGADA POR VENDA FILHA (14/10/2026)
+**Realizado no PR #36 Draft, CI somente, produção intacta.** Contrato fiscal-unificado-venda.contract.js e serviço fiscal-unificado-venda-sandbox.service.js; venda filha FINALIZADA de Empresa/CNPJ com operação unificada CONCLUIDA, item/catálogo da própria empresa, tutor e organização conferidos, bloqueio se já há DocumentoFiscal. Escolha explícita NFE/NFCE para produto, NFSE para serviço, sem optar automaticamente por emissão/recibo. Desconto e acréscimo globais rateados separadamente por item usando centavos inteiros, BigInt e maior resto com desempate estável; somas da venda e grupos sempre idênticas. Snapshot da identidade fiscal da empresa e fingerprint determinístico, não persistido. Somente leitura transacional RepeatableRead no PostgreSQL CI, usuario ativo e permissões pdv.acessar + fiscal.visualizar. Sem rota HTTP, nota, XML, transmissão, autorização, pagamento/caixa/estoque ou API bancária. CREDITO_CLIENTE bloqueado; nenhuma integração de maquininha/PSP.
+
+**Testes** contrato e integração ampliada de vendas-filhas M.3B em banco CI. [Primeiro CI #38662162537](https://github.com/isaquesan7/sistema-pet/actions/runs/38662162537) aprovou validate e isolated-postgres. Confirmar CI do HEAD da documentação após commit. **Próximo M.4C.3:** migração assistida da estrutura Empresa->EntidadeFiscal/UnidadeOperacional, snapshots e controle de permissão, sem retirar unicidade de CNPJ nem alterar emissão real. **M.5** staging, restore, rollback, canário, aceite explícito. Ver [detalhamento técnico](POINTVET_M4C2_PREPARACAO_VENDAS_FILHAS.md).
+
+---
+
 # UPDATE M.4C.1 — MATRIZ FISCAL MULTIEMPRESA + MODELO FUTURO MULTIUNIDADES (14/10/2026)
 **Implementação feita no PR #36 DRAFT**, sem merge, deploy ou migração de produção. Migration aditiva 20261015013000_fiscal_entity_operational_units_foundation: EntidadeFiscal (organização/CNPJ) e UnidadeOperacional (várias unidades por emissor, apenas UMA ponte opcional a cada Empresa legada), FKs compostas de organização e índices UNIQUE. Empresa.cnpj @unique preservada. Unidade adicional não é operacional hoje.
 

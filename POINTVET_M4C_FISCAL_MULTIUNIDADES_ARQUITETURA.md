@@ -31,3 +31,7 @@ M.4C.3: migração assistida da Empresa legada para EntidadeFiscal/UnidadeOperac
 M.5: staging isolado, teste de restore real de backup, migrações e reversão, contingência, canário por organização e aprovação explícita de publicação. Integração de maquininhas/PSP NÃO está no escopo. Crédito cliente continua bloqueado no PDV.
 
 **Fontes de continuidade:** POINTVET_CONTINUIDADE_OFICIAL.md, POINTVET_GATES_PUBLICACAO.md, Issue #37, PR #36 e CI do HEAD exato.
+
+
+## 6. M.4C.2 — escolha fiscal explícita e rateio exato por venda-filha
+Uma etapa SOMENTE CI agora lê a Venda FILHA real de M.3B, já finalizada, com vínculo à reserva, da empresa selecionada. Faz prévia segregada de PRODUTO (NFE ou NFCE por escolha explícita) e SERVICO (NFSE), sem recibo como substituto automático, com distribuição exata em centavos de descontos/acréscimos globais usando BigInt e maior resto. Conferência de organização, permissões fiscais e PDV, item/empresa, total, documento preexistente. Não gera DocumentoFiscal, nem status de autorização, nota ou transmissão. Detalhes: [M.4C.2](POINTVET_M4C2_PREPARACAO_VENDAS_FILHAS.md). Próximo M.4C.3 migração assistida e M.5 homologação.
