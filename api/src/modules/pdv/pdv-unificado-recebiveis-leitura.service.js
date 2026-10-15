@@ -32,7 +32,16 @@ async function autorizar(tx,{organizacaoId,empresaId,usuarioId}){
 }
 export async function consultarRecebiveisCartaoLeituraM57({organizacaoId,empresaId,usuarioId,comandaId}={}){
  validar([organizacaoId,empresaId,usuarioId,comandaId]);
- return prisma.$transaction(async tx=>{
+ return prisma.$transaction(tx=>consultarRecebiveisCartaoEmTransacaoM57(tx,{
+  organizacaoId,empresaId,usuarioId,comandaId
+ }),{isolationLevel:"RepeatableRead",maxWait:8000,timeout:12000});
+}
+// Internal read-only building block for coherent multi-projection snapshots.
+// The authorization and comanda checks MUST remain inside the supplied tx.
+export async function consultarRecebiveisCartaoEmTransacaoM57(tx,{
+ organizacaoId,empresaId,usuarioId,comandaId
+}={}){
+ validar([organizacaoId,empresaId,usuarioId,comandaId]);
   await autorizar(tx,{organizacaoId,empresaId,usuarioId});
   const comanda=await tx.comanda.findFirst({where:{
    id:comandaId,rascunhoUnificado:true,cliente:{organizacaoId}
@@ -57,7 +66,6 @@ export async function consultarRecebiveisCartaoLeituraM57({organizacaoId,empresa
   },select:{acao:true,entidade:true,entidadeId:true,empresaId:true,organizacaoId:true,dadosNovos:true}}):[];
   return consolidarRecebiveisCartaoM56({organizacaoId,empresaId,comandaId,
    linhas:linhas.map(x=>({...x,comandaStatus:comanda.status})),auditorias});
- },{isolationLevel:"RepeatableRead",maxWait:8000,timeout:12000});
 }
 export async function listarComandasRecebiveisCartaoLeituraM57({organizacaoId,empresaId,usuarioId}={}){
  validar([organizacaoId,empresaId,usuarioId]);

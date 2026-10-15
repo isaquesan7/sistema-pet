@@ -12,7 +12,14 @@ export async function consultarEtapasRepassesM516({organizacaoId,empresaId,
  await consultarRecebiveisCartaoLeituraM57({
   organizacaoId,empresaId,usuarioId,comandaId
  });
- return prisma.$transaction(async tx=>{
+ return prisma.$transaction(tx=>projetarEtapasRepassesEmTransacaoM516(tx,{
+  organizacaoId,empresaId,comandaId
+ }),{isolationLevel:"RepeatableRead",maxWait:8000,timeout:12000});
+}
+// Internal projection only: caller must authorize M.5.7 in this same tx.
+export async function projetarEtapasRepassesEmTransacaoM516(tx,{
+ organizacaoId,empresaId,comandaId
+}={}){
   const preparacoes=await tx.preparacaoBaixaCartaoManualUnificada.findMany({
    where:{organizacaoId,empresaId,comandaId},
    select:{id:true,organizacaoId:true,empresaId:true,comandaId:true,
@@ -51,5 +58,4 @@ export async function consultarEtapasRepassesM516({organizacaoId,empresaId,
    entradas:entradas.map(x=>({...x,valor:String(x.valor)})),
    correcoes:correcoes.map(x=>({...x,valor:String(x.valor)}))
   });
- },{isolationLevel:"RepeatableRead",maxWait:8000,timeout:12000});
 }

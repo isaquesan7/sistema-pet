@@ -165,6 +165,7 @@ on:
       - "api/src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js"
       - "api/tests/pdv-unificado-diagnostico-devolucoes.contract.test.mjs"
       - "POINTVET_M524_CONFERENCIA_DEVOLUCOES_EXTERNAS.md"
+      - "POINTVET_M525_SNAPSHOT_CONSISTENTE_DEVOLUCOES.md"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
@@ -297,6 +298,7 @@ jobs:
           node --test api/tests/pdv-unificado-devolucao-declarada.contract.test.mjs
           node --check api/src/modules/pdv/pdv-unificado-devolucoes-historico.contract.js
           node --check api/src/modules/pdv/pdv-unificado-devolucoes-historico.service.js
+          node --check api/src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js
           node --test api/tests/pdv-unificado-devolucoes-historico.contract.test.mjs
           node --check api/src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js
           node --check api/src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js

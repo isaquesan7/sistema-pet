@@ -14,7 +14,14 @@ export async function consultarHistoricoDevolucoesM523({
  await consultarRecebiveisCartaoLeituraM57({
   organizacaoId,empresaId,usuarioId,comandaId
  });
- return prisma.$transaction(async tx=>{
+ return prisma.$transaction(tx=>projetarHistoricoDevolucoesEmTransacaoM523(tx,{
+  organizacaoId,empresaId,comandaId
+ }),{isolationLevel:"RepeatableRead",maxWait:8000,timeout:12000});
+}
+// Internal projection only: caller must authorize M.5.7 in this same tx.
+export async function projetarHistoricoDevolucoesEmTransacaoM523(tx,{
+ organizacaoId,empresaId,comandaId
+}={}){
   const preparacoes=await tx.preparacaoBaixaCartaoManualUnificada.findMany({
    where:{organizacaoId,empresaId,comandaId},
    select:{id:true,organizacaoId:true,empresaId:true,comandaId:true,
@@ -69,5 +76,4 @@ export async function consultarHistoricoDevolucoesM523({
    entradas:entradas.map(e=>({...e,valor:String(e.valor)})),
    correcoes,auditorias
   });
- },{isolationLevel:"RepeatableRead",maxWait:8000,timeout:12000});
 }
