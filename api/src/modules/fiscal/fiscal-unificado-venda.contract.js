@@ -18,7 +18,7 @@ function thousandths(value){
 }
 function sum(xs){const n=xs.reduce((a,x)=>a+x,0);if(!Number.isSafeInteger(n)||n>999999999999)bad("M4C2_TOTAL_INVALIDO");return n;}
 /** Exact Hamilton apportionment, never lose or create a cent. */
-export function ratearCentavosPorPeso(total,rows){
+export function ratearCentavosPorPeso(total,rows,{permitirExcederBase=false}={}){
  if(!Number.isSafeInteger(total)||total<0||total>999999999999)bad("M4C2_RATEIO_INVALIDO");
  if(!Array.isArray(rows)||!rows.length)bad("M4C2_RATEIO_INVALIDO");
  const unique=new Set(rows.map(x=>x.id));
@@ -29,7 +29,7 @@ export function ratearCentavosPorPeso(total,rows){
   if(total!==0)bad("M4C2_PESO_ZERO");
   return Object.fromEntries(rows.map(x=>[x.id,0]));
  }
- if(total>weight)bad("M4C2_RATEIO_SUPERA_BASE");
+ if(total>weight&&!permitirExcederBase)bad("M4C2_RATEIO_SUPERA_BASE");
  // BigInt multiplication avoids floating point errors for large values.
  const w=BigInt(weight),t=BigInt(total);
  const shares=rows.map(x=>{
@@ -101,7 +101,7 @@ export function prepararFiscalPorVendaFilha({organizacaoId,venda,escolhas}){
   id:x.id,peso:fiscalCents(x.valorTotal)
  })));
  const adjusted=items.map(x=>({id:x.id,peso:fiscalCents(x.valorTotal)-discounts[x.id]}));
- const extras=ratearCentavosPorPeso(surcharge,adjusted);
+ const extras=ratearCentavosPorPeso(surcharge,adjusted,{permitirExcederBase:true});
  const issuer={empresaId:venda.empresaId,cnpj:venda.empresa.cnpj,
   razaoSocial:venda.empresa.razaoSocial,uf:venda.empresa.estado||null,
   municipio:venda.empresa.cidade||null,regime:cfg?.regime||null,
