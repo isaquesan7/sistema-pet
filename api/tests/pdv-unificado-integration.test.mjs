@@ -1195,7 +1195,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // M.5.13 — operator MANUALLY confirms net amount after checking bank
  // statement outside PointVet. No bank API, payment approval or duplicate sale.
  const manualData={confirmouCreditoNoExtrato:true,
-  referenciaExtrato:prePedido.referenciaExtrato};
+  referenciaExtrato:prePedido.referenciaExtrato,
+  fingerprintPreparacaoEsperado:preRecord.fingerprint,
+  fingerprintParecerEsperado:documentaryReview.fingerprint,
+  contaFinanceiraIdEsperada:bank.id,valorLiquidoEsperado:"58.80"};
  const manualCtx={organizacaoId:ids.org,empresaId:ids.co1,
   usuarioId:ids.user,preparacaoId:preRecord.preparacaoId,dados:manualData};
  await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
@@ -1207,6 +1210,16 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
   ...manualCtx,dados:{...manualData,referenciaExtrato:"CI-WRONG-REFERENCE"}
  }),/M513_REFERENCIA_DIVERGENTE/);
+ // M.5.18 stale-client financial preconditions must fail BEFORE DB write.
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,dados:{...manualData,valorLiquidoEsperado:"59.00"}
+ }),/M518_VALOR_LIQUIDO_DESATUALIZADO/);
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,dados:{...manualData,fingerprintParecerEsperado:"f".repeat(64)}
+ }),/M518_PARECER_OU_DECLARACAO_DESATUALIZADO/);
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,dados:{...manualData,contaFinanceiraIdEsperada:otherBank.id}
+ }),/M518_REVISAO_FINANCEIRA_DESATUALIZADA/);
  await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
   ...manualCtx,simularFalhaAposLancamento:true
  }),/M513_ROLLBACK_INJETADO/);
@@ -1286,7 +1299,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(beforeCorrection.resumo.podeConfirmarPelaInterface,false);
  const correctionData={confirmouCorrecaoExterna:true,
   referenciaCorrecao:"CI-REVERSAL-"+suffix,
-  motivo:"Correção documental de repasse verificado manualmente no CI"};
+  motivo:"Correção documental de repasse verificado manualmente no CI",
+  fingerprintPreparacaoEsperado:preRecord.fingerprint,
+  contaFinanceiraIdEsperada:bank.id,valorLiquidoEsperado:"58.80",
+  lancamentoOriginalIdEsperado:manualEntry.conciliacaoId};
  const correctionCtx={organizacaoId:ids.org,empresaId:ids.co1,
   usuarioId:reviewerId,conciliacaoId:manualEntry.conciliacaoId,
   dados:correctionData};
@@ -1299,6 +1315,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
   ...correctionCtx,empresaId:ids.co2
  }),/M514_LANCAMENTO_NAO_ENCONTRADO/);
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,dados:{...correctionData,lancamentoOriginalIdEsperado:"other-ledger"}
+ }),/M518_LANCAMENTO_ORIGINAL_DESATUALIZADO/);
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,dados:{...correctionData,fingerprintPreparacaoEsperado:"f".repeat(64)}
+ }),/M518_REVISAO_FINANCEIRA_DESATUALIZADA/);
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,dados:{...correctionData,valorLiquidoEsperado:"58.79"}
+ }),/M518_VALOR_LIQUIDO_DESATUALIZADO/);
  await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
   ...correctionCtx,simularFalhaAposDebito:true
  }),/M514_ROLLBACK_INJETADO/);
