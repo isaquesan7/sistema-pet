@@ -17,6 +17,8 @@ import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
 import {prepararVendaFilhaFiscalSomenteSandbox} from "../src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js";
+import {prepararFluxoFiscalSomenteSandbox,registrarEventoFiscalSimuladoSomenteSandbox}
+ from "../src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -582,6 +584,132 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.cargoPermissao.create({data:{
   cargoId:cargo.id,permissaoId:fiscalPermission.id
  }});
+ // M.4D.1: durable test-only fiscal protocol on already finalized child sales.
+ // Despite the names of simulated events, NO official authorization exists.
+ await prisma.usuarioOrganizacao.create({data:{
+  usuarioId:ids.user,organizacaoId:ids.org,papel:"ADMINISTRADOR"
+ }});
+ const emitPerm=await prisma.permissao.upsert({where:{codigo:"fiscal.emitir"},
+  update:{},create:{codigo:"fiscal.emitir",nome:"Emitir fiscal"}});
+ const cancelFiscal=await prisma.permissao.upsert({where:{codigo:"fiscal.cancelar"},
+  update:{},create:{codigo:"fiscal.cancelar",nome:"Cancelar fiscal"}});
+ await prisma.empresa.updateMany({
+  where:{id:{in:[ids.co1,ids.co2]}},
+  data:{cidade:"Salvador",estado:"BA"}
+ });
+ const m4dA={...fiscalInputA,classe:"PRODUTO",tipoDocumento:"NFE",
+  solicitacaoId:"m4d-prepare-a-"+suffix};
+ const m4dB={...fiscalInputB,classe:"SERVICO",tipoDocumento:"NFSE",
+  solicitacaoId:"m4d-prepare-b-"+suffix};
+ await assert.rejects(()=>prepararFluxoFiscalSomenteSandbox(m4dA),
+  /M4D_PERMISSAO_FISCAL_INSUFICIENTE/);
+ await prisma.cargoPermissao.createMany({data:[
+  {cargoId:manager.id,permissaoId:emitPerm.id},
+  {cargoId:cargo.id,permissaoId:emitPerm.id}
+ ]});
+ await assert.rejects(()=>prepararFluxoFiscalSomenteSandbox({
+  ...m4dA,organizacaoId:ids.other
+ }),/M4D_ACESSO_ORGANIZACAO_EMISSOR_INVALIDO/);
+ await assert.rejects(()=>prepararFluxoFiscalSomenteSandbox({
+  ...m4dA,empresaId:ids.co2
+ }),/M4C2_VENDA_FILHA_NAO_ENCONTRADA/);
+ await assert.rejects(()=>prepararFluxoFiscalSomenteSandbox({
+  ...m4dA,simularFalhaAposGravar:true
+ }),/M4D_FALHA_SIMULADA_PREPARACAO/);
+ assert.equal(await prisma.fluxoFiscalUnificadoCi.count({where:{
+  vendaId:childA.vendaId
+ }}),0);
+ const racingPrep=await Promise.allSettled([
+  prepararFluxoFiscalSomenteSandbox(m4dA),
+  prepararFluxoFiscalSomenteSandbox(m4dA)
+ ]);
+ assert(racingPrep.some(x=>x.status==="fulfilled"),
+  "One fiscal preparation must commit: "+racingPrep.map(x=>x.reason?.message||x.status).join(", "));
+ const flowA=await prepararFluxoFiscalSomenteSandbox(m4dA);
+ const flowB=await prepararFluxoFiscalSomenteSandbox(m4dB);
+ assert.equal(flowA.reutilizada,true);
+ assert.equal(flowA.estado,"PREPARADA_CI");
+ assert.equal(flowB.estado,"PREPARADA_CI");
+ assert.notEqual(flowA.id,flowB.id);
+ assert.equal(flowA.empresaId,ids.co1);
+ assert.equal(flowB.empresaId,ids.co2);
+ assert.equal(flowA.transmissaoHabilitada,false);
+ assert.equal(await prisma.documentoFiscal.count(),fiscalCountBefore);
+ await assert.rejects(()=>prepararFluxoFiscalSomenteSandbox({
+  ...m4dA,solicitacaoId:"m4d-other-a-"+suffix
+ }),/M4D_PREPARACAO_REPLAY_DIVERGENTE/);
+ const evA={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  fluxoId:flowA.id,chaveEvento:"m4d-inconclusivo-"+suffix,
+  tipo:"SIMULAR_RESPOSTA_INDETERMINADA",
+  motivo:"Somente CI: resultado incerto; exigir consulta manual"};
+ // Moving source fields after preparation revokes all further event actions.
+ await prisma.configuracaoFiscalEmpresa.update({where:{empresaId:ids.co1},
+  data:{serieNfe:"99"}});
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox(evA),
+  /M4D_FONTE_FISCAL_ALTERADA/);
+ await prisma.configuracaoFiscalEmpresa.update({where:{empresaId:ids.co1},
+  data:{serieNfe:"1"}});
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,simularFalhaAposGravar:true
+ }),/M4D_FALHA_SIMULADA_EVENTO/);
+ assert.equal((await prisma.fluxoFiscalUnificadoCi.findUnique({
+  where:{id:flowA.id}
+ })).estado,"PREPARADA_CI");
+ assert.equal(await prisma.eventoFluxoFiscalUnificadoCi.count({
+  where:{fluxoId:flowA.id}
+ }),0);
+ const indeterminado=await registrarEventoFiscalSimuladoSomenteSandbox(evA);
+ assert.equal(indeterminado.estado,"INDETERMINADA_CI");
+ assert.equal(indeterminado.exigeConsultaManual,true);
+ assert.equal((await registrarEventoFiscalSimuladoSomenteSandbox(evA)).reutilizada,true);
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,tipo:"SIMULAR_RESPOSTA_ACEITA"
+ }),/M4D_EVENTO_REPLAY_CONFLITANTE/);
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-retry-"+suffix,tipo:"SIMULAR_RESPOSTA_ACEITA"
+ }),/M4D_TRANSICAO_NAO_PERMITIDA/);
+ const accepted=await registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-consulta-"+suffix,
+  tipo:"SIMULAR_CONSULTA_ACEITA",
+  motivo:"Consulta manual fictícia confirma estado simulado sem protocolo"
+ });
+ assert.equal(accepted.estado,"ACEITA_SIMULADA_CI");
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-cancel-"+suffix,tipo:"SIMULAR_CANCELAMENTO",
+  motivo:"Cancelamento fictício para verificação de autorização"
+ }),/M4D_PERMISSAO_FISCAL_INSUFICIENTE/);
+ await prisma.cargoPermissao.create({data:{
+  cargoId:manager.id,permissaoId:cancelFiscal.id
+ }});
+ const canceled=await registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-cancel-"+suffix,tipo:"SIMULAR_CANCELAMENTO",
+  motivo:"Cancelamento fictício para verificação de autorização"
+ });
+ assert.equal(canceled.estado,"CANCELADA_SIMULADA_CI");
+ assert.equal(canceled.autorizacaoOficial,false);
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-cancel-again-"+suffix,tipo:"SIMULAR_CANCELAMENTO"
+ }),/M4D_TRANSICAO_NAO_PERMITIDA|M4D_MOTIVO_AUDITAVEL_OBRIGATORIO/);
+ // Company B in the SAME comanda must remain isolated in manual contingency.
+ const contingency=await registrarEventoFiscalSimuladoSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co2,usuarioId:ids.user,
+  fluxoId:flowB.id,chaveEvento:"m4d-contingency-"+suffix,
+  tipo:"SUSPENDER_POR_CONTINGENCIA",
+  motivo:"Somente CI: manter consulta e revisão manual de contingência"
+ });
+ assert.equal(contingency.estado,"CONTINGENCIA_REVISAO_CI");
+ assert.equal(contingency.exigeConsultaManual,true);
+ assert.equal(contingency.transmissaoHabilitada,false);
+ assert.equal(await prisma.fluxoFiscalUnificadoCi.count(),2);
+ assert.equal(await prisma.eventoFluxoFiscalUnificadoCi.count(),4);
+ assert.equal(await prisma.documentoFiscal.count(),fiscalCountBefore,
+  "Simulated acceptance/cancellation may not write legacy DocumentoFiscal");
+ assert.deepEqual({
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),
+  caixa:await prisma.movimentacaoCaixa.count()
+ },beforeFiscalRead,"Fiscal CI protocol may not mutate sales, payments, stock or cash");
+
  const existingFiscal=await prisma.documentoFiscal.create({data:{
   empresaId:ids.co1,vendaId:childA.vendaId,
   tipo:"NFE",ambiente:"HOMOLOGACAO",status:"PENDENTE",simulado:true
