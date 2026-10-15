@@ -20,7 +20,7 @@ export const centavosM522=(value,positive=false)=>{
  return cents;
 };
 export const reaisM522=c=>Math.floor(c/100)+"."+String(c%100).padStart(2,"0");
-const dbMoney=v=>{const t=String(v);if(!/^(?:0|[1-9]\\d{0,9})(?:\\.\\d{1,2})?$/.test(t))fail("VALOR_DB_INVALIDO");const [n,d=""]=t.split(".");return n+"."+d.padEnd(2,"0");};
+const dbMoney=v=>{const t=String(v);if(!/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/.test(t))fail("VALOR_DB_INVALIDO");const [n,d=""]=t.split(".");return n+"."+d.padEnd(2,"0");};
 export function validarDeclaracaoDevolucaoM522({
  organizacaoId,empresaId,usuarioId,preparacao,parecer,entrada,dados
 }={}){
