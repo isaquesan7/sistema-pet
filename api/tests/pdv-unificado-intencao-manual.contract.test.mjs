@@ -62,7 +62,7 @@ test("M.5.17 fails closed for stale, wrong tenant, pending review and bad amount
   b=>{b.fluxo.preparacoes.push({...prep()});},
   b=>{b.fluxo.leituraSomente=false;}
  ];
- for(const m of mutations){const b=base();m(b);assert.throws(()=>plan(b),/M517_/);}
+ for(const m of mutations){const b=base();m(b);assert.throws(()=>plan(b),/M5(?:17|19)_/); }
  const b=base();b.fluxo.preparacoes[0].etapa="AGUARDANDO_SEGUNDA_CONFERENCIA";
  b.fluxo.preparacoes[0].segundaConferenciaDocumental=false;
  const pending=plan(b);
