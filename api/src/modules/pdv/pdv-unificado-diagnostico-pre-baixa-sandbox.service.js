@@ -31,6 +31,17 @@ export async function diagnosticarPreBaixaSomenteSandbox({
     !vinculo.cargo?.ativo||
     !vinculo.cargo.permissoes.some(p=>p.permissao.codigo==="financeiro.gerenciar"))
    fail("SEM_PERMISSAO_FINANCEIRA");
+  return avaliarIntegridadePreBaixaNoTxM513(tx,{organizacaoId,empresaId,preparacaoId});
+ },{isolationLevel:"RepeatableRead",maxWait:8000,timeout:15000});
+}
+
+/**
+ * Internal shared query. Its caller MUST already have authenticated role,
+ * disposable-DB guard and a scoped transaction (M.5.12 or M.5.13).
+ */
+export async function avaliarIntegridadePreBaixaNoTxM513(tx,{
+ organizacaoId,empresaId,preparacaoId
+}){
   const preparacao=await tx.preparacaoBaixaCartaoManualUnificada.findFirst({
    where:{id:preparacaoId,empresaId,organizacaoId},
    include:{parcelas:true,parecerDocumental:true}
@@ -83,5 +94,5 @@ export async function diagnosticarPreBaixaSomenteSandbox({
    auditoriasPreparacao:prepAudit,auditoriasParecer:reviewAudit,
    auditoriasDeclaracao:declarations
   });
- },{isolationLevel:"RepeatableRead",maxWait:8000,timeout:15000});
+
 }
