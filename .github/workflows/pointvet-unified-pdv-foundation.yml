@@ -128,6 +128,9 @@ on:
       - "api/src/modules/pdv/pdv-unificado-repasse-historico.service.js"
       - "api/prisma/migrations/20261015221500_manual_card_repass_compensation/**"
       - "POINTVET_M514_CORRECAO_MANUAL_REPASSES.md"
+      - "api/src/modules/pdv/pdv-unificado-conferencia-resumo.contract.js"
+      - "api/tests/pdv-unificado-conferencia-resumo.contract.test.mjs"
+      - "POINTVET_M515_CONFERENCIA_MANUAL_FINANCEIRO.md"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
@@ -240,6 +243,8 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-repasse-manual-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-repasse-historico.service.js
+          node --check api/src/modules/pdv/pdv-unificado-conferencia-resumo.contract.js
+          node --test api/tests/pdv-unificado-conferencia-resumo.contract.test.mjs
           node --test api/tests/pdv-unificado-diagnostico-pre-baixa.contract.test.mjs
           node --test api/tests/pdv-unificado-baixa-cartao.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
