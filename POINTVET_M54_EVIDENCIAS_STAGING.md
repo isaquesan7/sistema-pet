@@ -15,3 +15,6 @@
 
 ## M.5.4.1 — segunda camada de auditoria de proveniência (offline)
 `api/src/modules/plataforma/pointvet-m541-auditoria-evidencias.contract.js` confere vínculo de cada evidência ao SHA candidato, categoria, referência, hash SHA-256 declarativo, operador/coletor e revisor distintos. Recusa campos desconhecidos, hashes inválidos, metadados divergentes e segredos; testes específicos cobrem casos positivos e negativos. **Hashes e assinaturas de metadados não comprovam que serviços externos foram realmente auditados.** Mesmo que tudo esteja consistente, os campos de ações externas são sempre `false`. A CI testa a forma dos metadados; não faz deploy nem consulta infraestrutura.
+
+## M.5.4.2 — janela de alteração somente staging sintético
+Contrato puro `api/src/modules/plataforma/pointvet-m542-janela-staging.contract.js` e testes. Valida identidade de responsável e aprovador distintos, commit completo fixado, referências sanitizadas a ticket e plano de interrupção; exige flags que mantenham produção, dados Pet King, PSP, e-mail real, fiscal e crédito desativados. Declaração consistente NÃO demonstra autorização real nem cria acesso e sempre retorna `executarDeploy=false`, `executarRestore=false`, `executarRollback=false`, `autorizarProducao=false`. Homologação operacional pendente.
