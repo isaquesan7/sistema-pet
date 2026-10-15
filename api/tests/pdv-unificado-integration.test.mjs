@@ -1301,9 +1301,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.pagamento.update({where:{id:creditPaymentId},data:{
   status:"PENDENTE",pagoEm:null
  }});
+ // The original net credit AND its compensating debit remain immutable.
  assert.equal(await prisma.conciliacaoFinanceira.count({where:{
   empresaId:ids.co1
- }}),1);
+ }}),2);
 
 
  assert.equal((await prisma.pagamento.findUnique({where:{id:lines.find(
