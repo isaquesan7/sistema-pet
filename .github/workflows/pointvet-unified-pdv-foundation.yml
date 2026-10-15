@@ -10,6 +10,10 @@ on:
       - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
       - "api/src/modules/clientes/client-finance.service.js"
       - "api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js"
+      - "api/src/modules/fiscal/fiscal-unificado-venda.contract.js"
+      - "api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js"
+      - "api/tests/fiscal-unificado-venda.contract.test.mjs"
+      - "POINTVET_M4C2_PREPARACAO_VENDAS_FILHAS.md"
       - "api/src/modules/fiscal/fiscal-unificado-planejamento-sandbox.service.js"
       - "api/tests/fiscal-unificado-planejamento.contract.test.mjs"
       - "api/tests/pdv-unificado-fiscal.integration.test.mjs"
@@ -100,6 +104,9 @@ jobs:
           node --check api/src/app.js
           node --check api/src/modules/clientes/client-finance.service.js
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js
+          node --check api/src/modules/fiscal/fiscal-unificado-venda.contract.js
+          node --check api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js
+          node --test api/tests/fiscal-unificado-venda.contract.test.mjs
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento-sandbox.service.js
           node --test api/tests/fiscal-unificado-planejamento.contract.test.mjs
           node --check api/src/modules/clientes/client-credit-ledger.contract.js
