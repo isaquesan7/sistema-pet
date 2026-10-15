@@ -23,6 +23,7 @@ import {compensarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv
 import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
 import {consultarEtapasRepassesM516} from "../src/modules/pdv/pdv-unificado-fluxo-operacional.service.js";
 import {discriminarTarifasAntecipacoesM520} from "../src/modules/pdv/pdv-unificado-discriminacao-tarifas.contract.js";
+import {planejarDevolucaoAposRepasseM521,simularDevolucaoAposRepasseM521} from "../src/modules/pdv/pdv-unificado-estorno-pos-repasse.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
@@ -1065,6 +1066,17 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(pendingCharges.preparacoes.tarifasInformadas,"1.20");
  assert.equal(pendingCharges.repassesAtivos.liquidoNoSaldoInterno,"0.00");
  assert.equal(pendingCharges.autorizaCheckout,false);
+ const pendingRefund=planejarDevolucaoAposRepasseM521({
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  fluxo:firstSteps
+ });
+ assert.equal(pendingRefund.preparacoes[0].podeSimularDevolucao,false);
+ assert.throws(()=>simularDevolucaoAposRepasseM521({
+  plano:pendingRefund,preparacaoId:preRecord.preparacaoId,
+  codigoRevisaoVisto:firstSteps.preparacoes[0].revisaoFinanceira.codigoRevisao,
+  valorBrutoDevolucaoProposto:"60.00",confirmouValoresSaoHipoteses:true
+ }),/M521_REPASSE_NAO_ELEGIVEL/);
+
 
  await assert.rejects(()=>consultarEtapasRepassesM516({
   ...stepsCtx,organizacaoId:ids.other
@@ -1267,6 +1279,27 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(chargesAfterPost.repassesAtivos.tarifasInformadas,"1.20");
  assert.equal(chargesAfterPost.repassesAtivos.liquidoNoSaldoInterno,"58.80");
  assert.equal(chargesAfterPost.geraLancamentoContabil,false);
+ const activeRefund=planejarDevolucaoAposRepasseM521({
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  fluxo:postedSteps
+ });
+ const activeRefundItem=activeRefund.preparacoes[0];
+ assert.equal(activeRefundItem.podeSimularDevolucao,true);
+ const refundProjection=simularDevolucaoAposRepasseM521({
+  plano:activeRefund,preparacaoId:preRecord.preparacaoId,
+  codigoRevisaoVisto:activeRefundItem.codigoRevisao,
+  valorBrutoDevolucaoProposto:"60.00",
+  recuperacaoTarifaHipotetica:"1.20",
+  recuperacaoAntecipacaoHipotetica:"0.00",
+  confirmouValoresSaoHipoteses:true
+ });
+ assert.equal(refundProjection.exposicaoHipoteticaSeRecuperacoesOcorrerem,"58.80");
+ assert.equal(refundProjection.executouReembolso,false);
+ assert.equal(refundProjection.alterouSaldoInterno,false);
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  empresaId:ids.co1,origem:"ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO"
+ }}),0);
+
 
  const postedVersion=postedSteps.preparacoes[0].revisaoFinanceira;
  assert.notEqual(postedVersion.codigoRevisao,reviewVersion.codigoRevisao);
@@ -1391,6 +1424,18 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(chargesAfterCorrection.repassesAtivos.tarifasInformadas,"0.00");
  assert.equal(chargesAfterCorrection.preparacoes.tarifasInformadas,"1.20");
  assert.equal(chargesAfterCorrection.quantidade.corrigido,1);
+ const correctedRefund=planejarDevolucaoAposRepasseM521({
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  fluxo:correctedSteps
+ });
+ assert.equal(correctedRefund.preparacoes[0].podeSimularDevolucao,false);
+ assert.equal(correctedRefund.preparacoes[0].contralancamentoM514EquivaleAReembolso,false);
+ assert.throws(()=>simularDevolucaoAposRepasseM521({
+  plano:correctedRefund,preparacaoId:preRecord.preparacaoId,
+  codigoRevisaoVisto:correctedRefund.preparacoes[0].codigoRevisao,
+  valorBrutoDevolucaoProposto:"60.00",confirmouValoresSaoHipoteses:true
+ }),/M521_REPASSE_NAO_ELEGIVEL/);
+
 
  assert.notEqual(correctedSteps.preparacoes[0].revisaoFinanceira.codigoRevisao,
   postedVersion.codigoRevisao);
