@@ -14,7 +14,7 @@ die() { echo "POINTVET_M5_CI_RESTORE_BLOCKED: $*" >&2; exit 1; }
 command -v docker >/dev/null || die "Docker missing"
 command -v sha256sum >/dev/null || die "sha256sum missing"
 pg() {
- docker run --rm --network host --env "PGPASSWORD=pointvet_ci_only" postgres:16 "$@"
+ docker run --rm -i --network host --env "PGPASSWORD=pointvet_ci_only" postgres:16 "$@"
 }
 psql_ci() {
  local database="$1"; shift
