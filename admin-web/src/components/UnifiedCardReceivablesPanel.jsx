@@ -41,6 +41,12 @@ export default function UnifiedCardReceivablesPanel(){
   enabled:enabled&&Boolean(effectiveId),
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+encodeURIComponent(effectiveId))).data.dados
  });
+ const history=useQuery({
+  queryKey:["unified-card-postings",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/lancamentos")).data.dados||[]
+ });
  if(!allowed)return <section className="panel"><h2>Repasses de cartão</h2>
   <p>Somente funcionários com acesso ao PDV e permissão de gestão financeira podem consultar os recebíveis.</p></section>;
  return <section className="panel">
@@ -62,7 +68,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching} onClick={()=>report.refetch()}>
+     disabled={!effectiveId||report.isFetching||history.isFetching} onClick={()=>{report.refetch();history.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -87,7 +93,20 @@ export default function UnifiedCardReceivablesPanel(){
       <td>{textStatus[row.situacao]||row.situacao}</td>
      </tr>)}</tbody>
     </table></div>
-    <p><WalletCards size={14} aria-hidden="true"/> Visualização de conferência. Nenhuma conciliação bancária independente ou movimentação financeira foi realizada nesta tela.</p>
+    <p><WalletCards size={14} aria-hidden="true"/> Recebíveis de cartão informados manualmente. O PointVet não se conecta ao banco nem à maquininha.</p>
+    <h3>Histórico financeiro manual — somente leitura</h3>
+    <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
+    {history.isLoading?<p>Carregando histórico...</p>:null}
+    {history.isError?<p className="alert alert--error" role="alert">{getApiErrorMessage(history.error)}</p>:null}
+    {history.isSuccess&&!(history.data||[]).length?<p>Nenhum repasse contabilizado internamente para esta comanda.</p>:null}
+    {history.data?.length?<div className="table-scroll"><table className="data-table">
+     <thead><tr><th>Movimento</th><th>Conta interna</th><th>Valor líquido</th><th>Conferido por</th><th>Situação</th></tr></thead>
+     <tbody>{history.data.map(item=><tr key={item.id}>
+      <td>{item.tipo==="CORRECAO_MANUAL"?"Correção manual (saída)":"Repasse manual (entrada)"}</td>
+      <td>{item.conta}</td><td>{money(item.valor)}</td><td>{item.operador}</td>
+      <td>{item.tipo==="CORRECAO_MANUAL"?"Contralançamento registrado":item.possuiCorrecao?"Compensado":"Declarado pelo operador"}</td>
+     </tr>)}</tbody>
+    </table></div>:null}
    </div>:null}
   </div>:null}
  </section>;
