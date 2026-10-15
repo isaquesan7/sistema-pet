@@ -5,6 +5,7 @@ import prisma from "../../config/prisma.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,listarCaixasDisponiveisUnificados,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "./pdv-unificado-preparacao.service.js";
 import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
+import {consultarRecebiveisCartaoLeituraM57,listarComandasRecebiveisCartaoLeituraM57} from "./pdv-unificado-recebiveis-leitura.service.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
@@ -18,6 +19,49 @@ r.get("/disponibilidade",async(req,res,next)=>{
    aviso:"O PDV individual permanece em uso até a homologação do fechamento multiempresa."
   }});
  }catch(error){next(error);}
+});
+/**
+ * M.5.7 — somente consulta. As rotas NÃO fazem fechamento de venda,
+ * reconciliação de caixa, movimentação financeira ou emissão fiscal.
+ * Dois níveis de acesso: pdv.acessar (global), financeiro.gerenciar (local).
+ */
+function erroRecebiveisM57(error,res,next){
+ const codes={
+  M57_SEM_ACESSO_FINANCEIRO:[403,"Acesso financeiro negado."],
+  M57_PREFERENCIA_DESATIVADA:[403,"PDV unificado desativado nesta organização."],
+  M57_COMANDA_NAO_ENCONTRADA:[404,"Comanda não encontrada."],
+  M57_CONTEXTO_INVALIDO:[400,"Parâmetros inválidos."]
+ };
+ if(error?.message?.startsWith("M56_"))return res.status(409).json({
+  success:false,message:"Inconsistência de recebíveis identificada. Encaminhe à revisão financeira."
+ });
+ const entry=codes[error?.message];
+ return entry?res.status(entry[0]).json({success:false,message:entry[1]}):next(error);
+}
+r.get("/recebiveis-cartao/comandas",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const dados=await listarComandasRecebiveisCartaoLeituraM57({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,usuarioId:req.usuario.id
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/).safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await consultarRecebiveisCartaoLeituraM57({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
 });
 r.get("/catalogo",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"Preferência de PDV unificado desativada."});
