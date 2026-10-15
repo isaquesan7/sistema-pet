@@ -18,9 +18,10 @@ import {planejarBaixaCartaoM59} from "../src/modules/pdv/pdv-unificado-baixa-car
 import {registrarPreBaixaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-pre-baixa-sandbox.service.js";
 import {registrarParecerPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js";
 import {diagnosticarPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-diagnostico-pre-baixa-sandbox.service.js";
+import {registrarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-manual-sandbox.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
-import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas} from "../src/modules/financeiro/financeiro.service.js";
+import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas,conciliar as conciliarFinanceiro,desconciliar as desconciliarFinanceiro} from "../src/modules/financeiro/financeiro.service.js";
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
@@ -1155,6 +1156,86 @@ test("cross-company saving respects prices, access, rollback and version",async(
   bankBefore.map(x=>[x.id,x.saldoConciliado]));
  assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0,
   "Operator declaration is NOT independent financial reconciliation");
+ 
+ // M.5.13 — operator MANUALLY confirms net amount after checking bank
+ // statement outside PointVet. No bank API, payment approval or duplicate sale.
+ const manualData={confirmouCreditoNoExtrato:true,
+  referenciaExtrato:prePedido.referenciaExtrato};
+ const manualCtx={organizacaoId:ids.org,empresaId:ids.co1,
+  usuarioId:ids.user,preparacaoId:preRecord.preparacaoId,dados:manualData};
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,dados:{...manualData,confirmouCreditoNoExtrato:false}
+ }),/M513_CONFIRMACAO_MANUAL_EXPLICITA_OBRIGATORIA/);
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,empresaId:ids.co2
+ }),/M513_PREPARACAO_NAO_ENCONTRADA/);
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,dados:{...manualData,referenciaExtrato:"CI-WRONG-REFERENCE"}
+ }),/M513_REFERENCIA_DIVERGENTE/);
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox({
+  ...manualCtx,simularFalhaAposLancamento:true
+ }),/M513_ROLLBACK_INJETADO/);
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0);
+ const simultaneous=await Promise.allSettled([
+  registrarRepasseCartaoManualSomenteSandbox(manualCtx),
+  registrarRepasseCartaoManualSomenteSandbox(manualCtx)
+ ]);
+ assert(simultaneous.some(x=>x.status==="fulfilled"),
+  "At least one CI manual repasse operation must commit atomically");
+ const manualEntry=await registrarRepasseCartaoManualSomenteSandbox(manualCtx);
+ assert.equal(manualEntry.reutilizada,true);
+ assert.equal(manualEntry.valorLiquido,"58.80");
+ assert.equal(manualEntry.confirmacaoAutomaticaDoBanco,false);
+ assert.equal(manualEntry.pagamentoAprovado,false);
+ assert.equal(manualEntry.atualizouSaldoConciliadoInterno,true);
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  empresaId:ids.co1,origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",
+  origemId:preRecord.preparacaoId
+ }}),1);
+ assert.equal(await prisma.auditoria.count({where:{
+  entidade:"CONCILIACAO_FINANCEIRA",entidadeId:manualEntry.conciliacaoId,
+  acao:"REPASSE_CARTAO_MANUAL_CONFIRMADO_CI"
+ }}),1);
+ const bankAfterManual=await listarContas(ids.co1);
+ const originalBalance=Number(bankBefore.find(a=>a.id===bank.id).saldoConciliado);
+ const newBalance=Number(bankAfterManual.find(a=>a.id===bank.id).saldoConciliado);
+ assert.equal(Math.round((newBalance-originalBalance)*100),5880,
+  "The internal reconciled account changes by NET 58.80, never gross 60");
+ const legacyAfterManual=await resumoFinanceiro(financialScope);
+ assert.equal(legacyAfterManual.faturamento,legacyBefore.faturamento,
+  "Cannot post the sale a second time as turnover");
+ assert.equal(legacyAfterManual.receitasRealizadas,legacyBefore.receitasRealizadas,
+  "Internal bank reconciliation is NOT another realized-revenue event");
+ assert.deepEqual(await fluxoFinanceiro(financialScope),flowBefore);
+ await assert.rejects(()=>desconciliarFinanceiro({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  id:manualEntry.conciliacaoId
+ }),/REPASSE_CARTAO_MANUAL_EXIGE_REVISAO_FINANCEIRA/,
+  "Old generic undo must not delete manual card cash entry");
+ await assert.rejects(()=>conciliarFinanceiro({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  dados:{contaFinanceiraId:bank.id,
+   origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",origemId:preRecord.preparacaoId}
+ }),/MOVIMENTO_NAO_ENCONTRADO/,
+  "Old generic route must not book the new manual ledger source");
+ // CI-only regression for a mistakenly-approved entire card payment:
+ // even that must never create a second gross bank reconciliation.
+ const creditPaymentId=lines.find(x=>x.forma==="CARTAO_CREDITO").pagamentoId;
+ await prisma.pagamento.update({where:{id:creditPaymentId},data:{
+  status:"APROVADO",pagoEm:new Date("2026-10-15T12:00:00Z")
+ }});
+ await assert.rejects(()=>conciliarFinanceiro({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  dados:{contaFinanceiraId:bank.id,
+   origem:"PAGAMENTO_VENDA",origemId:creditPaymentId}
+ }),/CARTAO_UNIFICADO_REPASSE_MANUAL_SEPARADO/);
+ await prisma.pagamento.update({where:{id:creditPaymentId},data:{
+  status:"PENDENTE",pagoEm:null
+ }});
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  empresaId:ids.co1
+ }}),1);
+
 
  assert.equal((await prisma.pagamento.findUnique({where:{id:lines.find(
   l=>l.forma==="CARTAO_CREDITO").pagamentoId}})).status,"PENDENTE",
@@ -1185,6 +1266,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
   prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
    data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}})
  ]);
+ // CI-ONLY: synthetic manual bank-ledger cleanup before the separate
+ // legacy reversal test; there is NO HTTP delete or undo for real operators.
+ await prisma.auditoria.deleteMany({where:{
+  entidade:"CONCILIACAO_FINANCEIRA",entidadeId:manualEntry.conciliacaoId,
+  acao:"REPASSE_CARTAO_MANUAL_CONFIRMADO_CI"
+ }});
+ await prisma.conciliacaoFinanceira.delete({where:{id:manualEntry.conciliacaoId}});
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0);
  // M.5.11 CI FIXTURE CLEANUP ONLY: the real review has no delete API.
  await prisma.auditoria.deleteMany({where:{
   acao:"PRE_BAIXA_CARTAO_CONFERENCIA_DOCUMENTAL_CI",
