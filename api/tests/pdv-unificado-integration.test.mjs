@@ -25,6 +25,7 @@ import {consultarEtapasRepassesM516} from "../src/modules/pdv/pdv-unificado-flux
 import {discriminarTarifasAntecipacoesM520} from "../src/modules/pdv/pdv-unificado-discriminacao-tarifas.contract.js";
 import {planejarDevolucaoAposRepasseM521,simularDevolucaoAposRepasseM521} from "../src/modules/pdv/pdv-unificado-estorno-pos-repasse.contract.js";
 import {registrarDevolucaoExternaDeclaradaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-devolucao-declarada-sandbox.service.js";
+import {consultarHistoricoDevolucoesM523} from "../src/modules/pdv/pdv-unificado-devolucoes-historico.service.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
@@ -1072,6 +1073,16 @@ test("cross-company saving respects prices, access, rollback and version",async(
   fluxo:firstSteps
  });
  assert.equal(pendingRefund.preparacoes[0].podeSimularDevolucao,false);
+ const noRefundDeclarations=await consultarHistoricoDevolucoesM523(stepsCtx);
+ assert.equal(noRefundDeclarations.preparacoes[0].estadoRepasseInterno,
+  "SEM_REPASSE_INTERNO");
+ assert.equal(noRefundDeclarations.totais.devolucoesDeclaradas,"0.00");
+ assert.equal(noRefundDeclarations.totais.brutoSemDeclaracaoNoLivro,"60.00");
+ assert.equal(noRefundDeclarations.permiteNovoReembolso,false);
+ await assert.rejects(()=>consultarHistoricoDevolucoesM523({
+  ...stepsCtx,organizacaoId:ids.other
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
+
  assert.throws(()=>simularDevolucaoAposRepasseM521({
   plano:pendingRefund,preparacaoId:preRecord.preparacaoId,
   codigoRevisaoVisto:firstSteps.preparacoes[0].revisaoFinanceira.codigoRevisao,
@@ -1342,6 +1353,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(firstRefund.transferenciaPeloPointVet,false);
  assert.equal(firstRefund.alterouSaldoConciliado,false);
  assert.equal(firstRefund.emitiuEstornoFiscal,false);
+ const refundHistoryOne=await consultarHistoricoDevolucoesM523(stepsCtx);
+ assert.equal(refundHistoryOne.preparacoes[0].estadoRepasseInterno,
+  "REPASSE_INTERNO_ATIVO");
+ assert.equal(refundHistoryOne.totais.devolucoesDeclaradas,"20.00");
+ assert.equal(refundHistoryOne.totais.brutoSemDeclaracaoNoLivro,"40.00");
+ assert.equal(refundHistoryOne.preparacoes[0].movimentos[0].referenciaExterna,
+  customerRefundData.referenciaExterna);
+ assert.equal(refundHistoryOne.bancoVerificadoIndependentemente,false);
+
  await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
   ...customerRefundCtx,dados:{...customerRefundData,
    valorBrutoDevolvido:"19.99"}
@@ -1362,6 +1382,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
   ...customerRefundCtx,dados:secondRefundData
  });
  assert.equal(secondRefund.saldoBrutoRestante,"0.00");
+ const refundHistoryFull=await consultarHistoricoDevolucoesM523(stepsCtx);
+ assert.equal(refundHistoryFull.totais.devolucoesDeclaradas,"60.00");
+ assert.equal(refundHistoryFull.totais.brutoSemDeclaracaoNoLivro,"0.00");
+ assert.equal(refundHistoryFull.preparacoes[0].movimentos.length,2);
+ assert.equal(refundHistoryFull.geraMovimentoFinanceiro,false);
+
  assert.equal(await prisma.devolucaoClienteManualUnificada.count({where:{
   preparacaoId:preRecord.preparacaoId
  }}),2);
@@ -1396,6 +1422,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
   preparacaoId:preRecord.preparacaoId
  }});
  assert.equal(await prisma.devolucaoClienteManualUnificada.count(),0);
+ const afterCiCleanup=await consultarHistoricoDevolucoesM523(stepsCtx);
+ assert.equal(afterCiCleanup.totais.brutoSemDeclaracaoNoLivro,"60.00");
+ assert.equal(afterCiCleanup.totais.devolucoesDeclaradas,"0.00");
+
  const postedVersion=postedSteps.preparacoes[0].revisaoFinanceira;
  assert.notEqual(postedVersion.codigoRevisao,reviewVersion.codigoRevisao);
  assert.equal(postedVersion.lancamentoOriginalIdEsperado,manualEntry.conciliacaoId);
@@ -1509,6 +1539,11 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(correctedSteps.preparacoes[0].correcaoInterna,true);
  assert.equal(correctedSteps.confirmacaoDisponivelNaTela,false);
  assert.equal(correctedSteps.provaBancariaIndependente,false);
+ const historyAfterInternalCorrection=await consultarHistoricoDevolucoesM523(stepsCtx);
+ assert.equal(historyAfterInternalCorrection.preparacoes[0].estadoRepasseInterno,
+  "REPASSE_INTERNO_COMPENSADO");
+ assert.equal(historyAfterInternalCorrection.totais.devolucoesDeclaradas,"0.00");
+
  await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox(
   customerRefundCtx
  ),/M522_REPASSE_INTERNO_COMPENSADO/);
