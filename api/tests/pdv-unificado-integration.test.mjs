@@ -1021,6 +1021,41 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(advance.valores.liquidoDeclarado,"56.30");
  assert.equal(advance.baixaRealExecutada,false);
 
+ // M.5.10: register an auditable pre-settlement only, NOT bank cash.
+ const prePedido={tipo:"REPASSE_NORMAL",contaFinanceiraId:bank.id,
+  referenciaExtrato:"CI-M510-EXTRATO-"+suffix,dataCredito:"2026-10-15",
+  parcelaIds:[p0.id],tarifaCartao:"1.20",descontoAntecipacao:"0.00",
+  valorLiquidoDeclarado:"58.80",confirmouConferenciaExterna:true};
+ const preCtx={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id,pedido:prePedido};
+ await assert.rejects(()=>registrarPreBaixaCartaoSomenteSandbox({
+  ...preCtx,simularFalhaAposRegistro:true
+ }),/M510_FALHA_INJETADA_ROLLBACK/);
+ assert.equal(await prisma.preparacaoBaixaCartaoManualUnificada.count(),0);
+ await assert.rejects(()=>registrarPreBaixaCartaoSomenteSandbox({
+  ...preCtx,pedido:{...prePedido,contaFinanceiraId:otherBank.id}
+ }),/M510_CONTA_FORA_DA_EMPRESA/);
+ const attempts=await Promise.allSettled([
+  registrarPreBaixaCartaoSomenteSandbox(preCtx),
+  registrarPreBaixaCartaoSomenteSandbox(preCtx)
+ ]);
+ assert(attempts.some(x=>x.status==="fulfilled"));
+ const preRecord=await registrarPreBaixaCartaoSomenteSandbox(preCtx);
+ assert.equal(preRecord.reutilizada,true);
+ assert.equal(preRecord.valorLiquidoDeclarado,"58.80");
+ assert.equal(preRecord.creditouBanco,false);
+ assert.equal(await prisma.preparacaoBaixaCartaoManualUnificada.count(),1);
+ assert.equal(await prisma.parcelaPreBaixaCartaoManualUnificada.count(),1);
+ assert.equal(await prisma.auditoria.count({where:{
+  entidadeId:preRecord.preparacaoId,acao:"PRE_BAIXA_CARTAO_PREPARADA_CI"
+ }}),1);
+ await assert.rejects(()=>registrarPreBaixaCartaoSomenteSandbox({
+  ...preCtx,pedido:{...prePedido,referenciaExtrato:"CI-M510-DUP-"+suffix}
+ }),/M510_PARCELA_JA_PREPARADA/);
+ await assert.rejects(()=>registrarPreBaixaCartaoSomenteSandbox({
+  ...preCtx,pedido:{...prePedido,tarifaCartao:"1.00",
+   valorLiquidoDeclarado:"59.00"}
+ }),/M510_REFERENCIA_DIVERGENTE/);
  const [legacyAfter,flowAfter,pendingAfter,bankAfter]=await Promise.all([
   resumoFinanceiro(financialScope),fluxoFinanceiro(financialScope),
   pendentesConciliacao({empresaId:ids.co1}),listarContas(ids.co1)
