@@ -97,6 +97,8 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  const protectedRoutes=[
   ["GET","/api/pdv-unificado/disponibilidade"],
   ["GET","/api/pdv-unificado/rascunhos"],
+  ["GET","/api/pdv-unificado/recebiveis-cartao/comandas"],
+  ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy"],
   ["POST","/api/pdv-unificado/simulacao"],
   ["POST","/api/pdv-unificado/rascunhos"],
   ["POST","/api/pdv-unificado/rascunhos/dummy/reservar"],
@@ -114,6 +116,29 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  assert.equal(avail.dados.checkoutUnificadoDisponivel,false);
  assert.equal(avail.dados.modoEfetivo,"INDIVIDUAL");
  assert.deepEqual(avail.dados.empresasAcessiveis.map(e=>e.id),[companyA]);
+ // M.5.7 — Financeiro module AND company-specific finance permission
+ // required for the read-only receivables panel. No write route is allowed.
+ const cardList="/api/pdv-unificado/recebiveis-cartao/comandas";
+ await request("GET",cardList,403,{token,company:companyA});
+ await prisma.moduloOrganizacao.create({data:{
+  organizacaoId:orgA,modulo:"FINANCEIRO",contratado:true,habilitado:true
+ }});
+ await request("GET",cardList,403,{token,company:companyA});
+ const financePerm=await prisma.permissao.upsert({where:{codigo:"financeiro.gerenciar"},
+  update:{},create:{codigo:"financeiro.gerenciar",nome:"Gerenciar financeiro"}
+ });
+ await prisma.cargoPermissao.create({data:{cargoId:role.id,permissaoId:financePerm.id}});
+ const empty=await request("GET",cardList,200,{token,company:companyA});
+ assert.deepEqual(empty.dados,[],"No card receivables for a synthetic company without sales");
+ await request("GET",cardList+"/m57-missing",404,{token,company:companyA});
+ await request("GET",cardList+"/%3Fbad",400,{token,company:companyA});
+ await request("POST",cardList+"/m57-missing",404,{token,company:companyA});
+ await request("GET",cardList,403,{token,company:companyB});
+ await prisma.cargoPermissao.delete({where:{cargoId_permissaoId:{
+  cargoId:role.id,permissaoId:financePerm.id
+ }}});
+ await request("GET",cardList,403,{token,company:companyA});
+ await prisma.cargoPermissao.create({data:{cargoId:role.id,permissaoId:financePerm.id}});
  // The preview is allowed, but no executable checkout route may exist yet.
  for(const path of ["/api/pdv-unificado/checkout","/api/pdv-unificado/finalizar",
   "/api/pdv-unificado/rascunhos/dummy/executar",
@@ -127,6 +152,7 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  const disabled=await request("GET","/api/pdv-unificado/disponibilidade",200,{token,company:companyA});
  assert.equal(disabled.dados.preferenciaUnificado,false);
  assert.equal(disabled.dados.checkoutUnificadoDisponivel,false);
+ await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
  await request("POST","/api/pdv-unificado/simulacao",403,{token,company:companyA});
  await request("POST","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
