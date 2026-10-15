@@ -16,6 +16,7 @@ import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-uni
 import {conciliarParcelaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js";
 import {planejarBaixaCartaoM59} from "../src/modules/pdv/pdv-unificado-baixa-cartao.contract.js";
 import {registrarPreBaixaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-pre-baixa-sandbox.service.js";
+import {registrarParecerPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas} from "../src/modules/financeiro/financeiro.service.js";
@@ -1056,6 +1057,57 @@ test("cross-company saving respects prices, access, rollback and version",async(
   ...preCtx,pedido:{...prePedido,tarifaCartao:"1.00",
    valorLiquidoDeclarado:"59.00"}
  }),/M510_REFERENCIA_DIVERGENTE/);
+ // M.5.11: independent human reviewer for documentary evidence only.
+ const reviewerId="review"+suffix;
+ await prisma.usuario.create({data:{id:reviewerId,nome:"Independent CI reviewer",
+  email:"review-"+suffix+"@ci.invalid",senhaHash:"never-login"}});
+ await prisma.usuarioOrganizacao.create({data:{
+  usuarioId:reviewerId,organizacaoId:ids.org,papel:"MEMBRO"
+ }});
+ const reviewEvidence={evidenciaReferencia:"CI-DOC-EXTRATO-"+suffix,
+  evidenciaSha256:"c".repeat(64),confirmouConferenciaDocumental:true};
+ const reviewCtx={organizacaoId:ids.org,empresaId:ids.co1,
+  conferenteId:reviewerId,preparacaoId:preRecord.preparacaoId,
+  evidencia:reviewEvidence};
+ await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
+  ...reviewCtx,conferenteId:ids.user
+ }),/M511_SEGREGACAO_DE_FUNCOES/);
+ await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox(reviewCtx),
+  /M511_CONFERENTE_SEM_PERMISSAO/);
+ await prisma.usuarioEmpresa.create({data:{
+  usuarioId:reviewerId,empresaId:ids.co1,cargoId:manager.id
+ }});
+ await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
+  ...reviewCtx,empresaId:ids.co2
+ }),/M511_PREPARACAO_NAO_ENCONTRADA/);
+ await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
+  ...reviewCtx,evidencia:{...reviewEvidence,confirmouConferenciaDocumental:false}
+ }),/M511_DECLARACAO_EXPLICITA_OBRIGATORIA/);
+ await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
+  ...reviewCtx,simularFalhaAposGravacao:true
+ }),/M511_ROLLBACK_SIMULADO/);
+ assert.equal(await prisma.parecerPreBaixaCartaoManualUnificada.count(),0);
+ const reviewed=await Promise.allSettled([
+  registrarParecerPreBaixaSomenteSandbox(reviewCtx),
+  registrarParecerPreBaixaSomenteSandbox(reviewCtx)
+ ]);
+ assert(reviewed.some(x=>x.status==="fulfilled"),
+  "At least one documentary review must commit atomically");
+ const review=await registrarParecerPreBaixaSomenteSandbox(reviewCtx);
+ assert.equal(review.reutilizada,true);
+ assert.equal(review.comprovacaoBancariaIndependente,false);
+ assert.equal(review.baixouFinanceiro,false);
+ assert.equal(review.creditouBanco,false);
+ assert.equal(await prisma.parecerPreBaixaCartaoManualUnificada.count({
+  where:{preparacaoId:preRecord.preparacaoId}
+ }),1);
+ assert.equal(await prisma.auditoria.count({where:{
+  acao:"PRE_BAIXA_CARTAO_CONFERENCIA_DOCUMENTAL_CI",
+  entidadeId:review.parecerId
+ }}),1);
+ await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
+  ...reviewCtx,evidencia:{...reviewEvidence,evidenciaSha256:"d".repeat(64)}
+ }),/M511_PARECER_IMUTAVEL_DIVERGENTE/);
  const [legacyAfter,flowAfter,pendingAfter,bankAfter]=await Promise.all([
   resumoFinanceiro(financialScope),fluxoFinanceiro(financialScope),
   pendentesConciliacao({empresaId:ids.co1}),listarContas(ids.co1)
@@ -1102,6 +1154,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
   prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
    data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}})
  ]);
+ // M.5.11 CI FIXTURE CLEANUP ONLY: the real review has no delete API.
+ await prisma.auditoria.deleteMany({where:{
+  acao:"PRE_BAIXA_CARTAO_CONFERENCIA_DOCUMENTAL_CI",
+  entidadeId:review.parecerId
+ }});
+ await prisma.parecerPreBaixaCartaoManualUnificada.delete({
+  where:{id:review.parecerId}
+ });
  // M.5.10 CI TEST FIXTURE CLEANUP ONLY. Real pre-settlements have no
  // delete/undo endpoint. Do not apply this reset in a real environment.
  await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
