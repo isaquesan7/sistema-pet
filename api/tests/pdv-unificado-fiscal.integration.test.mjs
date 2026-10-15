@@ -82,6 +82,19 @@ test("M.4C issuer, mixed product/service, multiunit CNPJ, permissions, fail-clos
  await assert.rejects(()=>prisma.unidadeOperacional.create({data:{
   organizacaoId:org,entidadeFiscalId:issuer.id,codigo:"ANEXO",nome:"Duplicada"
  }}),e=>e.code==="P2002");
+ // Composite tenant FK must reject issuer/company in a DIFFERENT org even
+ // when IDs exist. ORM-level reads alone are not adequate isolation.
+ const foreignIssuer=await prisma.entidadeFiscal.create({data:{
+  organizacaoId:outside,cnpj:"56789012345678",razaoSocial:"Empresa outra"
+ }});
+ await assert.rejects(()=>prisma.unidadeOperacional.create({data:{
+  organizacaoId:org,entidadeFiscalId:foreignIssuer.id,
+  codigo:"CROSS_ISSUER",nome:"Should fail"
+ }}),e=>e.code==="P2003");
+ await assert.rejects(()=>prisma.unidadeOperacional.create({data:{
+  organizacaoId:org,entidadeFiscalId:issuer.id,empresaLegadaId:coOther,
+  codigo:"CROSS_COMPANY",nome:"Should fail"
+ }}),e=>e.code==="P2003");
  const args={organizacaoId:org,usuarioId:actor,empresaId:co1,
   clienteId:client,itens:[
    {empresaId:co1,itemCatalogoId:itemProduct,quantidade:1},
