@@ -16,6 +16,12 @@ const textStatus={
  REPASSE_INTEGRAL_DECLARADO:"Repasse integral declarado",
  ESTORNADO:"Estornado"
 };
+const operationStatus={
+ AGUARDANDO_SEGUNDA_CONFERENCIA:"Aguardando segunda conferência documental",
+ SEGUNDA_CONFERENCIA_DOCUMENTAL_DECLARADA:"Conferência documental registrada; repasse ainda não lançado",
+ REPASSE_INTERNO_CONFIRMADO_MANUALMENTE:"Repasse registrado manualmente no saldo interno",
+ CORRECAO_INTERNA_REGISTRADA:"Correção registrada por contralançamento"
+};
 const money=x=>formatCurrency(Number(x||0));
 export default function UnifiedCardReceivablesPanel(){
  const {selectedCompany,selectedOrganization,hasPermission}=useAuth();
@@ -40,6 +46,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryKey:["unified-card-summary",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+encodeURIComponent(effectiveId))).data.dados
+ });
+ const workflow=useQuery({
+  queryKey:["unified-card-m516-stages",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/etapas")).data.dados
  });
  const history=useQuery({
   queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
@@ -68,7 +80,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching} onClick={()=>{report.refetch();history.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -94,6 +106,21 @@ export default function UnifiedCardReceivablesPanel(){
      </tr>)}</tbody>
     </table></div>
     <p><WalletCards size={14} aria-hidden="true"/> Recebíveis de cartão informados manualmente. O PointVet não se conecta ao banco nem à maquininha.</p>
+    <h3>Etapas da conferência manual — somente consulta</h3>
+    <p>O fluxo mostra exclusivamente eventos registrados no PointVet. Uma etapa documental concluída não significa depósito confirmado automaticamente pela instituição financeira.</p>
+    {workflow.isLoading?<p>Verificando etapas...</p>:null}
+    {workflow.isError?<p className="alert alert--error" role="alert">Não foi possível validar as etapas. {getApiErrorMessage(workflow.error)}</p>:null}
+    {workflow.isSuccess&&!workflow.data?.quantidade?<p>Nenhuma pré-baixa preparada nesta comanda.</p>:null}
+    {workflow.data?.preparacoes?.length?<div className="table-scroll"><table className="data-table">
+      <thead><tr><th>Referência informada</th><th>Valor bruto</th><th>Taxa</th><th>Antecipação</th><th>Líquido</th><th>Etapa registrada</th></tr></thead>
+      <tbody>{workflow.data.preparacoes.map(p=><tr key={p.preparacaoId}>
+       <td>{p.referenciaExtrato}</td>
+       <td>{money(p.valorBruto)}</td><td>{money(p.tarifaCartao)}</td>
+       <td>{money(p.descontoAntecipacao)}</td><td>{money(p.valorLiquido)}</td>
+       <td>{operationStatus[p.etapa]||"Revisão financeira necessária"}</td>
+      </tr>)}</tbody>
+    </table></div>:null}
+    <p><strong>Controles de segurança:</strong> a preparação, a segunda conferência e os lançamentos são feitos por funcionários autorizados. As ações de confirmação e correção não estão disponíveis nesta tela nem foram publicadas.</p>
     <h3>Histórico financeiro manual — somente leitura</h3>
     <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
     {history.isLoading?<p>Carregando histórico...</p>:null}
