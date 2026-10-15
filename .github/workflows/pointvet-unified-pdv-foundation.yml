@@ -11,6 +11,11 @@ on:
       - "api/src/modules/clientes/client-finance.service.js"
       - "api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js"
       - "api/src/modules/fiscal/fiscal-unificado-venda.contract.js"
+      - "api/src/modules/fiscal/fiscal-unificado-protocolo-ci.contract.js"
+      - "api/src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js"
+      - "api/tests/fiscal-unificado-protocolo-ci.contract.test.mjs"
+      - "api/prisma/migrations/20261015031500_unified_fiscal_ci_protocol/**"
+      - "POINTVET_M4D_SEGURANCA_FISCAL_CI.md"
       - "api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js"
       - "api/tests/fiscal-unificado-venda.contract.test.mjs"
       - "POINTVET_M4C2_PREPARACAO_VENDAS_FILHAS.md"
@@ -108,6 +113,9 @@ jobs:
           node --check api/src/modules/clientes/client-finance.service.js
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-venda.contract.js
+          node --check api/src/modules/fiscal/fiscal-unificado-protocolo-ci.contract.js
+          node --check api/src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js
+          node --test api/tests/fiscal-unificado-protocolo-ci.contract.test.mjs
           node --check api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js
           node --check api/src/modules/fiscal/fiscal-unidades-migracao-sandbox.service.js
           node --test api/tests/fiscal-unificado-venda.contract.test.mjs
