@@ -1586,6 +1586,43 @@ model ParcelaRecebivelManualUnificado {
   @@map("parcelas_recebiveis_manual_unificado")
 }
 
+// M.5.10 — pré-baixa de cartão APENAS EM CI. Não gera saldo ou baixa contábil.
+// Únicos: fingerprint, referência por empresa e parcela em TODO o ledger.
+model PreparacaoBaixaCartaoManualUnificada {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  comandaId String
+  usuarioId String
+  contaFinanceiraId String
+  referenciaExtrato String @db.VarChar(120)
+  fingerprint String @unique
+  tipo String @db.VarChar(24)
+  dataCredito DateTime @db.Date
+  bruto Decimal @db.Decimal(12,2)
+  tarifaCartao Decimal @db.Decimal(12,2)
+  descontoAntecipacao Decimal @db.Decimal(12,2)
+  liquidoDeclarado Decimal @db.Decimal(12,2)
+  status String @default("PREPARADA_SEM_BAIXA") @db.VarChar(32)
+  snapshot Json
+  createdAt DateTime @default(now())
+  parcelas ParcelaPreBaixaCartaoManualUnificada[]
+
+  @@unique([empresaId, referenciaExtrato])
+  @@index([organizacaoId, empresaId, comandaId])
+  @@map("preparacoes_baixa_cartao_manual_unificada")
+}
+model ParcelaPreBaixaCartaoManualUnificada {
+  id String @id @default(cuid())
+  preparacaoId String
+  parcelaId String @unique
+  createdAt DateTime @default(now())
+  preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+
+  @@unique([preparacaoId, parcelaId])
+  @@map("parcelas_pre_baixa_cartao_manual_unificada")
+}
+
 // M.3C — um estorno MANUAL integral por reserva, auditado e imutável.
 // Sem integração de provedor, confirmação externa é declaração humana.
 model EstornoFechamentoManualUnificado {
