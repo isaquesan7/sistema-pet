@@ -111,6 +111,11 @@ on:
       - "api/src/modules/pdv/pdv-unificado-pre-baixa-sandbox.service.js"
       - "api/prisma/migrations/20261015193000_manual_card_presettlement_ledger/**"
       - "POINTVET_M510_PRE_BAIXA_CARTAO_IDEMPOTENCIA.md"
+      - "api/prisma/migrations/20261015200000_manual_card_review_ledger/**"
+      - "api/src/modules/pdv/pdv-unificado-parecer-documental.contract.js"
+      - "api/src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js"
+      - "api/tests/pdv-unificado-parecer-documental.contract.test.mjs"
+      - "POINTVET_M511_PARECER_DOCUMENTAL_CARTAO.md"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
@@ -215,6 +220,9 @@ jobs:
           node --test api/tests/pdv-unificado-resumo-recebiveis.contract.test.mjs
           node --check api/src/modules/pdv/pdv-unificado-baixa-cartao.contract.js
           node --check api/src/modules/pdv/pdv-unificado-pre-baixa-sandbox.service.js
+          node --check api/src/modules/pdv/pdv-unificado-parecer-documental.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js
+          node --test api/tests/pdv-unificado-parecer-documental.contract.test.mjs
           node --test api/tests/pdv-unificado-baixa-cartao.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
       - name: Prisma schema
