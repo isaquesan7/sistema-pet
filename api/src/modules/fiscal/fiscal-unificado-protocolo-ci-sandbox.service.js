@@ -129,11 +129,6 @@ export async function registrarEventoFiscalSimuladoSomenteSandbox(x){
   const existing=await tx.eventoFluxoFiscalUnificadoCi.findUnique({where:{
    fluxoId_chaveEvento:{fluxoId:row.id,chaveEvento:x.chaveEvento}
   }});
-  if(existing){
-   if(existing.eventoFingerprint!==fingerprint)fail("M4D_EVENTO_REPLAY_CONFLITANTE");
-   return {...display(row,true),estado:existing.estadoPosterior,
-    eventoId:existing.id,reutilizada:true,houveReenvio:false};
-  }
   // Verify live sale, issuer, fiscal config and plan are unchanged since
   // preparation; any altered fiscal identity MUST stop all state changes.
   const choices=row.snapshot?.grupos?.map(g=>({
@@ -149,6 +144,13 @@ export async function registrarEventoFiscalSimuladoSomenteSandbox(x){
   });
   if(meta.empresaId!==row.empresaId||meta.vendaId!==row.vendaId)
    fail("M4D_EMISSOR_DIVERGENTE");
+  // Even a replay must validate the CURRENT fiscal source, never return a
+  // stale green result after issuer/config/sale/documents changed.
+  if(existing){
+   if(existing.eventoFingerprint!==fingerprint)fail("M4D_EVENTO_REPLAY_CONFLITANTE");
+   return {...display(row,true),estado:existing.estadoPosterior,
+    eventoId:existing.id,reutilizada:true,houveReenvio:false};
+  }
   if((x.tipo==="SIMULAR_CONSULTA_ACEITA"||
        x.tipo==="SIMULAR_CONSULTA_REJEITADA")&&
        chainStatus.investigacaoManualNecessaria)
