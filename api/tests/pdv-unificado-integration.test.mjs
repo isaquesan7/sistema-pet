@@ -24,6 +24,7 @@ import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from ".
 import {consultarEtapasRepassesM516} from "../src/modules/pdv/pdv-unificado-fluxo-operacional.service.js";
 import {discriminarTarifasAntecipacoesM520} from "../src/modules/pdv/pdv-unificado-discriminacao-tarifas.contract.js";
 import {planejarDevolucaoAposRepasseM521,simularDevolucaoAposRepasseM521} from "../src/modules/pdv/pdv-unificado-estorno-pos-repasse.contract.js";
+import {registrarDevolucaoExternaDeclaradaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-devolucao-declarada-sandbox.service.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
@@ -1301,6 +1302,100 @@ test("cross-company saving respects prices, access, rollback and version",async(
  }}),0);
 
 
+ // M.5.22 CI ONLY: human REFUND ATTESTATIONS, NEVER money movement.
+ const customerRefundData={
+  confirmouDevolucaoExterna:true,
+  referenciaExterna:"CI-M522-REFUND-1-"+suffix,
+  motivo:"Cliente recebeu devolução externa declarada no CI, não verificada",
+  valorBrutoDevolvido:"20.00",saldoRestanteBrutoEsperado:"60.00",
+  codigoRevisaoEsperado:postedSteps.preparacoes[0].revisaoFinanceira.codigoRevisao,
+  conciliacaoOrigemIdEsperada:manualEntry.conciliacaoId
+ };
+ const customerRefundCtx={organizacaoId:ids.org,empresaId:ids.co1,
+  usuarioId:reviewerId,preparacaoId:preRecord.preparacaoId,
+  dados:customerRefundData};
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,empresaId:ids.co2
+ }),/M522_PREPARACAO_NAO_ENCONTRADA/);
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,usuarioId:ids.user
+ }),/M522_CONTEXTOS_OU_SEGREGACAO_INVALIDOS/);
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,dados:{...customerRefundData,
+   codigoRevisaoEsperado:"f".repeat(64)}
+ }),/M522_REVISAO_FINANCEIRA_DESATUALIZADA/);
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,simularFalhaAposRegistro:true
+ }),/M522_ROLLBACK_SIMULADO/);
+ assert.equal(await prisma.devolucaoClienteManualUnificada.count({where:{
+  preparacaoId:preRecord.preparacaoId
+ }}),0);
+ const customerRefundConcurrency=await Promise.allSettled([
+  registrarDevolucaoExternaDeclaradaSomenteSandbox(customerRefundCtx),
+  registrarDevolucaoExternaDeclaradaSomenteSandbox(customerRefundCtx)
+ ]);
+ assert(customerRefundConcurrency.some(x=>x.status==="fulfilled"),
+  "at least one partial refund attestation must persist atomically");
+ const firstRefund=await registrarDevolucaoExternaDeclaradaSomenteSandbox(customerRefundCtx);
+ assert.equal(firstRefund.registroReutilizado,true);
+ assert.equal(firstRefund.saldoBrutoRestante,"40.00");
+ assert.equal(firstRefund.transferenciaPeloPointVet,false);
+ assert.equal(firstRefund.alterouSaldoConciliado,false);
+ assert.equal(firstRefund.emitiuEstornoFiscal,false);
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,dados:{...customerRefundData,
+   valorBrutoDevolvido:"19.99"}
+ }),/M522_REFERENCIA_JA_UTILIZADA_COM_DADOS_DIVERGENTES/);
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,dados:{...customerRefundData,
+   referenciaExterna:"CI-M522-STALE-"+suffix,
+   saldoRestanteBrutoEsperado:"60.00"}
+ }),/M522_SALDO_VISUALIZADO_DESATUALIZADO/);
+ const secondRefundData={...customerRefundData,
+  referenciaExterna:"CI-M522-REFUND-2-"+suffix,
+  saldoRestanteBrutoEsperado:"40.00",valorBrutoDevolvido:"40.00"};
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,dados:{...secondRefundData,
+   valorBrutoDevolvido:"40.01"}
+ }),/M522_DEVOLUCAO_SUPERA_RESTANTE/);
+ const secondRefund=await registrarDevolucaoExternaDeclaradaSomenteSandbox({
+  ...customerRefundCtx,dados:secondRefundData
+ });
+ assert.equal(secondRefund.saldoBrutoRestante,"0.00");
+ assert.equal(await prisma.devolucaoClienteManualUnificada.count({where:{
+  preparacaoId:preRecord.preparacaoId
+ }}),2);
+ assert.equal(await prisma.auditoria.count({where:{
+  entidade:"DEVOLUCAO_CLIENTE_MANUAL",
+  acao:"DEVOLUCAO_EXTERNA_DECLARADA_CI",
+  entidadeId:{in:[firstRefund.id,secondRefund.id]}
+ }}),2);
+ const replayFirst=await registrarDevolucaoExternaDeclaradaSomenteSandbox(customerRefundCtx);
+ assert.equal(replayFirst.registroReutilizado,true);
+ assert.equal(replayFirst.saldoBrutoRestante,"0.00");
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  empresaId:ids.co1,origem:"REPASSE_CARTAO_MANUAL_UNIFICADO"
+ }}),1,"refund attestations do not write ConciliacaoFinanceira");
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:reviewerId,
+  conciliacaoId:manualEntry.conciliacaoId,
+  dados:{confirmouCorrecaoExterna:true,
+   referenciaCorrecao:"CI-M522-CORRECTION-"+suffix,
+   motivo:"Revisão de correção após devolução declarada do cliente",
+   fingerprintPreparacaoEsperado:preRecord.fingerprint,
+   contaFinanceiraIdEsperada:bank.id,
+   valorLiquidoEsperado:"58.80",
+   lancamentoOriginalIdEsperado:manualEntry.conciliacaoId}
+ }),/M514_EXISTE_DEVOLUCAO_CLIENTE_EXIGE_REVISAO/);
+ // Disposable CI fixture reset ONLY: no production delete path exists.
+ await prisma.auditoria.deleteMany({where:{
+  entidade:"DEVOLUCAO_CLIENTE_MANUAL",
+  entidadeId:{in:[firstRefund.id,secondRefund.id]}
+ }});
+ await prisma.devolucaoClienteManualUnificada.deleteMany({where:{
+  preparacaoId:preRecord.preparacaoId
+ }});
+ assert.equal(await prisma.devolucaoClienteManualUnificada.count(),0);
  const postedVersion=postedSteps.preparacoes[0].revisaoFinanceira;
  assert.notEqual(postedVersion.codigoRevisao,reviewVersion.codigoRevisao);
  assert.equal(postedVersion.lancamentoOriginalIdEsperado,manualEntry.conciliacaoId);
@@ -1414,6 +1509,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(correctedSteps.preparacoes[0].correcaoInterna,true);
  assert.equal(correctedSteps.confirmacaoDisponivelNaTela,false);
  assert.equal(correctedSteps.provaBancariaIndependente,false);
+ await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox(
+  customerRefundCtx
+ ),/M522_REPASSE_INTERNO_COMPENSADO/);
+
  const chargesAfterCorrection=discriminarTarifasAntecipacoesM520({
   empresaId:ids.co1,comandaId:closingDraft.id,fluxo:correctedSteps
  });
