@@ -29,8 +29,14 @@ export function raizFiscalCi(row){
   tipoDocumento:row.tipoDocumento,pedidoFingerprint:row.pedidoFingerprint,
   snapshotFingerprint:row.snapshotFingerprint,snapshot:row.snapshot});
 }
-export function fingerprintEventoFiscalCi({fluxoId,chaveEvento,tipo,motivo,usuarioId}){
- return hashFiscalCi({v:2,fluxoId,chaveEvento,tipo,motivo,usuarioId});
+export function fingerprintEventoFiscalCi({
+ fluxoId,chaveEvento,tipo,motivo,usuarioId,
+ referenciaInterna,descricaoVerificacao
+}){
+ return hashFiscalCi({v:2,fluxoId,chaveEvento,tipo,motivo,usuarioId,
+  ...(tipo==="REGISTRAR_INVESTIGACAO_MANUAL_CI"?{
+   referenciaInterna,descricaoVerificacao
+  }:{})});
 }
 export function hashCadeiaEventoFiscalCi(e){
  return hashFiscalCi({v:2,fluxoId:e.fluxoId,sequencia:e.sequencia,
@@ -98,7 +104,9 @@ export function avaliarCadeiaFiscalCi(flow,events){
      e.estadoAnterior!==state||
      fingerprintEventoFiscalCi({
       fluxoId:flow.id,chaveEvento:e.chaveEvento,tipo:e.tipo,
-      motivo:ev.motivo,usuarioId:e.usuarioId
+      motivo:ev.motivo,usuarioId:e.usuarioId,
+      referenciaInterna:ev.referenciaInterna,
+      descricaoVerificacao:ev.descricaoVerificacao
      })!==e.eventoFingerprint){invalid();break;}
   try{
    if(e.tipo==="REGISTRAR_INVESTIGACAO_MANUAL_CI"){
