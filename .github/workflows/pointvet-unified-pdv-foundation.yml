@@ -223,6 +223,9 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-parecer-documental.contract.js
           node --check api/src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js
           node --test api/tests/pdv-unificado-parecer-documental.contract.test.mjs
+          node --check api/src/modules/pdv/pdv-unificado-diagnostico-pre-baixa.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-diagnostico-pre-baixa-sandbox.service.js
+          node --test api/tests/pdv-unificado-diagnostico-pre-baixa.contract.test.mjs
           node --test api/tests/pdv-unificado-baixa-cartao.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
       - name: Prisma schema
