@@ -3,6 +3,7 @@
  * A second person's attestation and an SHA reference are NOT independent
  * bank evidence; ALL results keep financial posting and production disabled.
  */
+import {createHash} from "node:crypto";
 import {validarParecerDocumentalM511} from "./pdv-unificado-parecer-documental.contract.js";
 const DECIMAL=/^(?:0|[1-9]\d{0,10})(?:\.\d{1,2})?$/;
 function toCents(raw){
@@ -57,6 +58,26 @@ export function avaliarDossiePreBaixaM512({
     (preparacao.tipo==="ANTECIPACAO"&&centsAntecipacao===0)||
     !["REPASSE_NORMAL","ANTECIPACAO"].includes(preparacao.tipo))
   block("VALORES_OU_SNAPSHOT_DIVERGENTES");
+ // Reconstruct the ORIGINAL M.5.9 SHA-256 from current database values.
+ // Audit hashes alone cannot detect a coordinated alteration of the source.
+ if(centsBruto!==null&&centsTarifa!==null&&centsAntecipacao!==null&&
+    centsLiquido!==null&&Array.isArray(docs)&&docs.length){
+  const date=preparacao.dataCredito instanceof Date?
+   preparacao.dataCredito.toISOString().slice(0,10):
+   typeof preparacao.dataCredito==="string"?preparacao.dataCredito.slice(0,10):"";
+  const canonical={
+   fase:"M5_9_PREVIA_REPASSE_CARTAO",
+   organizacaoId,empresaId,comandaId:preparacao.comandaId,
+   tipo:preparacao.tipo,contaFinanceiraId:preparacao.contaFinanceiraId,
+   referenciaExtrato:preparacao.referenciaExtrato,dataCredito:date,
+   parcelaIds:docs.map(p=>p.parcelaId).sort(),
+   valorBrutoCentavos:centsBruto,tarifaCartaoCentavos:centsTarifa,
+   descontoAntecipacaoCentavos:centsAntecipacao,
+   valorLiquidoCentavos:centsLiquido
+  };
+  const expectedHash=createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+  if(preparacao.fingerprint!==expectedHash)block("FINGERPRINT_PREPARACAO_DIVERGENTE");
+ }
  const expectedIds=(docs||[]).map(p=>p.parcelaId);
  const attachedIds=parcelas.map(p=>p.id);
  if(!expectedIds.length||!distinct(expectedIds)||
@@ -103,6 +124,7 @@ export function avaliarDossiePreBaixaM512({
      parecer.conferenteId===preparacao.usuarioId||
      parecer.snapshot?.versao!==1||
      parecer.snapshot?.preparacaoFingerprint!==preparacao.fingerprint||
+     parecer.snapshot?.referenciaExtrato!==preparacao.referenciaExtrato||
      parecer.snapshot?.comprovacaoBancariaIndependente!==false||
      parecer.snapshot?.baixaContabilAutorizada!==false||
      parecer.snapshot?.conteudoDocumentoValidado!==false||
