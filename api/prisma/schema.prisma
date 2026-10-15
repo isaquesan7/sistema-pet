@@ -1610,11 +1610,39 @@ model PreparacaoBaixaCartaoManualUnificada {
   createdAt DateTime @default(now())
   parcelas ParcelaPreBaixaCartaoManualUnificada[]
   parecerDocumental ParecerPreBaixaCartaoManualUnificada?
+  devolucoesExternas DevolucaoClienteManualUnificada[]
 
   @@unique([empresaId, referenciaExtrato])
   @@index([organizacaoId, empresaId, comandaId])
   @@map("preparacoes_baixa_cartao_manual_unificada")
 }
+// M.5.22 — declarações manuais de devoluções ao CLIENTE, só CI.
+// Ledger próprio; NÃO é reembolso bancário executado ou saldo financeiro.
+model DevolucaoClienteManualUnificada {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  comandaId String
+  preparacaoId String
+  conciliacaoOrigemId String
+  usuarioId String
+  referenciaExterna String @db.VarChar(120)
+  valorBruto Decimal @db.Decimal(12,2)
+  motivo String @db.VarChar(500)
+  confirmacaoHumanaExterna Boolean
+  codigoRevisao String @db.VarChar(64)
+  fingerprint String @unique @db.VarChar(64)
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+
+  @@unique([empresaId, referenciaExterna])
+  @@index([organizacaoId,empresaId,preparacaoId])
+  @@index([empresaId,comandaId])
+  @@map("devolucoes_cliente_manual_unificada")
+}
+
 // M.5.11 — segunda conferencia DOCUMENTAL, nunca prova bancaria ou baixa.
 // Um unico parecer interno por pre-baixa, com trilha independente da criacao.
 model ParecerPreBaixaCartaoManualUnificada {
