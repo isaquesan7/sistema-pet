@@ -68,16 +68,14 @@ SELECT 'SCHEMA:INDEX',count(*)::bigint,
  md5(coalesce(string_agg(indexname||':'||indexdef,chr(10)
  ORDER BY schemaname,tablename,indexname),''))
  FROM pg_indexes WHERE schemaname='public';
-SELECT 'SCHEMA:CONSTRAINT',count(*)::bigint,
- md5(coalesce(string_agg(c.conrelid::regclass::text||':'||c.conname||':'||
- pg_get_constraintdef(c.oid),chr(10) ORDER BY
- c.conrelid::regclass::text,c.conname),''))
+-- Count ALL constraints; each definition is also hashed separately below.
+SELECT 'SCHEMA:CONSTRAINT_COUNT',count(*)::bigint
  FROM pg_constraint c
  JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public';
 -- Exact per-constraint fingerprints so semantic differences are never hidden
 -- by a combined checksum. This also identifies which definition differs.
 SELECT 'CONSTRAINT:'||c.conrelid::regclass::text||':'||c.conname,
- md5(pg_get_constraintdef(c.oid))
+ pg_get_constraintdef(c.oid)
  FROM pg_constraint c
  JOIN pg_namespace n ON n.oid=c.connamespace
  WHERE n.nspname='public'
@@ -90,7 +88,8 @@ SELECT 'SCHEMA:SEQUENCE',count(*)::bigint,
 SQL
 fingerprint() {
  psql_ci "$1" --quiet --tuples-only --no-align --file=/dev/stdin \
-  < "$scratch/fingerprints.sql" > "$2"
+  < "$scratch/fingerprints.sql" > "$scratch/schema-raw.fp"
+ node scripts/ci-pointvet-canonical-schema.mjs "$scratch/schema-raw.fp" "$2"
 }
 fingerprint "$SOURCE" "$scratch/source.fp"
 fingerprint "$RESTORE" "$scratch/restore.fp"

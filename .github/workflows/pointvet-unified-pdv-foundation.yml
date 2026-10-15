@@ -18,6 +18,8 @@ on:
       - "POINTVET_M4D2_AUDITORIA_INVESTIGACAO_MANUAL.md"
       - "POINTVET_M5_STAGING_RESTORE_PUBLICACAO.md"
       - "api/scripts/ci-pointvet-backup-restore-drill.sh"
+      - "api/scripts/ci-pointvet-canonical-schema.mjs"
+      - "api/tests/pointvet-m5-constraint-canonicalization.test.mjs"
       - "api/src/modules/plataforma/pointvet-m5-publicacao.contract.js"
       - "api/tests/pointvet-m5-publicacao.contract.test.mjs"
       - "api/src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js"
@@ -104,6 +106,8 @@ jobs:
       - name: Static checks
         run: |
           bash -n api/scripts/ci-pointvet-backup-restore-drill.sh
+          node --check api/scripts/ci-pointvet-canonical-schema.mjs
+          node --test api/tests/pointvet-m5-constraint-canonicalization.test.mjs
           node --check api/src/modules/plataforma/pointvet-m5-publicacao.contract.js
           node --test api/tests/pointvet-m5-publicacao.contract.test.mjs
           node --check api/src/modules/pdv/pdv-unificado.routes.js

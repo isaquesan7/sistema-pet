@@ -31,3 +31,7 @@ Um responsável precisará conferir e aprovar, com evidência verificável: CI d
 ## Continuidade exata
 
 **Próxima M.5.2:** preparar o staging separado e fazer o restore real SOMENTE quando autorizados e disponíveis os requisitos, sem importar dados de produção automaticamente. Se não houver staging aprovado, reforçar em CI isolamento, auditoria e evidências sem afirmar publicação. PR #36 permanece DRAFT, Issue #37 guarda run/HEAD e próximas tarefas.
+
+
+## Evidência do round-trip PostgreSQL 16: casts CHECK normalizados sem ignorar regras
+Na primeira inspeção do ensaio, todas as linhas de todas as tabelas, índices e sequências já eram idênticos; quatro constraints CHECK de listas fixas tinham representação SQL equivalente porém distinta após o restore: a fonte usava `(ARRAY['X'::varchar])::text[]` e o clone usava `ARRAY[('X'::varchar)::text]`. O arquivo `api/scripts/ci-pointvet-canonical-schema.mjs` normaliza APENAS esses posicionamentos de casts equivalentes no texto de definição CHECK do PostgreSQL, enquanto preserva nomes, colunas, operadores, status aceitos, índice de todas as constraints e contagem total de 388 restraints. Mudança verdadeira no texto permitido ou na operação ainda produz hash distinto e aborta. Testes puros cobrem equivalência e divergências reais. A comparação de linhas comerciais, permissões, índices, sequências e migrações NÃO é relaxada; a normalização incide só na representação cosmeticamente reescrita de casts CHECK.
