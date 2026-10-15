@@ -8,6 +8,7 @@ import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "
 import {consultarRecebiveisCartaoLeituraM57,listarComandasRecebiveisCartaoLeituraM57} from "./pdv-unificado-recebiveis-leitura.service.js";
 import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "./pdv-unificado-repasse-historico.service.js";
 import {consultarEtapasRepassesM516} from "./pdv-unificado-fluxo-operacional.service.js";
+import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
@@ -34,6 +35,9 @@ function erroRecebiveisM57(error,res,next){
   M57_COMANDA_NAO_ENCONTRADA:[404,"Comanda não encontrada."],
   M57_CONTEXTO_INVALIDO:[400,"Parâmetros inválidos."]
  };
+ if(error?.message?.startsWith("M517_"))return res.status(409).json({
+  success:false,message:"Simulação manual indisponível. Dados incompletos ou inconsistentes."
+ });
  if(error?.message?.startsWith("M516_"))return res.status(409).json({
   success:false,message:"Fluxo manual inconsistente ou incompleto. Encaminhe à revisão financeira."
  });
@@ -65,6 +69,29 @@ r.get("/recebiveis-cartao/comandas",
  * M.5.16: read-only status of preparacao / documentary check /
  * human internal repasse / correction. Not a bank attestation endpoint.
  */
+/**
+ * M.5.17 — authenticated GET-only simulation plan. No user-supplied
+ * financial mutations; no POST and no exposure of sandbox write services.
+ */
+r.get("/recebiveis-cartao/comandas/:comandaId/simulacao-manual",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const fluxo=await consultarEtapasRepassesM516({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  const dados=planejarIntencoesManuaisM517({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   comandaId:id.data,fluxo
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
 r.get("/recebiveis-cartao/comandas/:comandaId/etapas",
  exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
  async(req,res,next)=>{try{
