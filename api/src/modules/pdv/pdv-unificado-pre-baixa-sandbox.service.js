@@ -9,11 +9,13 @@ import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
 import {consolidarRecebiveisCartaoM56} from "./pdv-unificado-resumo-recebiveis.contract.js";
 import {planejarBaixaCartaoM59} from "./pdv-unificado-baixa-cartao.contract.js";
 const fail=x=>{throw Error("M510_"+x);};
+// Prisma Decimal may stringify 58.80 as "58.8"; preserve two monetary decimals.
+const money=v=>{const [whole,fraction=""]=String(v).split(".");return whole+"."+fraction.padEnd(2,"0");};
 const response=(data,reutilizada)=>Object.freeze({
  preparacaoId:data.id,organizacaoId:data.organizacaoId,empresaId:data.empresaId,
  comandaId:data.comandaId,status:data.status,fingerprint:data.fingerprint,
  parcelas:data.parcelas.map(p=>p.parcelaId).sort(),reutilizada,
- valorBruto:String(data.bruto),valorLiquidoDeclarado:String(data.liquidoDeclarado),
+ valorBruto:money(data.bruto),valorLiquidoDeclarado:money(data.liquidoDeclarado),
  verificacaoBancariaIndependente:false,apenasPreBaixa:true,
  alterouPagamento:false,creditouBanco:false,gerouConciliacao:false,
  gerouMovimentoCaixa:false,gerouTitulo:false,emitiuDocumentoFiscal:false,
