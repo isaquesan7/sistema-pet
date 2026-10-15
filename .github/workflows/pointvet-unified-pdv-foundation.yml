@@ -95,6 +95,10 @@ on:
       - "api/tests/pdv-unificado-estorno-manual.contract.test.mjs"
       - "api/prisma/migrations/20261014223000_unified_manual_closing_reversal/**"
       - "api/tests/pdv-unificado-fechamento-manual.contract.test.mjs"
+      - "api/src/modules/pdv/pdv-unificado-conciliacao-manual.contract.js"
+      - "api/src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js"
+      - "api/tests/pdv-unificado-conciliacao-manual.contract.test.mjs"
+      - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
       - "admin-web/src/pages/UnifiedPdvPreviewPage.jsx"
       - "admin-web/src/pages/PdvPage.jsx"
@@ -188,6 +192,9 @@ jobs:
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs
           node --test api/tests/pdv-unificado-fechamento-manual.contract.test.mjs
+          node --check api/src/modules/pdv/pdv-unificado-conciliacao-manual.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js
+          node --test api/tests/pdv-unificado-conciliacao-manual.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
       - name: Prisma schema
         working-directory: api
