@@ -98,6 +98,10 @@ test("M.4C.3: supervised fiscal migration, reversible link, replay, rollbacks an
  await assert.rejects(()=>vincularEmpresaLegadaSomenteSandbox(payload),
   /M4C3_ORIGEM_ALTERADA_DESDE_REVISAO/);
  await prisma.empresa.update({where:{id:co},data:{nomeFantasia:"Loja Principal"}});
+ // The test itself edited this legacy Empresa to invalidate the old preview,
+ // so refresh the baseline AFTER that deliberate updateAt change. The migration
+ // and its reversal must not alter anything from this settled baseline.
+ baseline.empresa=await prisma.empresa.findUnique({where:{id:co}});
  const fresh=await planejarVinculoFiscalLegadoSomenteSandbox(base);
  const approved={...request,fingerprint:fresh.fingerprint};
  const disabled=process.env.POINTVET_UNIFIED_SALES_SANDBOX;
