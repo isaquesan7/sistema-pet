@@ -17,7 +17,8 @@ import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
 import {prepararVendaFilhaFiscalSomenteSandbox} from "../src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js";
-import {prepararFluxoFiscalSomenteSandbox,registrarEventoFiscalSimuladoSomenteSandbox}
+import {prepararFluxoFiscalSomenteSandbox,registrarEventoFiscalSimuladoSomenteSandbox,
+ diagnosticarFluxoFiscalSomenteSandbox}
  from "../src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
@@ -668,6 +669,53 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
   ...evA,chaveEvento:"m4d-retry-"+suffix,tipo:"SIMULAR_RESPOSTA_ACEITA"
  }),/M4D_TRANSICAO_NAO_PERMITIDA/);
+ // M.4D.2: simulated consultation of an unknown result MUST first have a
+ // separately authorized internal review. A local review is never SEFAZ proof.
+ const reviewRequest={
+  ...evA,chaveEvento:"m4d-review-"+suffix,
+  tipo:"REGISTRAR_INVESTIGACAO_MANUAL_CI",
+  motivo:"Conferencia interna em CI de resultado fiscal inconclusivo",
+  referenciaInterna:"CI-investigacao-"+suffix,
+  descricaoVerificacao:"Conferimos no ambiente de testes o emissor, venda e a ausencia de protocolo externo."
+ };
+ const preReview=await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ });
+ assert.equal(preReview.confiavel,true);
+ assert.equal(preReview.investigacaoManualNecessaria,true);
+ assert.equal(preReview.autorizaNovoEnvio,false);
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-consulta-"+suffix,
+  tipo:"SIMULAR_CONSULTA_ACEITA",
+  motivo:"Consulta manual fictícia confirma estado simulado sem protocolo"
+ }),/M4D2_INVESTIGACAO_MANUAL_PREVIA_OBRIGATORIA/);
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox(reviewRequest),
+  /M4D_PERMISSAO_FISCAL_INSUFICIENTE/);
+ const reviewPermission=await prisma.permissao.upsert({where:{
+  codigo:"fiscal.gerenciar"
+ },update:{},create:{codigo:"fiscal.gerenciar",nome:"Gerenciar fiscal"}});
+ await prisma.cargoPermissao.create({data:{
+  cargoId:manager.id,permissaoId:reviewPermission.id
+ }});
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...reviewRequest,simularFalhaAposGravar:true
+ }),/M4D_FALHA_SIMULADA_EVENTO/);
+ assert.equal((await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ })).eventosConferidos,1,"Rejected review must rollback head and event");
+ const review=await registrarEventoFiscalSimuladoSomenteSandbox(reviewRequest);
+ assert.equal(review.estado,"INDETERMINADA_CI");
+ assert.equal(review.transmissaoHabilitada,false);
+ assert.equal((await registrarEventoFiscalSimuladoSomenteSandbox(reviewRequest)).reutilizada,true);
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...reviewRequest,descricaoVerificacao:"Alteracao indevida do texto de revisao"
+ }),/M4D_EVENTO_REPLAY_CONFLITANTE/);
+ const postReview=await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ });
+ assert.equal(postReview.confiavel,true);
+ assert.equal(postReview.investigacaoManualNecessaria,false);
+ assert.equal(postReview.eventosConferidos,2);
  const accepted=await registrarEventoFiscalSimuladoSomenteSandbox({
   ...evA,chaveEvento:"m4d-consulta-"+suffix,
   tipo:"SIMULAR_CONSULTA_ACEITA",
@@ -701,7 +749,55 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(contingency.exigeConsultaManual,true);
  assert.equal(contingency.transmissaoHabilitada,false);
  assert.equal(await prisma.fluxoFiscalUnificadoCi.count(),2);
- assert.equal(await prisma.eventoFluxoFiscalUnificadoCi.count(),4);
+ assert.equal(await prisma.eventoFluxoFiscalUnificadoCi.count(),5);
+ const verifiedA=await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ });
+ const verifiedB=await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co2,usuarioId:ids.user,fluxoId:flowB.id
+ });
+ assert.equal(verifiedA.confiavel,true);
+ assert.equal(verifiedB.confiavel,true);
+ assert.equal(verifiedA.estadoConferido,"CANCELADA_SIMULADA_CI");
+ assert.equal(verifiedB.estadoConferido,"CONTINGENCIA_REVISAO_CI");
+ assert.equal(verifiedB.investigacaoManualNecessaria,true);
+ assert.equal(verifiedA.eventosConferidos,4);
+ assert.equal(verifiedB.eventosConferidos,1);
+ // Simulated fiscal history cannot be silently edited or skipped.
+ const firstFiscalEvent=await prisma.eventoFluxoFiscalUnificadoCi.findFirst({
+  where:{fluxoId:flowA.id},orderBy:{sequencia:"asc"}
+ });
+ await prisma.eventoFluxoFiscalUnificadoCi.update({where:{
+  id:firstFiscalEvent.id
+ },data:{evidencia:{...firstFiscalEvent.evidencia,
+  motivo:"Motivo injetado por agente nao autorizado"
+ }}});
+ const detected=await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ });
+ assert.equal(detected.confiavel,false);
+ assert(detected.pendencias.some(x=>x.startsWith("M4D2_EVENTO_INTEGRO_OBRIGATORIO")));
+ await assert.rejects(()=>registrarEventoFiscalSimuladoSomenteSandbox({
+  ...evA,chaveEvento:"m4d-cancel-"+suffix,tipo:"SIMULAR_CANCELAMENTO",
+  motivo:"Cancelamento fictício para verificação de autorização"
+ }),/M4D2_HISTORICO_INTEGRO_OBRIGATORIO/);
+ await prisma.eventoFluxoFiscalUnificadoCi.update({where:{
+  id:firstFiscalEvent.id
+ },data:{evidencia:firstFiscalEvent.evidencia}});
+ assert.equal((await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ })).confiavel,true);
+ const originalHead=await prisma.fluxoFiscalUnificadoCi.findUnique({where:{id:flowB.id}});
+ await prisma.fluxoFiscalUnificadoCi.update({where:{id:flowB.id},
+  data:{integridadeCabeca:"f".repeat(64)}});
+ assert.equal((await diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.org,empresaId:ids.co2,usuarioId:ids.user,fluxoId:flowB.id
+ })).confiavel,false,"Corrupted head may never be trusted");
+ await prisma.fluxoFiscalUnificadoCi.update({where:{id:flowB.id},
+  data:{integridadeCabeca:originalHead.integridadeCabeca}});
+ await assert.rejects(()=>diagnosticarFluxoFiscalSomenteSandbox({
+  organizacaoId:ids.other,empresaId:ids.co1,usuarioId:ids.user,fluxoId:flowA.id
+ }),/M4D_ACESSO_ORGANIZACAO_EMISSOR_INVALIDO/);
  assert.equal(await prisma.documentoFiscal.count(),fiscalCountBefore,
   "Simulated acceptance/cancellation may not write legacy DocumentoFiscal");
  assert.deepEqual({
