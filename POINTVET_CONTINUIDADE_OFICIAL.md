@@ -1,3 +1,8 @@
+# UPDATE M.5.4.1 — PROVENIÊNCIA DE EVIDÊNCIAS OFFLINE (15/10/2026)
+Após M.5.4 CI verde (#38673989948), foram incluídos contrato de revisão de proveniência `pointvet-m541-auditoria-evidencias.contract.js` e testes com SHA por evidência, referência, hash declarado, coletor e revisor distintos, detecção de extras/campos sensíveis e bloqueio total de ações externas, integrados ao workflow. **Não equivale a auditoria externa** nem staging efetivo. PR #36 DRAFT, sem merge, sem deploy, nenhum serviço/backup/dado real tocado. Ver [M.5.4](POINTVET_M54_EVIDENCIAS_STAGING.md). Próximo: validar CI no HEAD final e obter autorização específica antes de staging operacional.
+
+---
+
 # UPDATE M.5.4 — EVIDÊNCIAS DECLARATIVAS, SEM STAGING REAL (14/10/2026)
 No PR #36 DRAFT, adicionados contrato PURO e testes `pointvet-m54-evidencias` para 19 evidências sanitizadas por dois SHAs completos e diferentes: isolamento infra, DNS/TLS, sink de e-mail, synthetic data, smoke, autenticação, observabilidade, restore autorizado, RTO/RPO, migrações/rollback, LGPD e aprovador. Tudo é apenas declaração sem consulta externa; credenciais são recusadas; sempre `executarDeploy=false`, `executarRestore=false`, `executarRollback=false`, `autorizarProducao=false`. Ver [M.5.4](POINTVET_M54_EVIDENCIAS_STAGING.md). **Próximo:** confirmar CI `validate` + `isolated-postgres` no SHA final e, somente com autorização específica, realizar implantação segregada e verificação operacional real. Não fazer merge/produção, alterar backup ou DNS real. M.5.3 permanece CI apenas.
 
