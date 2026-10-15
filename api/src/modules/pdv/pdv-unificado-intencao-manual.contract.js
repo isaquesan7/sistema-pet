@@ -3,6 +3,7 @@
  * A simulation is not authority to book money or modify any object.
  * Human bank review is an off-platform assertion only. No backend writes.
  */
+import {gerarReferenciaRevisaoManualM519} from "./pdv-unificado-revisao-financeira.contract.js";
 const fail=x=>{throw Error("M517_"+x);};
 const REF=/^[A-Za-z0-9][A-Za-z0-9_./:-]{7,119}$/;
 const MONEY=/^(?:0|[1-9]\d{0,10})(?:\.\d{1,2})?$/;
@@ -45,6 +46,29 @@ export function planejarIntencoesManuaisM517({organizacaoId,empresaId,comandaId,
      p.etapa==="REPASSE_INTERNO_CONFIRMADO_MANUALMENTE"&&!p.confirmacaoManualInterna||
      p.etapa==="CORRECAO_INTERNA_REGISTRADA"&&!p.correcaoInterna)
    fail("ESTADO_INCOERENTE");
+  // M.5.19: never present a prefilled client command without the exact
+  // server-derived financial revision it belongs to.
+  const revision=p.revisaoFinanceira;
+  if(!revision||typeof revision.codigoRevisao!=="string"||
+     !/^[a-f0-9]{64}$/.test(revision.codigoRevisao)||
+     revision.contaFinanceiraIdEsperada!==p.contaFinanceiraId||
+     revision.valorLiquidoEsperado!==p.valorLiquido||
+     revision.lancamentoOriginalIdEsperado!==(p.lancamentoId||null)||
+     !/^[a-f0-9]{64}$/.test(revision.fingerprintPreparacaoEsperado||"")||
+     (p.segundaConferenciaDocumental!==Boolean(revision.fingerprintParecerEsperado))||
+     revision.habilitaConfirmacaoReal!==false||
+     revision.habilitaCorrecaoReal!==false)
+   fail("REFERENCIA_REVISAO_INVALIDA");
+  const expected=gerarReferenciaRevisaoManualM519({
+   organizacaoId,empresaId,comandaId,preparacaoId:p.preparacaoId,
+   etapa:p.etapa,
+   fingerprintPreparacao:revision.fingerprintPreparacaoEsperado,
+   fingerprintParecer:revision.fingerprintParecerEsperado,
+   contaFinanceiraId:p.contaFinanceiraId,
+   valorLiquido:p.valorLiquido,lancamentoOriginalId:p.lancamentoId||null
+  });
+  if(expected.codigoRevisao!==revision.codigoRevisao)
+   fail("REVISAO_DIVERGENTE");
   const action=OK[p.etapa]||null;
   if(action==="SIMULAR_CORRECAO"&&!p.lancamentoId)fail("LANCAMENTO_ORIGINAL_AUSENTE");
   if(p.etapa==="CORRECAO_INTERNA_REGISTRADA"&&!p.lancamentoId)fail("CORRECAO_ORFA");
@@ -55,6 +79,7 @@ export function planejarIntencoesManuaisM517({organizacaoId,empresaId,comandaId,
    valorBruto:p.valorBruto,tarifaCartao:p.tarifaCartao,
    descontoAntecipacao:p.descontoAntecipacao,valorLiquido:p.valorLiquido,
    lancamentoOriginalId:p.lancamentoId||null,
+   revisaoFinanceira:revision,
    exigeReferencia:true,exigeConferenciaHumana:true,
    exigeSegundaPessoaParaCorrecao:action==="SIMULAR_CORRECAO",
    comprovacaoAutomaticaBanco:false,liberadoParaGravar:false
