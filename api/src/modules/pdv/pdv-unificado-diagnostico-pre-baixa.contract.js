@@ -129,8 +129,8 @@ export function avaliarDossiePreBaixaM512({
      (parecer&&a.usuarioId===parecer.conferenteId)||
      a.dadosNovos?.status!=="CONCILIADA"||
      a.dadosNovos?.provaBancariaIndependente!==false||
-     toCents(String(a.dadosNovos?.valorCentavos===undefined?"":(Number(a.dadosNovos.valorCentavos)/100).toFixed(2)))===
-       null||
+     !Number.isSafeInteger(a.dadosNovos?.valorCentavos)||
+     a.dadosNovos.valorCentavos<=0||
      !parcelas.some(p=>p.id===a.entidadeId&&
        toCents(p.valor)===a.dadosNovos?.valorCentavos)))
   block("AUDITORIAS_PARCELAS_INVALIDAS");
