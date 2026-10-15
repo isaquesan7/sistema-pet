@@ -463,6 +463,8 @@ model Organizacao {
   faturasSaaS    FaturaSaaS[]
 
   empresas        Empresa[]
+  entidadesFiscais EntidadeFiscal[]
+  unidadesOperacionais UnidadeOperacional[]
   usuarios        UsuarioOrganizacao[]
   clientes        Cliente[]
   orcamentosCliente OrcamentoCliente[]
@@ -594,6 +596,7 @@ model Empresa {
   pacotesCliente PacoteCliente[]
 
   configuracaoFiscal ConfiguracaoFiscalEmpresa?
+  unidadeOperacionalLegada UnidadeOperacional?
   documentosFiscais DocumentoFiscal[]
   atendimentosClinicos AtendimentoClinico[]
   agendamentosBanhoTosa AgendamentoBanhoTosa[]
@@ -3445,4 +3448,48 @@ model ConversaoOrcamentoPdvItem {
   @@index([conversaoId])
   @@index([itemCatalogoId])
   @@map("conversoes_orcamento_pdv_itens")
+}
+
+
+// PointVet M.4C.1 — additive future issuer/unit topology. The existing Empresa
+// remains the operational + fiscal boundary in all production flows. No route
+// or sales/fiscal module reads these models until reviewed migration and rollout.
+// Never drop Empresa.cnpj @unique to introduce more operational locations.
+model EntidadeFiscal {
+  id String @id @default(cuid())
+  organizacaoId String
+  cnpj String
+  razaoSocial String
+  ativo Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  unidades UnidadeOperacional[]
+
+  @@unique([organizacaoId,cnpj])
+  @@index([organizacaoId,ativo])
+  @@map("entidades_fiscais")
+}
+
+model UnidadeOperacional {
+  id String @id @default(cuid())
+  organizacaoId String
+  entidadeFiscalId String
+  codigo String
+  nome String
+  // Optional 1:1 transitional pointer to legacy Empresa. Other units of the
+  // same legal CNPJ have no operational writes until a separate migration.
+  empresaLegadaId String? @unique
+  ativa Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  entidadeFiscal EntidadeFiscal @relation(fields:[entidadeFiscalId],references:[id],onDelete:Restrict)
+  empresaLegada Empresa? @relation(fields:[empresaLegadaId],references:[id],onDelete:Restrict)
+
+  @@unique([entidadeFiscalId,codigo])
+  @@index([organizacaoId,ativa])
+  @@map("unidades_operacionais")
 }
