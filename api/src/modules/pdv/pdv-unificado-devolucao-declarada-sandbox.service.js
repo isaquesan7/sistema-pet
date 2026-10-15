@@ -6,7 +6,7 @@
  */
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
-import {validarDeclaracaoDevolucaoM522,conferirLimiteAcumuladoM522}
+import {validarDeclaracaoDevolucaoM522,conferirLimiteAcumuladoM522,centavosM522,reaisM522}
  from "./pdv-unificado-devolucao-declarada.contract.js";
 const fail=x=>{throw Error("M522_"+x);};
 const money=v=>{
@@ -116,12 +116,13 @@ export async function registrarDevolucaoExternaDeclaradaSomenteSandbox({
       existing.confirmacaoHumanaExterna!==true||logs.length!==1||
       logs[0].dadosNovos?.fingerprint!==existing.fingerprint)
     fail("REFERENCIA_JA_UTILIZADA_COM_DADOS_DIVERGENTES");
-   const sum=history.reduce((n,row)=>n+Number(row.valorBruto)*100,0);
-   if(!Number.isSafeInteger(sum)||sum>Number(pre.bruto)*100)
+   const sum=history.reduce((n,row)=>n+centavosM522(money(row.valorBruto),true),0);
+   const bruto=centavosM522(money(pre.bruto),true);
+   if(!Number.isSafeInteger(sum)||sum>bruto)
     fail("HISTORICO_FINANCEIRO_DIVERGENTE");
-   const remaining=Number(pre.bruto)*100-sum;
-   return projection(existing,money(remaining/100),true);
+   return projection(existing,reaisM522(bruto-sum),true);
   }
+  if(history.length>=500)fail("HISTORICO_ACIMA_DO_LIMITE");
   const remainder=conferirLimiteAcumuladoM522({
    bruto:money(pre.bruto),anteriores:history.map(row=>({
     referenciaExterna:row.referenciaExterna,
