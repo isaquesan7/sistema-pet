@@ -24,6 +24,16 @@ const operationStatus={
  REPASSE_INTERNO_CONFIRMADO_MANUALMENTE:"Repasse registrado manualmente no saldo interno",
  CORRECAO_INTERNA_REGISTRADA:"Correção registrada por contralançamento"
 };
+const pendenciasM524={
+ COMPROVANTES_EXTERNOS_NAO_VERIFICADOS:"Comprovantes externos ainda não verificados",
+ BENEFICIARIO_E_MEIO_DEVOLUCAO_NAO_COMPROVADOS:"Destinatário e meio de devolução sem conferência independente",
+ CONFERENCIA_INDEPENDENTE_NAO_REALIZADA:"Segunda conferência externa pendente",
+ HISTORICO_EXTERNO_PODE_ESTAR_INCOMPLETO:"Outras devoluções externas podem não estar registradas",
+ TRATAMENTO_FISCAL_POR_EMISSOR_PENDENTE:"Revisão fiscal por empresa emissora pendente",
+ RECUPERACAO_TARIFA_NAO_VERIFICADA:"Recuperação das tarifas de cartão não verificada",
+ RECUPERACAO_ANTECIPACAO_NAO_VERIFICADA:"Recuperação do desconto de antecipação não verificada",
+ NENHUMA_DEVOLUCAO_EXTERNA_CONFERIDA:"Nenhuma devolução externa conferida"
+};
 const money=x=>formatCurrency(Number(x||0));
 export default function UnifiedCardReceivablesPanel(){
  const {selectedCompany,selectedOrganization,hasPermission}=useAuth();
@@ -79,6 +89,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/devolucoes-historico")).data.dados
  });
+ const diagnostic=useQuery({
+  queryKey:["unified-card-m524-refund-diagnostic",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/diagnostico-devolucoes")).data.dados
+ });
  const history=useQuery({
   queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
@@ -115,7 +131,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching||refundHistory.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();refundHistory.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching||refundHistory.isFetching||diagnostic.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();refundHistory.refetch();diagnostic.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -184,6 +200,24 @@ export default function UnifiedCardReceivablesPanel(){
       planos={dryRun.data.planos} empresaId={companyId} comandaId={effectiveId}
       onRevalidar={revalidarVersaoM519}/>:null}
     <p><strong>Controles de segurança:</strong> a preparação, a segunda conferência e os lançamentos são feitos por funcionários autorizados. As ações de confirmação e correção não estão disponíveis nesta tela nem foram publicadas.</p>
+    <h3>Conferência documental e fiscal das devoluções — diagnóstico</h3>
+    <p><strong>Pendências para revisão manual:</strong> este diagnóstico compara os registros internos, mas não acessa extratos, verifica comprovantes bancários, recupera taxas nem realiza operações fiscais. Nenhum resultado autoriza reembolso.</p>
+    {diagnostic.isLoading?<p>Comparando o histórico de devoluções e as versões financeiras...</p>:null}
+    {diagnostic.isError?<p className="alert alert--error" role="alert">A conferência foi bloqueada por inconsistência ou falha de leitura. {getApiErrorMessage(diagnostic.error)}</p>:null}
+    {diagnostic.data?.leituraSomente&&diagnostic.data?.habilitaRegistroDeDevolucao===false?
+     <div>
+      <p>Referência interna do diagnóstico: <code title={diagnostic.data.codigoDiagnostico}>{diagnostic.data.codigoDiagnostico?.slice(0,16)}</code>. Declarações externas sem verificação independente: <strong>{money(diagnostic.data.totais.declaracoesExternasNaoVerificadas)}</strong>.</p>
+      {diagnostic.data.preparacoes.length?<div className="table-scroll"><table className="data-table">
+       <thead><tr><th>Repasse</th><th>Devoluções declaradas</th><th>Tarifa</th><th>Antecipação</th><th>Pendências para revisão</th></tr></thead>
+       <tbody>{diagnostic.data.preparacoes.map(p=><tr key={p.preparacaoId}>
+        <td>{p.referenciaExtrato}</td>
+        <td>{money(p.devolucoesDeclaradas)}</td>
+        <td>{money(p.tarifaInformada)}</td><td>{money(p.descontoAntecipacaoInformado)}</td>
+        <td>{p.pendencias.map(code=>pendenciasM524[code]||"Revisão manual necessária").join("; ")}</td>
+       </tr>)}</tbody>
+      </table></div>:<p>Nenhuma pré-baixa de cartão para conferir nesta comanda.</p>}
+      <p><strong>Exige aprovação futura:</strong> documentação externa, responsabilidade do operador, conferência contábil/fiscal por CNPJ e política de recuperação de taxas e antecipação. Nenhuma declaração é considerada comprovada automaticamente.</p>
+     </div>:null}
     <h3>Declarações de devolução ao cliente — histórico de consulta</h3>
     <p><strong>Não é um extrato bancário:</strong> estes valores são apenas declarações humanas de devoluções externas registradas no PointVet. O bruto sem declaração não garante saldo disponível para reembolso e não inclui necessariamente operações realizadas fora do sistema.</p>
     {refundHistory.isLoading?<p>Conferindo histórico e integridade das declarações...</p>:null}
