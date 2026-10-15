@@ -1607,11 +1607,33 @@ model PreparacaoBaixaCartaoManualUnificada {
   snapshot Json
   createdAt DateTime @default(now())
   parcelas ParcelaPreBaixaCartaoManualUnificada[]
+  parecerDocumental ParecerPreBaixaCartaoManualUnificada?
 
   @@unique([empresaId, referenciaExtrato])
   @@index([organizacaoId, empresaId, comandaId])
   @@map("preparacoes_baixa_cartao_manual_unificada")
 }
+// M.5.11 — segunda conferencia DOCUMENTAL, nunca prova bancaria ou baixa.
+// Um unico parecer interno por pre-baixa, com trilha independente da criacao.
+model ParecerPreBaixaCartaoManualUnificada {
+  id String @id @default(cuid())
+  preparacaoId String @unique
+  organizacaoId String
+  empresaId String
+  conferenteId String
+  evidenciaReferencia String @db.VarChar(120)
+  evidenciaSha256 String @db.VarChar(64)
+  fingerprint String @unique
+  status String @default("CONFERENCIA_DOCUMENTAL_DECLARADA") @db.VarChar(40)
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+
+  @@index([organizacaoId, empresaId, createdAt])
+  @@map("pareceres_pre_baixa_cartao_manual_unificada")
+}
+
 model ParcelaPreBaixaCartaoManualUnificada {
   id String @id @default(cuid())
   preparacaoId String
