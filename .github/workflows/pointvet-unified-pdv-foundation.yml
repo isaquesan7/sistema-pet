@@ -9,6 +9,12 @@ on:
       - "api/prisma/schema.prisma"
       - "api/prisma/migrations/20261013213000_client_quotes_credit_foundation/**"
       - "api/src/modules/clientes/client-finance.service.js"
+      - "api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js"
+      - "api/src/modules/fiscal/fiscal-unificado-planejamento-sandbox.service.js"
+      - "api/tests/fiscal-unificado-planejamento.contract.test.mjs"
+      - "api/tests/pdv-unificado-fiscal.integration.test.mjs"
+      - "api/prisma/migrations/20261015013000_fiscal_entity_operational_units_foundation/**"
+      - "POINTVET_M4C_FISCAL_MULTIUNIDADES_ARQUITETURA.md"
       - "api/src/modules/clientes/client-credit-ledger.contract.js"
       - "api/src/modules/clientes/client-credit-evidence.service.js"
       - "api/src/modules/clientes/client-credit-ledger-sandbox.service.js"
@@ -93,6 +99,9 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js
           node --check api/src/app.js
           node --check api/src/modules/clientes/client-finance.service.js
+          node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js
+          node --check api/src/modules/fiscal/fiscal-unificado-planejamento-sandbox.service.js
+          node --test api/tests/fiscal-unificado-planejamento.contract.test.mjs
           node --check api/src/modules/clientes/client-credit-ledger.contract.js
           node --check api/src/modules/clientes/client-credit-evidence.service.js
           node --check api/src/modules/clientes/client-credit-ledger-sandbox.service.js
@@ -162,6 +171,12 @@ jobs:
           NODE_ENV: test
           POINTVET_UNIFIED_SALES_SANDBOX: "1"
         run: node --import tsx --test tests/client-credit-ledger.integration.test.mjs
+      - name: Verify fiscal multiissuer and operational topology on isolated PostgreSQL
+        working-directory: api
+        env:
+          NODE_ENV: test
+          POINTVET_UNIFIED_SALES_SANDBOX: "1"
+        run: node --import tsx --test tests/pdv-unificado-fiscal.integration.test.mjs
       - name: Verify draft columns and revision conflict
         working-directory: api
         run: node --test tests/pdv-unificado-postgres.smoke.mjs
