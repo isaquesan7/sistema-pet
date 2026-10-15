@@ -13,6 +13,10 @@ CREATE TABLE "entidades_fiscais" (
     FOREIGN KEY ("organizacaoId") REFERENCES "organizacoes"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE
 );
+CREATE UNIQUE INDEX "empresas_organizacaoId_id_key"
+  ON "empresas"("organizacaoId","id");
+CREATE UNIQUE INDEX "entidades_fiscais_organizacaoId_id_key"
+  ON "entidades_fiscais"("organizacaoId","id");
 CREATE UNIQUE INDEX "entidades_fiscais_organizacaoId_cnpj_key"
   ON "entidades_fiscais"("organizacaoId","cnpj");
 CREATE INDEX "entidades_fiscais_organizacaoId_ativo_idx"
@@ -32,10 +36,10 @@ CREATE TABLE "unidades_operacionais" (
     FOREIGN KEY ("organizacaoId") REFERENCES "organizacoes"("id")
     ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "unidades_operacionais_entidadeFiscalId_fkey"
-    FOREIGN KEY ("entidadeFiscalId") REFERENCES "entidades_fiscais"("id")
+    FOREIGN KEY ("organizacaoId","entidadeFiscalId") REFERENCES "entidades_fiscais"("organizacaoId","id")
     ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "unidades_operacionais_empresaLegadaId_fkey"
-    FOREIGN KEY ("empresaLegadaId") REFERENCES "empresas"("id")
+    FOREIGN KEY ("organizacaoId","empresaLegadaId") REFERENCES "empresas"("organizacaoId","id")
     ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "unidades_operacionais_empresaLegadaId_key"

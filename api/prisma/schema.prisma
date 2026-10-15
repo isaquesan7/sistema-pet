@@ -610,6 +610,8 @@ model Empresa {
   auditorias        Auditoria[]
   arquivos           ArquivoPetRise[]
 
+  // Composite identity for sandbox operational-unit tenant FKs.
+  @@unique([organizacaoId,id])
   @@index([organizacaoId])
   @@map("empresas")
 }
@@ -3468,6 +3470,7 @@ model EntidadeFiscal {
   unidades UnidadeOperacional[]
 
   @@unique([organizacaoId,cnpj])
+  @@unique([organizacaoId,id])
   @@index([organizacaoId,ativo])
   @@map("entidades_fiscais")
 }
@@ -3486,8 +3489,10 @@ model UnidadeOperacional {
   updatedAt DateTime @updatedAt
 
   organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
-  entidadeFiscal EntidadeFiscal @relation(fields:[entidadeFiscalId],references:[id],onDelete:Restrict)
-  empresaLegada Empresa? @relation(fields:[empresaLegadaId],references:[id],onDelete:Restrict)
+  // DB-enforced cross-tenant segregation: a unit cannot point to another
+  // organization's issuer or legacy company.
+  entidadeFiscal EntidadeFiscal @relation(fields:[organizacaoId,entidadeFiscalId],references:[organizacaoId,id],onDelete:Restrict)
+  empresaLegada Empresa? @relation(fields:[organizacaoId,empresaLegadaId],references:[organizacaoId,id],onDelete:Restrict)
 
   @@unique([entidadeFiscalId,codigo])
   @@index([organizacaoId,ativa])
