@@ -43,7 +43,10 @@ async function authorize(tx,x){
  if(!who||!org||!orgLink?.ativo||
     !["PROPRIETARIO","ADMINISTRADOR"].includes(orgLink.papel))
   fail("M4C3_GESTOR_DA_ORGANIZACAO_OBRIGATORIO");
- if(!link?.cargo?.ativo||!link.cargo.permissoes.some(
+ // Prisma's UsuarioEmpresa.cargoId FK alone does not guarantee that the
+ // associated Cargo belongs to the same issuer company. Enforce it here.
+ if(!link?.cargo?.ativo||link.cargo.empresaId!==x.empresaId||
+    !link.cargo.permissoes.some(
   p=>p.permissao.codigo==="fiscal.gerenciar"))
   fail("M4C3_PERMISSAO_FISCAL_GERENCIAR_OBRIGATORIA");
 }
@@ -103,7 +106,8 @@ const response=(record,{reutilizado=false,estado="VINCULADA"}={})=>({
  alterouEmpresaLegada:false,podeImplantarEmProducao:false
 });
 function validateExistingTopology(empresa,entity,unit){
- if(!entity||!unit||entity.organizacaoId!==empresa.organizacaoId||
+ if(!entity||!unit||!entity.ativo||!unit.ativa||
+    entity.organizacaoId!==empresa.organizacaoId||
     entity.cnpj!==empresa.cnpj||
     entity.razaoSocial!==empresa.razaoSocial||
     unit.organizacaoId!==empresa.organizacaoId||
