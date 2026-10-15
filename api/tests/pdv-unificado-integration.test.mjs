@@ -20,7 +20,7 @@ import {registrarParecerPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-uni
 import {diagnosticarPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-diagnostico-pre-baixa-sandbox.service.js";
 import {registrarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-manual-sandbox.service.js";
 import {compensarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js";
-import {listarHistoricoRepasseCartaoM514} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
+import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas,conciliar as conciliarFinanceiro,desconciliar as desconciliarFinanceiro} from "../src/modules/financeiro/financeiro.service.js";
@@ -1222,6 +1222,17 @@ test("cross-company saving respects prices, access, rollback and version",async(
   "Old generic route must not book the new manual ledger source");
  // M.5.14: second finance operator explicitly corrects the deposit
  // he/she reviewed outside PointVet; debit never means automatic bank refund.
+ // M.5.15: before compensating, only one net internal incoming posting.
+ const beforeCorrection=await consultarConferenciaManualM515({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id
+ });
+ assert.deepEqual([
+  beforeCorrection.resumo.entradaLiquidaDeclarada,
+  beforeCorrection.resumo.correcoesLiquidas,
+  beforeCorrection.resumo.efeitoLiquidoNoSaldoInterno
+ ],["58.80","0.00","58.80"]);
+ assert.equal(beforeCorrection.resumo.podeConfirmarPelaInterface,false);
  const correctionData={confirmouCorrecaoExterna:true,
   referenciaCorrecao:"CI-REVERSAL-"+suffix,
   motivo:"Correção documental de repasse verificado manualmente no CI"};
@@ -1283,6 +1294,24 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(movements.length,2);
  assert(movements.some(x=>x.tipo==="REPASSE_CONFIRMADO_MANUALMENTE"&&x.possuiCorrecao));
  assert(movements.some(x=>x.tipo==="CORRECAO_MANUAL"&&x.direcao==="SAIDA"));
+ // M.5.15 must not conflate a full reversal with a new negative sale.
+ const afterCorrection=await consultarConferenciaManualM515({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id
+ });
+ assert.deepEqual([
+  afterCorrection.resumo.entradaLiquidaDeclarada,
+  afterCorrection.resumo.correcoesLiquidas,
+  afterCorrection.resumo.efeitoLiquidoNoSaldoInterno
+ ],["58.80","58.80","0.00"]);
+ assert.equal(afterCorrection.movimentos.length,2);
+ assert.equal(afterCorrection.resumo.ehSaldoBancarioReal,false);
+ assert.equal(afterCorrection.resumo.executarCheckout,false);
+ await assert.rejects(()=>consultarConferenciaManualM515({
+  organizacaoId:ids.other,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
+
  await assert.rejects(()=>listarHistoricoRepasseCartaoM514({
   organizacaoId:ids.other,empresaId:ids.co1,usuarioId:ids.user,
   comandaId:closingDraft.id
