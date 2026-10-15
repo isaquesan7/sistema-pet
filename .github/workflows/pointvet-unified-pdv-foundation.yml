@@ -20,6 +20,7 @@ on:
       - "POINTVET_M52_STAGING_ISOLAMENTO_CANARIO.md"
       - "POINTVET_M53_SMOKE_ROLLBACK_STAGING.md"
       - "POINTVET_M54_EVIDENCIAS_STAGING.md"
+      - "POINTVET_M543_HTTP_BLOQUEIOS_PREPUBLICACAO.md"
       - "api/src/modules/plataforma/pointvet-m54-evidencias.contract.js"
       - "api/tests/pointvet-m54-evidencias.contract.test.mjs"
       - "api/src/modules/plataforma/pointvet-m541-auditoria-evidencias.contract.js"
