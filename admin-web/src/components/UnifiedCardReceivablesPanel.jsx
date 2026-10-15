@@ -10,6 +10,7 @@ import api,{getApiErrorMessage} from "../lib/api.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import {formatCurrency} from "../lib/formatters.js";
 import UnifiedCardManualDryRun from "./UnifiedCardManualDryRun.jsx";
+import UnifiedCardRefundDryRun from "./UnifiedCardRefundDryRun.jsx";
 
 const textStatus={
  AGUARDANDO_REPASSE:"Aguardando repasse",
@@ -66,6 +67,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/simulacao-manual")).data.dados
  });
+ const refundPlan=useQuery({
+  queryKey:["unified-card-m521-refund-plan",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/devolucao-previa")).data.dados
+ });
  const history=useQuery({
   queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
@@ -102,7 +109,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -171,6 +178,13 @@ export default function UnifiedCardReceivablesPanel(){
       planos={dryRun.data.planos} empresaId={companyId} comandaId={effectiveId}
       onRevalidar={revalidarVersaoM519}/>:null}
     <p><strong>Controles de segurança:</strong> a preparação, a segunda conferência e os lançamentos são feitos por funcionários autorizados. As ações de confirmação e correção não estão disponíveis nesta tela nem foram publicadas.</p>
+    {refundPlan.isLoading?<p>Preparando simulação de devolução pós-repasse...</p>:null}
+    {refundPlan.isError?<p className="alert alert--error" role="alert">A prévia de devolução está indisponível. {getApiErrorMessage(refundPlan.error)}</p>:null}
+    {refundPlan.data?.leituraSomente&&refundPlan.data?.permiteEstornoAutomatico===false?
+     <UnifiedCardRefundDryRun
+      key={[selectedOrganization?.id,companyId,effectiveId,
+       (refundPlan.data.preparacoes||[]).map(x=>x.codigoRevisao).join(":")].join(":")}
+      plano={refundPlan.data} empresaId={companyId} comandaId={effectiveId}/>:null}
     <h3>Histórico financeiro manual — somente leitura</h3>
     <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
     {history.isLoading?<p>Carregando histórico...</p>:null}
