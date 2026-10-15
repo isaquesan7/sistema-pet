@@ -22,6 +22,7 @@ import {registrarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv
 import {compensarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js";
 import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
 import {consultarEtapasRepassesM516} from "../src/modules/pdv/pdv-unificado-fluxo-operacional.service.js";
+import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas,conciliar as conciliarFinanceiro,desconciliar as desconciliarFinanceiro} from "../src/modules/financeiro/financeiro.service.js";
@@ -1117,6 +1118,22 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(reviewedSteps.preparacoes[0].etapa,
   "SEGUNDA_CONFERENCIA_DOCUMENTAL_DECLARADA");
  assert.equal(reviewedSteps.preparacoes[0].valorLiquido,"58.80");
+ const trainingPlan=planejarIntencoesManuaisM517({
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  fluxo:reviewedSteps
+ });
+ assert.equal(trainingPlan.planos[0].operacaoSimulavel,"SIMULAR_CONFIRMACAO");
+ const dryConfirmation=simularIntencaoManualM517({
+  planejamento:trainingPlan,preparacaoId:preRecord.preparacaoId,
+  operacao:"SIMULAR_CONFIRMACAO",
+  referencia:prePedido.referenciaExtrato,valorLiquidoInformado:"58.80",
+  confirmouConsultaExterna:true
+ });
+ assert.equal(dryConfirmation.modificouConciliacaoFinanceira,false);
+ assert.equal(dryConfirmation.permitePublicarCheckout,false);
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0,
+  "Local manual dry-run cannot post any finance entry");
+
 
  assert.equal(await prisma.parecerPreBaixaCartaoManualUnificada.count({
   where:{preparacaoId:preRecord.preparacaoId}
@@ -1211,6 +1228,18 @@ test("cross-company saving respects prices, access, rollback and version",async(
   "REPASSE_INTERNO_CONFIRMADO_MANUALMENTE");
  assert.equal(postedSteps.preparacoes[0].confirmacaoManualInterna,true);
  assert.equal(postedSteps.integracaoBancaria,false);
+ const correctionTraining=planejarIntencoesManuaisM517({
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  fluxo:postedSteps
+ });
+ assert.equal(correctionTraining.planos[0].operacaoSimulavel,"SIMULAR_CORRECAO");
+ assert.equal(simularIntencaoManualM517({
+  planejamento:correctionTraining,preparacaoId:preRecord.preparacaoId,
+  operacao:"SIMULAR_CORRECAO",referencia:"CI-M517-CORRECAO-"+suffix,
+  valorLiquidoInformado:"58.80",confirmouConsultaExterna:true,
+  motivo:"Correção simulada por outro responsável financeiro"
+ }).modificouConciliacaoFinanceira,false);
+
 
  assert.equal(await prisma.conciliacaoFinanceira.count({where:{
   empresaId:ids.co1,origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",
@@ -1294,6 +1323,18 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(correctedSteps.preparacoes[0].correcaoInterna,true);
  assert.equal(correctedSteps.confirmacaoDisponivelNaTela,false);
  assert.equal(correctedSteps.provaBancariaIndependente,false);
+ const afterCorrectionPlan=planejarIntencoesManuaisM517({
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  fluxo:correctedSteps
+ });
+ assert.equal(afterCorrectionPlan.planos[0].operacaoSimulavel,null);
+ assert.throws(()=>simularIntencaoManualM517({
+  planejamento:afterCorrectionPlan,preparacaoId:preRecord.preparacaoId,
+  operacao:"SIMULAR_CORRECAO",referencia:"CI-M517-REPEATED-"+suffix,
+  valorLiquidoInformado:"58.80",confirmouConsultaExterna:true,
+  motivo:"Repasse corrigido não pode ser corrigido novamente"
+ }),/M517_OPERACAO_INDISPONIVEL/);
+
 
  assert.equal(await prisma.conciliacaoFinanceira.count({where:{
   origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",origemId:preRecord.preparacaoId
