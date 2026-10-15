@@ -896,11 +896,23 @@ test("cross-company saving respects prices, access, rollback and version",async(
   conciliadoDeclarado:"0.00",estornado:"0.00"});
  assert.equal(beforeReport.linhas[0].situacao,"AGUARDANDO_REPASSE");
  assert.equal(beforeReport.provaBancariaIndependente,false);
+ await assert.rejects(()=>consultarResumoRecebiveisCartaoSomenteSandbox({
+  ...reportCtx,empresaId:ids.co2
+ }),/M56_SEM_ACESSO_FINANCEIRO/,
+  "Operador sem financeiro.gerenciar na empresa B nao pode ver recebiveis");
+ // Give permission ONLY temporarily to test that authorized company B gets
+ // an empty report; revoke immediately before further financial test steps.
+ await prisma.cargoPermissao.create({data:{
+  cargoId:cargo.id,permissaoId:financePermission.id
+ }});
  const debitOnly=await consultarResumoRecebiveisCartaoSomenteSandbox({
   ...reportCtx,empresaId:ids.co2
  });
  assert.equal(debitOnly.totais.original,"0.00",
   "A conta da outra empresa nao recebe as parcelas deste pagamento");
+ await prisma.cargoPermissao.delete({where:{cargoId_permissaoId:{
+  cargoId:cargo.id,permissaoId:financePermission.id
+ }}});
  await assert.rejects(()=>consultarResumoRecebiveisCartaoSomenteSandbox({
   ...reportCtx,organizacaoId:ids.other
  }),/M56_SEM_ACESSO_FINANCEIRO/);
