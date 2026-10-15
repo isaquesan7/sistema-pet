@@ -50,3 +50,7 @@ A `CreditoClienteMovimento` ganhou campos de prova `conciliacaoId`, reversão ú
 
 ## 8. M.4B.3 — comprovação contábil da devolução, sem transmissão
 Antes de fazer baixa causal de crédito de cliente, a M.4B.3 exige conciliação preexistente `BAIXA_TITULO/SAIDA` de uma baixa integral de título PAGAR/PAGO `DEVOLUCAO ADIANTAMENTO CLIENTE`; vínculo é único e auditado, com nova verificação das fontes em cada consulta. Esta conciliação foi registrada pelo operador, não é prova independente bancária; nada transfere dinheiro, nenhum meio de pagamento é integrado ao crédito no PDV. Próximo M.4C: arquitetura fiscal por empresa emissora, classificação produto/serviço, documento fiscal e permissões por unidade/CNPJ, sem presumir regulamentação aplicável; ver documento de devoluções e handoff oficial.
+
+
+## 9. M.4C.1 — pré-matriz fiscal e unidades (CI)
+Modelo EntidadeFiscal (organização/CNPJ) e UnidadeOperacional (código por entidade e ponte opcional a Empresa legada), com FKs compostas cross-tenant e preservação integral da unicidade Empresa.cnpj. Prévia pura agrupa itens do RASCUNHO PDV por empresa/CNPJ e por classe de produto/serviço, sem escolher automaticamente NF-e/NFC-e e sem supor autorização de NFS-e municipal. Serviço somente CI exige acesso fiscal+PDV em todas as empresas; jamais cria Venda ou DocumentoFiscal. Próximo M.4C.2: planejamento por venda filha com descontos rateados e documento escolhido explicitamente, sem transmissão. Ver [documentação técnica](POINTVET_M4C_FISCAL_MULTIUNIDADES_ARQUITETURA.md).

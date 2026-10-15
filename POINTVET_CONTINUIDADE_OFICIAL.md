@@ -1,3 +1,14 @@
+# UPDATE M.4C.1 — MATRIZ FISCAL MULTIEMPRESA + MODELO FUTURO MULTIUNIDADES (14/10/2026)
+**Implementação feita no PR #36 DRAFT**, sem merge, deploy ou migração de produção. Migration aditiva 20261015013000_fiscal_entity_operational_units_foundation: EntidadeFiscal (organização/CNPJ) e UnidadeOperacional (várias unidades por emissor, apenas UMA ponte opcional a cada Empresa legada), FKs compostas de organização e índices UNIQUE. Empresa.cnpj @unique preservada. Unidade adicional não é operacional hoje.
+
+**Código:** api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js e fiscal-unificado-planejamento-sandbox.service.js. A prévia lê rascunho real só no PostgreSQL descartável pointvet_unified_ci, agrupa por empresa e classe fiscal, distingue produto (NFE/NFCE dependem de escolha) e serviço (NFSE depende de município), verifica catálogo/valor/tributação cadastrada/topologia e exige permissão pdv.acessar + fiscal.visualizar por TODAS as empresas. SEM nota, XML, Venda, estoque, pagamentos, caixa, transmissão, API pública ou alteração de fiscal legado.
+
+**CI específico:** fiscal-unificado-planejamento.contract.test.mjs e pdv-unificado-fiscal.integration.test.mjs; verifica 2 empresas/3 grupos, 2 unidades sob um emissor/1 Empresa, rejeição cross-tenant via FK, no-op econômico, dados fiscais incompletos e permissões. [Documento detalhado](POINTVET_M4C_FISCAL_MULTIUNIDADES_ARQUITETURA.md). Verificar CI do HEAD após os commits de documentação antes de considerar concluído.
+
+**Próximo M.4C.2:** preparação por Venda filha real, confirmação do tipo de documento e rateio de centavos, sem emissão. M.4C.3: migração assistida empresa→unidade, backup, permissões, fiscal por emissor. M.5: staging/restore/rollback/canário aprovado. NÃO integrar maquininha/PSP, nem habilitar CREDITO_CLIENTE. main, PR #35, backup e notificações intactos.
+
+---
+
 # UPDATE M.4B.3 — DEVOLUÇÃO CONTÁBIL CONCILIADA DE CRÉDITO, CI ISOLADO (14/10/2026)
 **Código no PR #36 (Draft), sem merge, migração ou deploy.** A M.4B.2 exigia somente declaração do atendente para estorno de entrada pré-paga; a M.4B.3 agora **exige a conciliação contábil de SAÍDA já existente**, além da declaração. Não há integração com banco, Pix, máquina/cartão ou gateway. **Prova contábil lançada pela equipe não constitui confirmação independente da instituição financeira**.
 
