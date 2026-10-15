@@ -8,6 +8,9 @@ import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "../pdv/pdv-unificado-venda-sandbox.service.js";
 import {prepararVendaFilhaFiscalTransacaoSomenteSandbox} from "./fiscal-unificado-venda-sandbox.service.js";
 import {validarPlanoFiscalCi,proximoEstadoFiscalCi} from "./fiscal-unificado-protocolo-ci.contract.js";
+import {raizFiscalCi,avaliarCadeiaFiscalCi,confirmarInvestigacaoManualCi,
+ fingerprintEventoFiscalCi,hashCadeiaEventoFiscalCi}
+ from "./fiscal-unificado-integridade-ci.contract.js";
 
 const fail=s=>{throw Error(s);};
 const hash=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
@@ -43,6 +46,14 @@ async function snapshot(tx,x,chosen){
   vendaId:x.vendaId,escolhas:chosen
  });
 }
+async function conferirIntegridade(tx,row){
+ const events=await tx.eventoFluxoFiscalUnificadoCi.findMany({
+  where:{fluxoId:row.id},orderBy:[{sequencia:"asc"},{id:"asc"}]
+ });
+ const status=avaliarCadeiaFiscalCi(row,events);
+ if(!status.confiavel)fail("M4D2_HISTORICO_INTEGRO_OBRIGATORIO:"+status.pendencias.join(","));
+ return {status,events};
+}
 const display=(row,reutilizada=false)=>({
  id:row.id,empresaId:row.empresaId,vendaId:row.vendaId,
  classe:row.classe,tipoDocumento:row.tipoDocumento,estado:row.estado,
@@ -69,6 +80,7 @@ export async function prepararFluxoFiscalSomenteSandbox(x){
    vendaId_classe:{vendaId:x.vendaId,classe:x.classe}
   }});
   if(existing){
+   await conferirIntegridade(tx,existing);
    if(existing.pedidoFingerprint!==request||
       existing.snapshotFingerprint!==plan.fingerprint||
       existing.organizacaoId!==x.organizacaoId||
@@ -83,8 +95,12 @@ export async function prepararFluxoFiscalSomenteSandbox(x){
    estado:"PREPARADA_CI",pedidoFingerprint:request,
    snapshotFingerprint:meta.fingerprint,snapshot:plan
   }});
+  const root=raizFiscalCi(row);
+  const secured=await tx.fluxoFiscalUnificadoCi.update({where:{id:row.id},data:{
+   integridadeRaiz:root,integridadeCabeca:root
+  }});
   if(x.simularFalhaAposGravar===true)fail("M4D_FALHA_SIMULADA_PREPARACAO");
-  return display(row);
+  return display(secured);
  },{isolationLevel:"Serializable",maxWait:10000,timeout:25000});
 }
 export async function registrarEventoFiscalSimuladoSomenteSandbox(x){
@@ -95,15 +111,21 @@ export async function registrarEventoFiscalSimuladoSomenteSandbox(x){
  const motivo=typeof x.motivo==="string"?x.motivo.trim():"";
  return prisma.$transaction(async tx=>{
   await isolated(tx);
-  const permissionName=x.tipo==="SIMULAR_CANCELAMENTO"?"fiscal.cancelar":"fiscal.emitir";
+  const permissionName=x.tipo==="SIMULAR_CANCELAMENTO"?"fiscal.cancelar":
+   x.tipo==="REGISTRAR_INVESTIGACAO_MANUAL_CI"?"fiscal.gerenciar":"fiscal.emitir";
   await permission(tx,x,permissionName);
   await tx.$queryRawUnsafe('SELECT "id" FROM "fluxos_fiscais_unificados_ci" WHERE "id"=$1 FOR UPDATE',x.fluxoId);
   const row=await tx.fluxoFiscalUnificadoCi.findFirst({where:{
    id:x.fluxoId,organizacaoId:x.organizacaoId,empresaId:x.empresaId
   }});
   if(!row)fail("M4D_FLUXO_NAO_ENCONTRADO");
-  const fingerprint=hash({v:1,fluxoId:x.fluxoId,chaveEvento:x.chaveEvento,
-   tipo:x.tipo,motivo,usuarioId:x.usuarioId});
+  const {status:chainStatus}=await conferirIntegridade(tx,row);
+  const fingerprint=fingerprintEventoFiscalCi({
+   fluxoId:x.fluxoId,chaveEvento:x.chaveEvento,
+   tipo:x.tipo,motivo,usuarioId:x.usuarioId,
+   referenciaInterna:x.referenciaInterna,
+   descricaoVerificacao:x.descricaoVerificacao
+  });
   const existing=await tx.eventoFluxoFiscalUnificadoCi.findUnique({where:{
    fluxoId_chaveEvento:{fluxoId:row.id,chaveEvento:x.chaveEvento}
   }});
@@ -127,24 +149,86 @@ export async function registrarEventoFiscalSimuladoSomenteSandbox(x){
   });
   if(meta.empresaId!==row.empresaId||meta.vendaId!==row.vendaId)
    fail("M4D_EMISSOR_DIVERGENTE");
-  const decision=proximoEstadoFiscalCi({
+  if((x.tipo==="SIMULAR_CONSULTA_ACEITA"||
+       x.tipo==="SIMULAR_CONSULTA_REJEITADA")&&
+       chainStatus.investigacaoManualNecessaria)
+   fail("M4D2_INVESTIGACAO_MANUAL_PREVIA_OBRIGATORIA");
+  const manual=x.tipo==="REGISTRAR_INVESTIGACAO_MANUAL_CI";
+  const decision=manual?confirmarInvestigacaoManualCi({
+   estado:row.estado,motivo,referenciaInterna:x.referenciaInterna,
+   descricaoVerificacao:x.descricaoVerificacao
+  }):proximoEstadoFiscalCi({
    estado:row.estado,tipo:x.tipo,motivo
   });
+  const evidencia=manual?decision:{
+   ...decision,origem:"SIMULADOR_LOCAL_CI",
+   comprovacaoEmissorExterno:false,consultouProvedorFiscal:false
+  };
+  const sequencia=row.integridadeContador+1;
+  const eventValues={fluxoId:row.id,usuarioId:x.usuarioId,
+   chaveEvento:x.chaveEvento,eventoFingerprint:fingerprint,tipo:x.tipo,
+   estadoAnterior:decision.estadoAnterior,estadoPosterior:decision.estadoPosterior,
+   evidencia,sequencia,hashAnterior:row.integridadeCabeca};
+  const hashEvento=hashCadeiaEventoFiscalCi(eventValues);
   const updated=await tx.fluxoFiscalUnificadoCi.updateMany({where:{
-   id:row.id,estado:decision.estadoAnterior
-  },data:{estado:decision.estadoPosterior}});
+   id:row.id,estado:decision.estadoAnterior,
+   integridadeCabeca:row.integridadeCabeca,
+   integridadeContador:row.integridadeContador
+  },data:{
+   estado:decision.estadoPosterior,integridadeContador:{increment:1},
+   integridadeCabeca:hashEvento
+  }});
   if(updated.count!==1)fail("M4D_TRANSICAO_CONCORRENTE");
   const event=await tx.eventoFluxoFiscalUnificadoCi.create({data:{
-   fluxoId:row.id,usuarioId:x.usuarioId,chaveEvento:x.chaveEvento,
-   eventoFingerprint:fingerprint,tipo:x.tipo,
-   estadoAnterior:decision.estadoAnterior,
-   estadoPosterior:decision.estadoPosterior,
-   evidencia:{...decision,origem:"SIMULADOR_LOCAL_CI",
-    comprovacaoEmissorExterno:false,consultouProvedorFiscal:false}
+   ...eventValues,hashEvento
   }});
   if(x.simularFalhaAposGravar===true)fail("M4D_FALHA_SIMULADA_EVENTO");
   return {...display({...row,estado:decision.estadoPosterior}),
-   eventoId:event.id,exigeConsultaManual:decision.exigeConsultaManual,
+   eventoId:event.id,exigeConsultaManual:manual||
+    decision.exigeConsultaManual===true,
    houveReenvio:false};
  },{isolationLevel:"Serializable",maxWait:10000,timeout:25000});
+}
+
+
+/**
+ * Manual read-only diagnosis: any broken chain is returned as UNTRUSTED.
+ * Never makes an official status determination or retries emission.
+ */
+export async function diagnosticarFluxoFiscalSomenteSandbox(x){
+ exigirBancoIsolado();
+ if(!x?.organizacaoId||!x.empresaId||!x.fluxoId||!x.usuarioId)
+  fail("M4D2_CONSULTA_INVALIDA");
+ return prisma.$transaction(async tx=>{
+  await isolated(tx);
+  await permission(tx,x,"fiscal.visualizar");
+  const row=await tx.fluxoFiscalUnificadoCi.findFirst({where:{
+   id:x.fluxoId,empresaId:x.empresaId,organizacaoId:x.organizacaoId
+  }});
+  if(!row)fail("M4D_FLUXO_NAO_ENCONTRADO");
+  const events=await tx.eventoFluxoFiscalUnificadoCi.findMany({
+   where:{fluxoId:row.id},orderBy:[{sequencia:"asc"},{id:"asc"}]
+  });
+  const status=avaliarCadeiaFiscalCi(row,events);
+  // Diagnose original live source separately; do not claim trust after its
+  // document was created or a sale changed.
+  let origemConfiavel=false;
+  try{
+   const escolhas=row.snapshot?.grupos?.map(g=>({
+    classe:g.classe,tipoDocumento:g.tipoDocumentoEscolhido
+   }));
+   if(Array.isArray(escolhas)&&escolhas.length){
+    const live=await snapshot(tx,{...x,vendaId:row.vendaId},escolhas);
+    origemConfiavel=live.fingerprint===row.snapshotFingerprint;
+   }
+  }catch{origemConfiavel=false;}
+  return {...display(row),...status,
+   fonteFiscalAtualConfiavel:origemConfiavel,
+   confiavel:status.confiavel&&origemConfiavel,
+   pendencias:[...status.pendencias,
+    ...(!origemConfiavel?["M4D2_FONTE_FISCAL_DIVERGENTE"]:[])],
+   exigeConsultaHumanaEmCanalOficial:true,
+   recebeuProtocoloFiscalReal:false,autorizaNovoEnvio:false,
+   retornoPossuiProvaExterna:false};
+ },{isolationLevel:"RepeatableRead",maxWait:5000,timeout:14000});
 }
