@@ -451,7 +451,7 @@ export async function desconciliar({ organizacaoId, empresaId, usuarioId, id }) 
     // M.5.13: a manually attested card repasse is not safely reversible by
     // the generic reconciliation-delete endpoint (would erase a cash entry).
     // Exceptional corrections require a separately homologated compensation.
-    if(atual.origem==="REPASSE_CARTAO_MANUAL_UNIFICADO")
+    if(["REPASSE_CARTAO_MANUAL_UNIFICADO","ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO"].includes(atual.origem))
       throw new Error("REPASSE_CARTAO_MANUAL_EXIGE_REVISAO_FINANCEIRA");
     await tx.conciliacaoFinanceira.delete({where:{id}});
     await auditar(tx,{organizacaoId,empresaId,usuarioId,acao:"DESCONCILIAR",entidade:"CONCILIACAO_FINANCEIRA",entidadeId:id,dadosNovos:{origem:atual.origem,origemId:atual.origemId}});
