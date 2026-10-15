@@ -86,6 +86,11 @@ export async function compensarRepasseCartaoManualSomenteSandbox({
   if(auditOriginal.length!==1||auditOriginal[0].usuarioId!==original.usuarioId||
     auditOriginal[0].dadosNovos?.origemId!==pre.id)
    fail("AUDITORIA_ORIGINAL_INVALIDA");
+  // M.5.22: an operator-declared customer refund and an internal correction
+  // may not coexist silently. Require a distinct audited financial review.
+  if(await tx.devolucaoClienteManualUnificada.count({where:{
+   organizacaoId,empresaId,preparacaoId:pre.id
+  }}))fail("EXISTE_DEVOLUCAO_CLIENTE_EXIGE_REVISAO");
   const old=await tx.conciliacaoFinanceira.findUnique({where:{
    origem_origemId:{origem:ORIGEM,origemId:original.id}
   }});
