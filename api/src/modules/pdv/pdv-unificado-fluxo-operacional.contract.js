@@ -3,6 +3,7 @@
  * Every status means a PointVet INTERNAL event, never verified bank credit.
  * Consistency checks fail closed. No writes, no PSP, no banking connection.
  */
+import {gerarReferenciaRevisaoManualM519} from "./pdv-unificado-revisao-financeira.contract.js";
 const fail=code=>{throw Error("M516_"+code);};
 const MONEY=/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/;
 function cents(v){
@@ -67,7 +68,8 @@ export function projetarEtapasRepassesM516({organizacaoId,empresaId,comandaId,
      review.empresaId!==empresaId||
      review.organizacaoId!==organizacaoId||
      review.conferenteId===p.usuarioId||
-     review.status!=="CONFERENCIA_DOCUMENTAL_DECLARADA"))
+     review.status!=="CONFERENCIA_DOCUMENTAL_DECLARADA"||
+     !/^[a-f0-9]{64}$/.test(review.fingerprint||"")))
    fail("REVISAO_DIVERGENTE");
   const entry=originals.get(p.id);
   if(entry&&(!review||entry.contaFinanceiraId!==p.contaFinanceiraId||
@@ -78,8 +80,17 @@ export function projetarEtapasRepassesM516({organizacaoId,empresaId,comandaId,
    entry?"REPASSE_INTERNO_CONFIRMADO_MANUALMENTE":
    review?"SEGUNDA_CONFERENCIA_DOCUMENTAL_DECLARADA":
    "AGUARDANDO_SEGUNDA_CONFERENCIA";
+  const revisaoFinanceira=gerarReferenciaRevisaoManualM519({
+   organizacaoId,empresaId,comandaId,
+   preparacaoId:p.id,etapa,
+   fingerprintPreparacao:p.fingerprint,
+   fingerprintParecer:review?.fingerprint||null,
+   contaFinanceiraId:p.contaFinanceiraId,valorLiquido:fixed(liquido),
+   lancamentoOriginalId:entry?.id||null
+  });
   return Object.freeze({
    preparacaoId:p.id,empresaId,comandaId,etapa,
+   revisaoFinanceira,
    dataCredito:p.dataCredito,referenciaExtrato:p.referenciaExtrato,
    tipo:p.tipo,valorBruto:fixed(bruto),tarifaCartao:fixed(tarifa),
    descontoAntecipacao:fixed(antecipacao),valorLiquido:fixed(liquido),
