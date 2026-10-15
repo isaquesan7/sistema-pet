@@ -66,6 +66,15 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/conferencia")).data.dados
  });
+ async function revalidarVersaoM519({preparacaoId,codigoRevisao}){
+  // An explicit GET bypasses cached data. The form never sends values or
+  // confirmation statements and changing the SHA remounts its local fields.
+  if(!preparacaoId||!codigoRevisao)return "INDETERMINADA";
+  const result=await dryRun.refetch();
+  if(result.isError||!result.data?.leituraSomente)return "INDETERMINADA";
+  const current=result.data.planos?.find(p=>p.preparacaoId===preparacaoId);
+  return current?.revisaoFinanceira?.codigoRevisao===codigoRevisao?"ATUAL":"ALTERADA";
+ }
  if(!allowed)return <section className="panel"><h2>Repasses de cartão</h2>
   <p>Somente funcionários com acesso ao PDV e permissão de gestão financeira podem consultar os recebíveis.</p></section>;
  return <section className="panel">
@@ -132,7 +141,8 @@ export default function UnifiedCardReceivablesPanel(){
     {dryRun.data?.leituraSomente&&dryRun.data?.permitePostFinanceiro===false?
      <UnifiedCardManualDryRun
       key={[selectedOrganization?.id,companyId,effectiveId].join(":")}
-      planos={dryRun.data.planos} empresaId={companyId} comandaId={effectiveId}/>:null}
+      planos={dryRun.data.planos} empresaId={companyId} comandaId={effectiveId}
+      onRevalidar={revalidarVersaoM519}/>:null}
     <p><strong>Controles de segurança:</strong> a preparação, a segunda conferência e os lançamentos são feitos por funcionários autorizados. As ações de confirmação e correção não estão disponíveis nesta tela nem foram publicadas.</p>
     <h3>Histórico financeiro manual — somente leitura</h3>
     <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
