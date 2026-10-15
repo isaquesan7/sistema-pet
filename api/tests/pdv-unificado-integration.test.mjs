@@ -15,6 +15,8 @@ import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
 import {conciliarParcelaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
+import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
+import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas} from "../src/modules/financeiro/financeiro.service.js";
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
@@ -592,6 +594,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.usuarioOrganizacao.create({data:{
   usuarioId:ids.user,organizacaoId:ids.org,papel:"ADMINISTRADOR"
  }});
+ // M.5.8: opt-in only on synthetic organization. Real organizations unchanged.
+ await prisma.configuracaoOrganizacao.upsert({
+  where:{organizacaoId:ids.org},
+  create:{organizacaoId:ids.org,pdvUnificadoHabilitado:true},
+  update:{pdvUnificadoHabilitado:true}
+ });
  const emitPerm=await prisma.permissao.upsert({where:{codigo:"fiscal.emitir"},
   update:{},create:{codigo:"fiscal.emitir",nome:"Emitir fiscal"}});
  const cancelFiscal=await prisma.permissao.upsert({where:{codigo:"fiscal.cancelar"},
@@ -891,6 +899,30 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // M.5.6: scoped read-only card receivables report before any settlement.
  const reportCtx={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
   comandaId:closingDraft.id};
+ // M.5.8: prove live READ-ONLY M.5.7 listing and detail against a real
+ // finalized multi-CNPJ sale, not just an empty HTTP fixture.
+ const readCtx={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user};
+ const cardCommands=await listarComandasRecebiveisCartaoLeituraM57(readCtx);
+ assert(cardCommands.some(x=>x.id===closingDraft.id&&x.status==="FECHADA"));
+ const rawCardDetail=await consultarRecebiveisCartaoLeituraM57(reportCtx);
+ assert.equal(rawCardDetail.totais.original,"180.00");
+ assert.equal(rawCardDetail.totais.pendente,"180.00");
+ await assert.rejects(()=>listarComandasRecebiveisCartaoLeituraM57({
+  ...readCtx,empresaId:ids.co2
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
+ await assert.rejects(()=>consultarRecebiveisCartaoLeituraM57({
+  ...reportCtx,organizacaoId:ids.other
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
+ await assert.rejects(()=>consultarRecebiveisCartaoLeituraM57({
+  ...reportCtx,comandaId:"m58-nonexistent"
+ }),/M57_COMANDA_NAO_ENCONTRADA/);
+ await prisma.configuracaoOrganizacao.update({where:{organizacaoId:ids.org},
+  data:{pdvUnificadoHabilitado:false}});
+ await assert.rejects(()=>listarComandasRecebiveisCartaoLeituraM57(readCtx),
+  /M57_PREFERENCIA_DESATIVADA/);
+ await prisma.configuracaoOrganizacao.update({where:{organizacaoId:ids.org},
+  data:{pdvUnificadoHabilitado:true}});
+
  const beforeReport=await consultarResumoRecebiveisCartaoSomenteSandbox(reportCtx);
  assert.deepEqual(beforeReport.totais,{original:"180.00",pendente:"180.00",
   conciliadoDeclarado:"0.00",estornado:"0.00"});
@@ -919,6 +951,25 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>consultarResumoRecebiveisCartaoSomenteSandbox({
   ...reportCtx,comandaId:"m56-cross-tenant-nonexistent"
  }),/M56_COMANDA_NAO_ENCONTRADA/);
+
+ // M.5.8 cross-check the legacy financial ledger without accidentally counting
+ // card REPASSE DECLARADO as approved payment, financial title or bank cash.
+ const financialScope={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  escopo:"empresa",dataInicio:"2020-01-01",dataFim:"2099-12-31"};
+ const [legacyBefore,flowBefore,pendingBefore,bankBefore]=await Promise.all([
+  resumoFinanceiro(financialScope),fluxoFinanceiro(financialScope),
+  pendentesConciliacao({empresaId:ids.co1}),listarContas(ids.co1)
+ ]);
+ const cardPay=lines.find(l=>l.forma==="CARTAO_CREDITO").pagamentoId;
+ assert.equal(legacyBefore.faturamento,180,
+  "Faturamento reconhece venda FINALIZADA, separadamente de caixa recebido");
+ assert.equal(legacyBefore.receitasRealizadas,0,
+  "Pagamento PENDENTE de cartão nao e dinheiro em caixa ou banco");
+ assert(!flowBefore.some(x=>x.origemId===cardPay),
+  "Card PENDENTE cannot enter realized financial flow");
+ assert(!pendingBefore.some(x=>x.origemId===cardPay),
+  "Card PENDENTE cannot be reconciled as an approved cash entry");
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0);
  const settled=await conciliarParcelaCartaoSomenteSandbox(settlement);
  assert.equal(settled.status,"CONCILIADA");
  assert.equal(settled.confirmacaoAutomaticaBanco,false);
@@ -930,6 +981,26 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(partialReport.totais.pendente,"120.00");
  assert.equal(partialReport.linhas[0].situacao,"REPASSE_PARCIAL_DECLARADO");
  assert.equal(partialReport.statusPagamentoAlterado,false);
+ const livePartial=await consultarRecebiveisCartaoLeituraM57(reportCtx);
+ assert.equal(livePartial.totais.pendente,"120.00");
+ assert.equal(livePartial.totais.conciliadoDeclarado,"60.00");
+ const [legacyAfter,flowAfter,pendingAfter,bankAfter]=await Promise.all([
+  resumoFinanceiro(financialScope),fluxoFinanceiro(financialScope),
+  pendentesConciliacao({empresaId:ids.co1}),listarContas(ids.co1)
+ ]);
+ for(const field of ["faturamento","receitasRealizadas","saldoPeriodo",
+  "receberAberto","receberVencido"]){
+  assert.equal(legacyAfter[field],legacyBefore[field],
+   "Manual declared repasse cannot inflate legacy field "+field);
+ }
+ assert.deepEqual(legacyAfter.formasPagamento,legacyBefore.formasPagamento);
+ assert.deepEqual(flowAfter,flowBefore);
+ assert.deepEqual(pendingAfter,pendingBefore);
+ assert.deepEqual(bankAfter.map(x=>[x.id,x.saldoConciliado]),
+  bankBefore.map(x=>[x.id,x.saldoConciliado]));
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0,
+  "Operator declaration is NOT independent financial reconciliation");
+
  assert.equal((await prisma.pagamento.findUnique({where:{id:lines.find(
   l=>l.forma==="CARTAO_CREDITO").pagamentoId}})).status,"PENDENTE",
   "Nao reconhecer pagamento inteiro enquanto houver parcelas pendentes");
@@ -995,6 +1066,18 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(reverseReport.totais.pendente,"0.00");
  assert.equal(reverseReport.totais.conciliadoDeclarado,"0.00");
  assert.equal(reverseReport.linhas[0].situacao,"ESTORNADO");
+ const liveReversed=await consultarRecebiveisCartaoLeituraM57(reportCtx);
+ assert.equal(liveReversed.totais.estornado,"180.00");
+ assert((await listarComandasRecebiveisCartaoLeituraM57(readCtx)).some(
+  x=>x.id===closingDraft.id&&x.status==="CANCELADA"),
+  "Read-only panel must display reversed company card operation");
+ const reversedFinancial=await resumoFinanceiro(financialScope);
+ assert.equal(reversedFinancial.faturamento,0,
+  "Reversed sale must not remain in finalized turnover");
+ assert.equal(reversedFinancial.receitasRealizadas,legacyBefore.receitasRealizadas,
+  "Card still never became an approved cash receipt");
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{empresaId:ids.co1}}),0);
+
 
  assert.equal(reverse.houveRefundPorAPI,false);
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),1);
