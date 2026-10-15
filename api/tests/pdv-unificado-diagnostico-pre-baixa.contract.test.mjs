@@ -75,7 +75,7 @@ test("M.5.12 tampering or stale states invalidate internal dossier",()=>{
   f=>{f.parcelas[0].valor="59.00";},
   f=>{f.preparacao.tarifaCartao="1.30";},
   f=>{f.preparacao.referenciaExtrato="ALTERED-M512-CI";},
-  f=>{f.preparacao.snapshot.parcelas[0].parcelaId="other";},
+  f=>{f.preparacao.snapshot.parcelas=f.preparacao.snapshot.parcelas.map(p=>({...p,parcelaId:"other"}));},
   f=>{f.conta.empresaId="cross-tenant";},
   f=>{f.comanda.status="CANCELADA";},
   f=>{f.parecer.evidenciaSha256="f".repeat(64);},
