@@ -21,18 +21,20 @@ function RefundExercise({row}){
  function update(fn){return value=>{fn(value);setResult(null);};}
  function check(){
   const value=cents(refund),reFee=cents(fee),reEarly=cents(early);
+  const remaining=cents(row.brutoSemDeclaracaoNoLivro);
   const original=cents(row.valorBruto),maxFee=cents(row.tarifaInformada),
    maxEarly=cents(row.descontoAntecipacaoInformado);
   if(!agreed)return setResult({error:"Confirme que os valores de recuperação são hipóteses, não valores recebidos."});
-  if(value===null||value<=0||value>original||reFee===null||reEarly===null||
+  if(remaining===null||value===null||value<=0||value>original||value>remaining||reFee===null||reEarly===null||
      reFee>maxFee||reEarly>maxEarly||reFee+reEarly>value)
-   return setResult({error:"Confira os valores em reais com ponto e duas casas decimais. A devolução não pode superar o bruto; recuperações hipotéticas não podem superar tarifas ou a devolução."});
+   return setResult({error:"Confira os valores com duas casas decimais. A devolução hipotética não pode superar o bruto ainda sem declaração no livro; as recuperações também não podem superar tarifas ou a devolução."});
   setResult({value:fmt(value),fee:fmt(reFee),early:fmt(reEarly),
    exposure:fmt(value-reFee-reEarly),partial:value<original});
  }
  return <div className="panel">
   <p><strong>Simulação para referência externa: {row.referenciaExtrato}</strong></p>
   <p>Bruto original: <strong>{row.valorBruto}</strong> · Tarifa informada: <strong>{row.tarifaInformada}</strong> · Antecipação informada: <strong>{row.descontoAntecipacaoInformado}</strong> · Líquido lançado internamente: <strong>{row.valorLiquido}</strong> (valores em R$)</p>
+  <p><strong>Bruto sem declaração no livro: R$ {row.brutoSemDeclaracaoNoLivro}.</strong> Este valor não comprova saldo disponível, devoluções externas anteriores nem autoriza novo reembolso.</p>
   <p>Versão financeira interna: <code title={row.codigoRevisao}>{row.codigoRevisao?.slice(0,16)}</code>. Se houver devolução anterior, outra taxa, alteração do repasse ou revisão, estes números <strong>não</strong> são suficientes para autorizar a operação.</p>
   <div className="finance-filterbar">
    <label>Devolução bruta hipotética ao cliente (R$)
@@ -62,16 +64,26 @@ function RefundExercise({row}){
   </div>:null}
  </div>;
 }
-export default function UnifiedCardRefundDryRun({plano,empresaId,comandaId}){
+export default function UnifiedCardRefundDryRun({plano,empresaId,comandaId,historico}){
  const [selectedId,setSelectedId]=useState("");
- const eligible=(plano?.preparacoes||[]).filter(x=>x.podeSimularDevolucao);
+ const eligible=(plano?.preparacoes||[]).flatMap(x=>{
+  const match=historico?.preparacoes?.find(p=>p.preparacaoId===x.preparacaoId);
+  if(!x.podeSimularDevolucao||!match||
+     match.estadoRepasseInterno!=="REPASSE_INTERNO_ATIVO"||
+     cents(match.brutoOriginal)!==cents(x.valorBruto)||
+     (cents(match.brutoSemDeclaracaoNoLivro)||0)<=0)return [];
+  return [{...x,brutoSemDeclaracaoNoLivro:match.brutoSemDeclaracaoNoLivro}];
+ });
  const current=eligible.find(x=>x.preparacaoId===selectedId)||eligible[0];
+ if(!historico?.leituraSomente||historico?.permiteNovoReembolso!==false||
+    historico.empresaId!==empresaId||historico.comandaId!==comandaId)
+  return <p className="alert alert--error">Histórico de devoluções ainda não validado. Simulação indisponível.</p>;
  if(!plano?.leituraSomente||plano?.permiteEstornoAutomatico!==false)
   return <p className="alert alert--error">Prévia de devolução indisponível.</p>;
  return <section aria-label="Simulação de devolução pós-repasse">
   <h3>Simulador de devolução após repasse — sem salvar</h3>
   <p><strong>Devolução ao cliente e correção de lançamento interno são operações distintas.</strong> O PointVet não executa reembolso bancário. As condições de tarifa, antecipação, estorno fiscal e devoluções anteriores precisam ser conferidas externamente.</p>
-  {!eligible.length?<p>Não existem repasses internos ativos elegíveis para simulação nesta comanda.</p>:<>
+  {!eligible.length?<p>Não há repasse interno ativo com bruto sem declaração validado para esta simulação.</p>:<>
    <label>Repasse ativo usado no cenário
     <select className="form-control" value={current?.preparacaoId||""}
      onChange={e=>setSelectedId(e.target.value)}>
