@@ -20,4 +20,4 @@ O histórico **não prova que todos os reembolsos externos foram registrados**, 
 
 Próximos gates: reconciliação formal das devoluções já realizadas fora do sistema, obrigações fiscais e contábeis por empresa, dupla aprovação para gravação comercial, homologação em staging **segregado e autorizado**, backup/restore/rollback reais, piloto opt-in. PR #36 segue DRAFT; `main`, Railway, produção Pet King e backups reais ficam intocados.
 
-**Status:** só considerar M.5.23 aprovada depois de conferir `validate SUCCESS` e `isolated-postgres SUCCESS` no HEAD e registrar evidência em Issue #37 e PR #36.
+**Status: M.5.23 validada em CI.** [GitHub Actions #38791104101](https://github.com/isaquesan7/sistema-pet/actions/runs/38791104101) executou `validate SUCCESS` + `isolated-postgres SUCCESS` no SHA da implementação `55006c7128e40d88f8b391e02b68262be58028c4`. Documento não autoriza checkout, staging real, deploy ou escrituras. Verificar HEAD documental final no CI.
