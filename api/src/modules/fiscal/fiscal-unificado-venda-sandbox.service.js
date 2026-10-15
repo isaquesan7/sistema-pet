@@ -1,20 +1,19 @@
 /**
- * PointVet M.4C.2 — read-only fiscal preparation for an existing CI child
- * sale. No HTTP route. No writes, transmission, provider calls or authorization.
- * Requires one company-specific finalized sale linked to an audited
- * multi-company reservation and the selected organization's customer.
+ * PointVet M.4C.2: tenant-scoped, read-only fiscal child-sale preflight.
+ * Exposed as a transaction-scoped helper for the CI-only M.4D protocol:
+ * the snapshot and intent are generated within the SAME locked transaction.
+ * NEVER used in production or HTTP routes.
  */
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "../pdv/pdv-unificado-venda-sandbox.service.js";
 import {prepararFiscalPorVendaFilha} from "./fiscal-unificado-venda.contract.js";
 
-export async function prepararVendaFilhaFiscalSomenteSandbox({
+export async function prepararVendaFilhaFiscalTransacaoSomenteSandbox(tx,{
  organizacaoId,empresaId,usuarioId,vendaId,escolhas
 }){
  exigirBancoIsolado();
  if(!organizacaoId||!empresaId||!usuarioId||!vendaId)
   throw Error("M4C2_PARAMETROS_INVALIDOS");
- return prisma.$transaction(async tx=>{
   const current=await tx.$queryRawUnsafe("SELECT current_database() AS name");
   if(current[0]?.name!=="pointvet_unified_ci")throw Error("BANCO_NAO_ISOLADO");
   const [actor,link]=await Promise.all([
@@ -23,7 +22,7 @@ export async function prepararVendaFilhaFiscalSomenteSandbox({
     usuarioId,empresaId,ativo:true,empresa:{organizacaoId,ativo:true}
    },include:{cargo:{include:{permissoes:{include:{permissao:true}}}}}})
   ]);
-  if(!actor||!link?.cargo?.ativo)throw Error("M4C2_USUARIO_OU_EMPRESA_SEM_ACESSO");
+  if(!actor||!link?.cargo?.ativo||link.cargo.empresaId!==empresaId)throw Error("M4C2_USUARIO_OU_EMPRESA_SEM_ACESSO");
   const codes=new Set(link.cargo.permissoes.map(p=>p.permissao.codigo));
   if(!codes.has("pdv.acessar")||!codes.has("fiscal.visualizar"))
    throw Error("M4C2_PERMISSOES_INSUFICIENTES");
@@ -51,5 +50,11 @@ export async function prepararVendaFilhaFiscalSomenteSandbox({
   const plan=prepararFiscalPorVendaFilha({organizacaoId,venda,escolhas});
   return {...plan,execucaoApenasCi:true,reutilizavelSemPersistencia:true,
    documentoPendenteDeHomologacao:true,emissaoDisponivel:false};
- },{isolationLevel:"RepeatableRead",maxWait:5000,timeout:12000});
+}
+export async function prepararVendaFilhaFiscalSomenteSandbox(args){
+ exigirBancoIsolado();
+ return prisma.$transaction(
+  tx=>prepararVendaFilhaFiscalTransacaoSomenteSandbox(tx,args),
+  {isolationLevel:"RepeatableRead",maxWait:5000,timeout:12000}
+ );
 }
