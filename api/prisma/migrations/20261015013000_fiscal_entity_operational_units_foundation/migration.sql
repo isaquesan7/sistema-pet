@@ -44,6 +44,8 @@ CREATE TABLE "unidades_operacionais" (
 );
 CREATE UNIQUE INDEX "unidades_operacionais_empresaLegadaId_key"
   ON "unidades_operacionais"("empresaLegadaId");
+CREATE UNIQUE INDEX "unidades_operacionais_organizacaoId_empresaLegadaId_key"
+  ON "unidades_operacionais"("organizacaoId","empresaLegadaId");
 CREATE UNIQUE INDEX "unidades_operacionais_entidadeFiscalId_codigo_key"
   ON "unidades_operacionais"("entidadeFiscalId","codigo");
 CREATE INDEX "unidades_operacionais_organizacaoId_ativa_idx"

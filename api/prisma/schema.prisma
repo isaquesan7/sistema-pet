@@ -3495,6 +3495,7 @@ model UnidadeOperacional {
   empresaLegada Empresa? @relation(fields:[organizacaoId,empresaLegadaId],references:[organizacaoId,id],onDelete:Restrict)
 
   @@unique([entidadeFiscalId,codigo])
+  @@unique([organizacaoId,empresaLegadaId])
   @@index([organizacaoId,ativa])
   @@map("unidades_operacionais")
 }
