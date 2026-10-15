@@ -465,6 +465,7 @@ model Organizacao {
   empresas        Empresa[]
   entidadesFiscais EntidadeFiscal[]
   unidadesOperacionais UnidadeOperacional[]
+  fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
   usuarios        UsuarioOrganizacao[]
   clientes        Cliente[]
   orcamentosCliente OrcamentoCliente[]
@@ -597,6 +598,7 @@ model Empresa {
 
   configuracaoFiscal ConfiguracaoFiscalEmpresa?
   unidadeOperacionalLegada UnidadeOperacional?
+  fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
   documentosFiscais DocumentoFiscal[]
   atendimentosClinicos AtendimentoClinico[]
   agendamentosBanhoTosa AgendamentoBanhoTosa[]
@@ -655,6 +657,8 @@ model Usuario {
   estornosUnificadosRealizados EstornoFechamentoManualUnificado[]
   conversoesOrcamentoPdv ConversaoOrcamentoPdv[]
   registrosCreditoCausal CreditoClienteMovimento[] @relation("CreditoOperadorCausal")
+  fluxosFiscaisCiCriados FluxoFiscalUnificadoCi[] @relation("FluxoFiscalCiCriadoPor")
+  eventosFluxoFiscalCi EventoFluxoFiscalUnificadoCi[] @relation("EventoFluxoFiscalCiResponsavel")
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -1846,9 +1850,11 @@ model Venda {
   pagamentos        Pagamento[]
   pacotesCliente    PacoteCliente[]
   documentosFiscais DocumentoFiscal[]
+  fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
   operacaoUnificada ReservaOperacaoUnificada?
   titulosFinanceiros TituloFinanceiro[]
 
+  @@unique([empresaId,id])
   @@index([empresaId])
   @@index([comandaId])
   @@index([clienteId])
@@ -3498,4 +3504,56 @@ model UnidadeOperacional {
   @@unique([organizacaoId,empresaLegadaId])
   @@index([organizacaoId,ativa])
   @@map("unidades_operacionais")
+}
+
+
+// PointVet M.4D.1 — sandbox-only protocol: no real fiscal Document, XML,
+// SEFAZ/municipal gateway, emission or cancellation is ever written here.
+// CI/test triple guards live in service code and are not deployment flags.
+model FluxoFiscalUnificadoCi {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  vendaId String
+  criadoPorId String
+  classe String @db.VarChar(12)
+  tipoDocumento String @db.VarChar(6)
+  estado String @default("PREPARADA_CI") @db.VarChar(40)
+  pedidoFingerprint String @unique
+  snapshotFingerprint String
+  snapshot Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  empresa Empresa @relation(fields:[organizacaoId,empresaId],references:[organizacaoId,id],onDelete:Restrict)
+  venda Venda @relation(fields:[empresaId,vendaId],references:[empresaId,id],onDelete:Restrict)
+  criadoPor Usuario @relation("FluxoFiscalCiCriadoPor",fields:[criadoPorId],references:[id],onDelete:Restrict)
+  eventos EventoFluxoFiscalUnificadoCi[]
+
+  @@unique([vendaId,classe])
+  @@index([organizacaoId,empresaId,estado])
+  @@map("fluxos_fiscais_unificados_ci")
+}
+
+// Events record simulated observations only, never a real fiscal protocol.
+// No API routes; test database receives append-only diagnostic rows.
+model EventoFluxoFiscalUnificadoCi {
+  id String @id @default(cuid())
+  fluxoId String
+  usuarioId String
+  chaveEvento String @db.VarChar(120)
+  eventoFingerprint String
+  tipo String @db.VarChar(50)
+  estadoAnterior String @db.VarChar(40)
+  estadoPosterior String @db.VarChar(40)
+  evidencia Json
+  createdAt DateTime @default(now())
+
+  fluxo FluxoFiscalUnificadoCi @relation(fields:[fluxoId],references:[id],onDelete:Restrict)
+  usuario Usuario @relation("EventoFluxoFiscalCiResponsavel",fields:[usuarioId],references:[id],onDelete:Restrict)
+
+  @@unique([fluxoId,chaveEvento])
+  @@index([fluxoId,createdAt])
+  @@map("eventos_fluxo_fiscal_unificado_ci")
 }
