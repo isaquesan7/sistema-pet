@@ -16,6 +16,7 @@ import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-uni
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
+import {prepararVendaFilhaFiscalSomenteSandbox} from "../src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js";
 const suffix=Date.now().toString(36);
 const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
@@ -517,6 +518,82 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox({
   ...closingCtx,organizacaoId:ids.other
  }),/RASCUNHO_NAO_ENCONTRADO/);
+
+ // M.4C.2: each REAL finalized child sale in disposable CI has its OWN
+ // issuer and tax class. Preparing a fiscal preview never creates a tax doc.
+ const fiscalPermission=await prisma.permissao.upsert({where:{codigo:"fiscal.visualizar"},
+  update:{},create:{codigo:"fiscal.visualizar",nome:"Consultar fiscal"}
+ });
+ const childA=closed.vendas.find(v=>v.empresaId===ids.co1);
+ const childB=closed.vendas.find(v=>v.empresaId===ids.co2);
+ const fiscalInputA={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  vendaId:childA.vendaId,escolhas:[{classe:"PRODUTO",tipoDocumento:"NFE"}]};
+ const fiscalInputB={organizacaoId:ids.org,empresaId:ids.co2,usuarioId:ids.user,
+  vendaId:childB.vendaId,escolhas:[{classe:"SERVICO",tipoDocumento:"NFSE"}]};
+ await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox(fiscalInputA),
+  /M4C2_PERMISSOES_INSUFICIENTES/);
+ await prisma.cargoPermissao.createMany({data:[
+  {cargoId:manager.id,permissaoId:fiscalPermission.id},
+  {cargoId:cargo.id,permissaoId:fiscalPermission.id}
+ ]});
+ await prisma.configuracaoFiscalEmpresa.createMany({data:[
+  {empresaId:ids.co1,regime:"SIMPLES_NACIONAL",ambiente:"HOMOLOGACAO",
+   serieNfe:"1",serieNfce:"2",provedorFiscal:"CI_NAO_TRANSMITIR"},
+  {empresaId:ids.co2,regime:"SIMPLES_NACIONAL",ambiente:"HOMOLOGACAO",
+   serieNfse:"1",codigoMunicipioIbge:"2927408",provedorFiscal:"CI_NAO_TRANSMITIR"}
+ ]});
+ await prisma.configuracaoFiscalItem.createMany({data:[
+  {itemCatalogoId:ids.it1,ncm:"23091000",cfop:"5102",
+   origemMercadoria:"0",cstCsosn:"102"},
+  {itemCatalogoId:ids.it2,codigoServicoMunicipal:"TESTE"}
+ ]});
+ const fiscalCountBefore=await prisma.documentoFiscal.count();
+ const beforeFiscalRead={
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),caixa:await prisma.movimentacaoCaixa.count()
+ };
+ const fiscalA=await prepararVendaFilhaFiscalSomenteSandbox(fiscalInputA);
+ const fiscalB=await prepararVendaFilhaFiscalSomenteSandbox(fiscalInputB);
+ assert.equal(fiscalA.total,"180.00");
+ assert.equal(fiscalB.total,"140.00");
+ assert.equal(fiscalA.grupos[0].tipoDocumentoEscolhido,"NFE");
+ assert.equal(fiscalB.grupos[0].tipoDocumentoEscolhido,"NFSE");
+ assert.equal(fiscalA.grupos[0].emissor.empresaId,ids.co1);
+ assert.equal(fiscalB.grupos[0].emissor.empresaId,ids.co2);
+ assert.notEqual(fiscalA.fingerprint,fiscalB.fingerprint);
+ assert.equal(fiscalA.emissaoDisponivel,false);
+ assert.equal(fiscalA.gerouDocumento,false);
+ assert.equal(fiscalB.transmitiu,false);
+ assert.deepEqual(await prepararVendaFilhaFiscalSomenteSandbox(fiscalInputA),fiscalA);
+ await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox({
+  ...fiscalInputA,escolhas:[{classe:"PRODUTO",tipoDocumento:"RECIBO"}]
+ }),/M4C2_TIPO_DOCUMENTO_INCOMPATIVEL/);
+ await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox({
+  ...fiscalInputA,organizacaoId:ids.other
+ }),/M4C2_USUARIO_OU_EMPRESA_SEM_ACESSO/);
+ await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox({
+  ...fiscalInputA,empresaId:ids.co2
+ }),/M4C2_VENDA_FILHA_NAO_ENCONTRADA/);
+ await prisma.cargoPermissao.delete({where:{cargoId_permissaoId:{
+  cargoId:cargo.id,permissaoId:fiscalPermission.id
+ }}});
+ await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox(fiscalInputB),
+  /M4C2_PERMISSOES_INSUFICIENTES/);
+ await prisma.cargoPermissao.create({data:{
+  cargoId:cargo.id,permissaoId:fiscalPermission.id
+ }});
+ const existingFiscal=await prisma.documentoFiscal.create({data:{
+  empresaId:ids.co1,vendaId:childA.vendaId,
+  tipo:"NFE",ambiente:"HOMOLOGACAO",status:"PENDENTE",simulado:true
+ }});
+ await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox(fiscalInputA),
+  /M4C2_DOCUMENTO_JA_EXISTENTE/);
+ await prisma.documentoFiscal.delete({where:{id:existingFiscal.id}});
+ assert.equal(await prisma.documentoFiscal.count(),fiscalCountBefore);
+ assert.deepEqual({
+  vendas:await prisma.venda.count(),pagamentos:await prisma.pagamento.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),caixa:await prisma.movimentacaoCaixa.count()
+ },beforeFiscalRead,"Fiscal M.4C.2 preflight may not mutate sales, stock or cash");
 
  // Insufficient stock cannot finalize ANY company nor consume a declaration.
  const depleted=await salvarRascunho({...args,itens:[
