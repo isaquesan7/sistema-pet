@@ -13,6 +13,7 @@ import {registrarRecebedorMockSomenteSandbox,registrarConsultaStatusMockSomenteS
 import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-registro-manual-sandbox.service.js";
 import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
+import {conciliarParcelaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js";
 import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,creditLedger} from "../src/modules/clientes/client-finance.service.js";
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
@@ -857,12 +858,65 @@ test("cross-company saving respects prices, access, rollback and version",async(
   ...reverseCtx,dados:{...reverseCtx.dados,confirmouDevolucaoExterna:false}
  }),/M3C_CONFIRMACAO_EXTERNA/);
  const p0=receipts[0];
- await prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
-  data:{status:"CONCILIADA",conciliadoEm:new Date()}});
+ // M.5.5: real manual card installment settlement ON ISOLATED DB ONLY.
+ const bank=await prisma.contaFinanceira.create({data:{
+  empresaId:ids.co1,nome:"M55 CI bank "+suffix,tipo:"BANCO"
+ }});
+ const otherBank=await prisma.contaFinanceira.create({data:{
+  empresaId:ids.co2,nome:"M55 CI other company bank "+suffix,tipo:"BANCO"
+ }});
+ const settlement={organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  parcelaId:p0.id,dados:{valor:"60.00",contaFinanceiraId:bank.id,
+   referenciaExterna:"CI-REPASS-"+suffix,confirmouRepasseExterno:true}};
+ await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
+  ...settlement,organizacaoId:ids.other
+ }),/M55_PARCELA_NAO_ENCONTRADA/);
+ await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
+  ...settlement,empresaId:ids.co2,dados:{...settlement.dados,contaFinanceiraId:otherBank.id}
+ }),/M55_PARCELA_NAO_ENCONTRADA/);
+ await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
+  ...settlement,dados:{...settlement.dados,valor:"59.00"}
+ }),/M55_VALOR_DIVERGENTE/);
+ await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
+  ...settlement,dados:{...settlement.dados,contaFinanceiraId:otherBank.id}
+ }),/M55_CONTA_EMPRESA_INVALIDA/);
+ await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
+  ...settlement,dados:{...settlement.dados,confirmouRepasseExterno:false}
+ }),/M55_CONFIRMACAO_EXTERNA_OBRIGATORIA/);
+ const bankCountBefore={
+  pagamentos:await prisma.pagamento.count(),caixa:await prisma.movimentacaoCaixa.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
+ };
+ const settled=await conciliarParcelaCartaoSomenteSandbox(settlement);
+ assert.equal(settled.status,"CONCILIADA");
+ assert.equal(settled.confirmacaoAutomaticaBanco,false);
+ assert.equal(settled.gerouCaixa,false);
+ assert.equal(settled.gerouPagamento,false);
+ assert.equal((await conciliarParcelaCartaoSomenteSandbox(settlement)).reutilizada,true);
+ await assert.rejects(()=>conciliarParcelaCartaoSomenteSandbox({
+  ...settlement,dados:{...settlement.dados,referenciaExterna:"CI-DIFFERENT-"+suffix}
+ }),/M55_REPLAY_DIVERGENTE/);
+ assert.equal(await prisma.auditoria.count({where:{
+  entidade:"ParcelaRecebivelManualUnificado",entidadeId:p0.id,
+  acao:"REPASSE_CARTAO_CONCILIADO_MANUAL_CI"
+ }}),1);
+ assert.deepEqual({
+  pagamentos:await prisma.pagamento.count(),caixa:await prisma.movimentacaoCaixa.count(),
+  estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
+ },bankCountBefore);
+ // A reconciled card installment MUST block manual reversal, not double refund.
  await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
   /M3C_REPASSE_CONCILIADO/);
- await prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
-  data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}});
+ // CI fixture reset ONLY: exercises the legacy reversal path for pending card
+ // installments in the next block; NEVER provide a real un-reconcile operation.
+ await prisma.$transaction([
+  prisma.auditoria.deleteMany({where:{
+   entidade:"ParcelaRecebivelManualUnificado",entidadeId:p0.id,
+   acao:"REPASSE_CARTAO_CONCILIADO_MANUAL_CI"
+  }}),
+  prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
+   data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}})
+ ]);
  await prisma.sessaoCaixa.update({where:{id:session1.id},data:{status:"FECHADO"}});
  await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
   /M3C_CAIXA_FECHADO/);
