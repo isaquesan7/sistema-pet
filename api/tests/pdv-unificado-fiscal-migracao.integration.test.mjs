@@ -88,6 +88,20 @@ test("M.4C.3: supervised fiscal migration, reversible link, replay, rollbacks an
  await assert.rejects(()=>vincularEmpresaLegadaSomenteSandbox(payload),
   /M4C3_PERMISSAO_FISCAL_GERENCIAR_OBRIGATORIA/);
  await prisma.cargoPermissao.create({data:{cargoId:cargo.id,permissaoId:perm.id}});
+ // A cross-company Cargo linked through a weak legacy FK may not authorize
+ // fiscal changes in the current Empresa, even if that cargo has fiscal rights.
+ const foreignCargo=await prisma.cargo.create({data:{
+  empresaId:otherCompany,nome:"Gestor de outra empresa",
+  permissoes:{create:[{permissaoId:perm.id}]}
+ }});
+ await prisma.usuarioEmpresa.update({where:{usuarioId_empresaId:{
+  usuarioId:user,empresaId:co
+ }},data:{cargoId:foreignCargo.id}});
+ await assert.rejects(()=>vincularEmpresaLegadaSomenteSandbox(payload),
+  /M4C3_PERMISSAO_FISCAL_GERENCIAR_OBRIGATORIA/);
+ await prisma.usuarioEmpresa.update({where:{usuarioId_empresaId:{
+  usuarioId:user,empresaId:co
+ }},data:{cargoId:cargo.id}});
  await assert.rejects(()=>vincularEmpresaLegadaSomenteSandbox({
   ...payload,organizacaoId:other
  }),/M4C3_GESTOR_DA_ORGANIZACAO_OBRIGATORIO/);
