@@ -21,7 +21,7 @@ export async function consultarEtapasRepassesM516({organizacaoId,empresaId,
     bruto:true,tarifaCartao:true,descontoAntecipacao:true,
     liquidoDeclarado:true,
     parecerDocumental:{select:{preparacaoId:true,organizacaoId:true,
-     empresaId:true,conferenteId:true,status:true}}},
+     empresaId:true,conferenteId:true,status:true,fingerprint:true}}},
    orderBy:[{createdAt:"desc"},{id:"desc"}],take:51
   });
   if(preparacoes.length>50)throw Error("M516_LIMITE_EXCEDIDO");
