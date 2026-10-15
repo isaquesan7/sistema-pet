@@ -20,7 +20,6 @@ const OK={
 export function planejarIntencoesManuaisM517({organizacaoId,empresaId,comandaId,fluxo}={}){
  if(![organizacaoId,empresaId,comandaId].every(x=>typeof x==="string"&&x)||
     !fluxo||fluxo.fase!=="M5_16_FLUXO_OPERACIONAL_READ_ONLY"||
-    fluxo.empresaId===empresaId|| // M516 intentionally avoids duplicating IDs in envelope
     fluxo.leituraSomente!==true||fluxo.checkoutDisponivel!==false||
     fluxo.integracaoBancaria!==false||!Array.isArray(fluxo.preparacoes))
   fail("CONTEXTO_INVALIDO");
