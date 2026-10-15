@@ -39,3 +39,7 @@ Uma etapa SOMENTE CI agora lê a Venda FILHA real de M.3B, já finalizada, com v
 
 ## 7. M.4C.3 — vinculação assistida e reversão lógica CI
 Serviço CI isolado fiscal-unidades-migracao-sandbox.service.js lê Empresa e históricos para montar fingerprint SHA256 de snapshot cadastral/volume de registros, revalida permissões de gestor da organização e fiscal.gerenciar, exige código explícito e chave idempotente, transação Serializable/lock de Empresa, e cria EntidadeFiscal + UnidadeOperacional em vínculo 1:1 sem alterar Empresa.cnpj UNIQUE, venda, caixa, estoque e DocumentoFiscal. Auditoria guarda snapshot/causa e reversão lógica apenas desliga a ponte unidade→Empresa; a entidade fiscal e unidade permanecem para análise. Repetição, revisão desatualizada, vinculação por outro tenant, anomalia ou tentativa de reimportar depois de reversão são bloqueadas. Nenhuma integração pública ou autorização fiscal. [Handoff M.4C.3](POINTVET_M4C3_MIGRACAO_FISCAL_ASSISTIDA.md).
+
+## 8. M.4D.1 — protocolo fiscal exclusivamente SIMULADO
+Em cima das prévias M.4C.2 foi criada intenção isolada de evento fiscal, indexada por Venda filha/emissor/classe, com estados fictícios, histórico, replay e fingerprint; autorização/rejeição/consulta de indeterminação/cancelamento e contingência são TODOS eventos LOCAIS e SIMULADOS. Não existe nota emitida ou cancelada no fiscal legado. [Detalhes](POINTVET_M4D_SEGURANCA_FISCAL_CI.md).
+
