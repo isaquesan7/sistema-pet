@@ -99,6 +99,13 @@ export function verificarIsolamentoStagingM52(input){
   let ph;
   try{if(p){const u=new URL(p);if(u.protocol==="https:")ph=u.hostname.toLowerCase()}}catch{}
   if(!ph)issues.push("URL_PRODUCAO_REFERENCIA_AUSENTE_"+type.toUpperCase());
+  // Reused PRODUCTION host must be explicitly flagged even if the HTTPS
+  // staging URL was already rejected by the production-domain denylist.
+  try{
+   const attempted=new URL(staging.urls?.[type]);
+   if(ph&&attempted.hostname.toLowerCase()===ph)
+    issues.push("HOSTS_STAGING_IGUAIS_PRODUCAO");
+  }catch{}
   if(s)stDomains.add(s);
   if(ph)prDomains.add(ph);
  }
