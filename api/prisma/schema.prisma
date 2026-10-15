@@ -3522,6 +3522,10 @@ model FluxoFiscalUnificadoCi {
   pedidoFingerprint String @unique
   snapshotFingerprint String
   snapshot Json
+  // M.4D.2: legacy CI flows without hashes remain UNTRUSTED (no backfill).
+  integridadeRaiz String?
+  integridadeCabeca String?
+  integridadeContador Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3548,12 +3552,16 @@ model EventoFluxoFiscalUnificadoCi {
   estadoAnterior String @db.VarChar(40)
   estadoPosterior String @db.VarChar(40)
   evidencia Json
+  sequencia Int?
+  hashAnterior String?
+  hashEvento String?
   createdAt DateTime @default(now())
 
   fluxo FluxoFiscalUnificadoCi @relation(fields:[fluxoId],references:[id],onDelete:Restrict)
   usuario Usuario @relation("EventoFluxoFiscalCiResponsavel",fields:[usuarioId],references:[id],onDelete:Restrict)
 
   @@unique([fluxoId,chaveEvento])
+  @@unique([fluxoId,sequencia])
   @@index([fluxoId,createdAt])
   @@map("eventos_fluxo_fiscal_unificado_ci")
 }
