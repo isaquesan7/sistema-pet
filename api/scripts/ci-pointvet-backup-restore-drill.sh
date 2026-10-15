@@ -74,6 +74,14 @@ SELECT 'SCHEMA:CONSTRAINT',count(*)::bigint,
  c.conrelid::regclass::text,c.conname),''))
  FROM pg_constraint c
  JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public';
+-- Exact per-constraint fingerprints so semantic differences are never hidden
+-- by a combined checksum. This also identifies which definition differs.
+SELECT 'CONSTRAINT:'||c.conrelid::regclass::text||':'||c.conname,
+ md5(pg_get_constraintdef(c.oid))
+ FROM pg_constraint c
+ JOIN pg_namespace n ON n.oid=c.connamespace
+ WHERE n.nspname='public'
+ ORDER BY c.conrelid::regclass::text,c.conname;
 SELECT 'SCHEMA:SEQUENCE',count(*)::bigint,
  md5(coalesce(string_agg(sequencename||':'||coalesce(last_value::text,'NULL')||
  ':'||start_value::text||':'||increment_by::text,chr(10)
