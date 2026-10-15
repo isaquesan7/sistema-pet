@@ -19,6 +19,8 @@ import {registrarPreBaixaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unif
 import {registrarParecerPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-documental-sandbox.service.js";
 import {diagnosticarPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-diagnostico-pre-baixa-sandbox.service.js";
 import {registrarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-manual-sandbox.service.js";
+import {compensarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js";
+import {listarHistoricoRepasseCartaoM514} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas,conciliar as conciliarFinanceiro,desconciliar as desconciliarFinanceiro} from "../src/modules/financeiro/financeiro.service.js";
@@ -1218,6 +1220,73 @@ test("cross-company saving respects prices, access, rollback and version",async(
    origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",origemId:preRecord.preparacaoId}
  }),/MOVIMENTO_NAO_ENCONTRADO/,
   "Old generic route must not book the new manual ledger source");
+ // M.5.14: second finance operator explicitly corrects the deposit
+ // he/she reviewed outside PointVet; debit never means automatic bank refund.
+ const correctionData={confirmouCorrecaoExterna:true,
+  referenciaCorrecao:"CI-REVERSAL-"+suffix,
+  motivo:"Correção documental de repasse verificado manualmente no CI"};
+ const correctionCtx={organizacaoId:ids.org,empresaId:ids.co1,
+  usuarioId:reviewerId,conciliacaoId:manualEntry.conciliacaoId,
+  dados:correctionData};
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,usuarioId:ids.user
+ }),/M514_EXIGE_SEGUNDO_OPERADOR/);
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,dados:{...correctionData,confirmouCorrecaoExterna:false}
+ }),/M514_JUSTIFICATIVA_OU_CONFIRMACAO_INVALIDA/);
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,empresaId:ids.co2
+ }),/M514_LANCAMENTO_NAO_ENCONTRADO/);
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,simularFalhaAposDebito:true
+ }),/M514_ROLLBACK_INJETADO/);
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  origem:"ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO"
+ }}),0);
+ const concurrentCorrections=await Promise.allSettled([
+  compensarRepasseCartaoManualSomenteSandbox(correctionCtx),
+  compensarRepasseCartaoManualSomenteSandbox(correctionCtx)
+ ]);
+ assert(concurrentCorrections.some(x=>x.status==="fulfilled"),
+  "At least one correction must atomically commit");
+ const correction=await compensarRepasseCartaoManualSomenteSandbox(correctionCtx);
+ assert.equal(correction.reutilizada,true);
+ assert.equal(correction.valor,"58.80");
+ assert.equal(correction.direcao,"SAIDA");
+ assert.equal(correction.transferenciaBancariaExecutada,false);
+ assert.equal(correction.apagouLancamentoOriginal,false);
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",origemId:preRecord.preparacaoId
+ }}),1,"Original confirmation remains immutable");
+ assert.equal(await prisma.conciliacaoFinanceira.count({where:{
+  origem:"ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO",
+  origemId:manualEntry.conciliacaoId
+ }}),1,"One and only one compensating debit");
+ assert.equal(await prisma.auditoria.count({where:{
+  entidadeId:correction.id,acao:"REPASSE_CARTAO_MANUAL_COMPENSADO_CI"
+ }}),1);
+ assert.equal(Number((await listarContas(ids.co1)).find(x=>x.id===bank.id).saldoConciliado),
+  originalBalance,"Compensation returns internal balance to its baseline");
+ await assert.rejects(()=>compensarRepasseCartaoManualSomenteSandbox({
+  ...correctionCtx,dados:{...correctionData,referenciaCorrecao:"CI-ALTERED-"+suffix}
+ }),/M514_REPLAY_DIVERGENTE/);
+ await assert.rejects(()=>registrarRepasseCartaoManualSomenteSandbox(manualCtx),
+  /M513_REPASSE_COMPENSADO/,"Cannot silently reactivate a compensated deposit");
+ await assert.rejects(()=>desconciliarFinanceiro({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:reviewerId,
+  id:correction.id
+ }),/REPASSE_CARTAO_MANUAL_EXIGE_REVISAO_FINANCEIRA/);
+ const movements=await listarHistoricoRepasseCartaoM514({
+  organizacaoId:ids.org,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id
+ });
+ assert.equal(movements.length,2);
+ assert(movements.some(x=>x.tipo==="REPASSE_CONFIRMADO_MANUALMENTE"&&x.possuiCorrecao));
+ assert(movements.some(x=>x.tipo==="CORRECAO_MANUAL"&&x.direcao==="SAIDA"));
+ await assert.rejects(()=>listarHistoricoRepasseCartaoM514({
+  organizacaoId:ids.other,empresaId:ids.co1,usuarioId:ids.user,
+  comandaId:closingDraft.id
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
  // CI-only regression for a mistakenly-approved entire card payment:
  // even that must never create a second gross bank reconciliation.
  const creditPaymentId=lines.find(x=>x.forma==="CARTAO_CREDITO").pagamentoId;
@@ -1266,6 +1335,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
   prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
    data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}})
  ]);
+ // Remove ONLY synthetic M.5.14 compensation from the disposable CI DB;
+ // real records are immutable and have no delete endpoint.
+ await prisma.auditoria.deleteMany({where:{
+  entidadeId:correction.id,acao:"REPASSE_CARTAO_MANUAL_COMPENSADO_CI"
+ }});
+ await prisma.conciliacaoFinanceira.delete({where:{id:correction.id}});
  // CI-ONLY: synthetic manual bank-ledger cleanup before the separate
  // legacy reversal test; there is NO HTTP delete or undo for real operators.
  await prisma.auditoria.deleteMany({where:{
