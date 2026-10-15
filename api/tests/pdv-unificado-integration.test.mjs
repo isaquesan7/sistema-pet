@@ -22,6 +22,7 @@ import {registrarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv
 import {compensarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js";
 import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
 import {consultarEtapasRepassesM516} from "../src/modules/pdv/pdv-unificado-fluxo-operacional.service.js";
+import {discriminarTarifasAntecipacoesM520} from "../src/modules/pdv/pdv-unificado-discriminacao-tarifas.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
@@ -1057,6 +1058,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(firstSteps.preparacoes.length,1);
  assert.equal(firstSteps.preparacoes[0].etapa,"AGUARDANDO_SEGUNDA_CONFERENCIA");
  assert.equal(firstSteps.checkoutDisponivel,false);
+ const pendingCharges=discriminarTarifasAntecipacoesM520({
+  empresaId:ids.co1,comandaId:closingDraft.id,fluxo:firstSteps
+ });
+ assert.equal(pendingCharges.preparacoes.bruto,"60.00");
+ assert.equal(pendingCharges.preparacoes.tarifasInformadas,"1.20");
+ assert.equal(pendingCharges.repassesAtivos.liquidoNoSaldoInterno,"0.00");
+ assert.equal(pendingCharges.autorizaCheckout,false);
+
  await assert.rejects(()=>consultarEtapasRepassesM516({
   ...stepsCtx,organizacaoId:ids.other
  }),/M57_SEM_ACESSO_FINANCEIRO/);
@@ -1251,6 +1260,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
   "REPASSE_INTERNO_CONFIRMADO_MANUALMENTE");
  assert.equal(postedSteps.preparacoes[0].confirmacaoManualInterna,true);
  assert.equal(postedSteps.integracaoBancaria,false);
+ const chargesAfterPost=discriminarTarifasAntecipacoesM520({
+  empresaId:ids.co1,comandaId:closingDraft.id,fluxo:postedSteps
+ });
+ assert.equal(chargesAfterPost.repassesAtivos.brutoCorrespondente,"60.00");
+ assert.equal(chargesAfterPost.repassesAtivos.tarifasInformadas,"1.20");
+ assert.equal(chargesAfterPost.repassesAtivos.liquidoNoSaldoInterno,"58.80");
+ assert.equal(chargesAfterPost.geraLancamentoContabil,false);
+
  const postedVersion=postedSteps.preparacoes[0].revisaoFinanceira;
  assert.notEqual(postedVersion.codigoRevisao,reviewVersion.codigoRevisao);
  assert.equal(postedVersion.lancamentoOriginalIdEsperado,manualEntry.conciliacaoId);
@@ -1364,6 +1381,17 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(correctedSteps.preparacoes[0].correcaoInterna,true);
  assert.equal(correctedSteps.confirmacaoDisponivelNaTela,false);
  assert.equal(correctedSteps.provaBancariaIndependente,false);
+ const chargesAfterCorrection=discriminarTarifasAntecipacoesM520({
+  empresaId:ids.co1,comandaId:closingDraft.id,fluxo:correctedSteps
+ });
+ assert.deepEqual(chargesAfterCorrection.movimentosInternos,{
+  entradasLiquidas:"58.80",correcoesLiquidas:"58.80",
+  efeitoLiquido:"0.00"
+ });
+ assert.equal(chargesAfterCorrection.repassesAtivos.tarifasInformadas,"0.00");
+ assert.equal(chargesAfterCorrection.preparacoes.tarifasInformadas,"1.20");
+ assert.equal(chargesAfterCorrection.quantidade.corrigido,1);
+
  assert.notEqual(correctedSteps.preparacoes[0].revisaoFinanceira.codigoRevisao,
   postedVersion.codigoRevisao);
  assert.equal(correctedSteps.preparacoes[0].revisaoFinanceira.habilitaCheckout,false);
