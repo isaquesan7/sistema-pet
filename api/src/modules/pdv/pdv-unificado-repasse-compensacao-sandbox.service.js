@@ -6,6 +6,7 @@
  */
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
+import {validarComandoFinanceiroManualM518} from "./pdv-unificado-comando-financeiro.contract.js";
 const ORIGEM="ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO";
 const fail=c=>{throw Error("M514_"+c);};
 const money=v=>{const [whole,dec=""]=String(v).split(".");return whole+"."+dec.padEnd(2,"0");};
@@ -57,12 +58,14 @@ export async function compensarRepasseCartaoManualSomenteSandbox({
   const original=await tx.conciliacaoFinanceira.findFirst({where:{
    id:conciliacaoId,empresaId,origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",
    direcao:"ENTRADA"
-  },select:{id:true,origemId:true,empresaId:true,usuarioId:true,
+  },select:{id:true,origem:true,direcao:true,origemId:true,empresaId:true,usuarioId:true,
    contaFinanceiraId:true,valor:true,dataMovimento:true}});
   if(!original)fail("LANCAMENTO_NAO_ENCONTRADO");
   const pre=await tx.preparacaoBaixaCartaoManualUnificada.findFirst({where:{
    id:original.origemId,empresaId,organizacaoId
-  },select:{id:true,comandaId:true,contaFinanceiraId:true,liquidoDeclarado:true}});
+  },select:{id:true,comandaId:true,organizacaoId:true,empresaId:true,
+   status:true,fingerprint:true,referenciaExtrato:true,
+   contaFinanceiraId:true,liquidoDeclarado:true}});
   if(!pre)fail("PREPARACAO_NAO_ENCONTRADA");
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${pre.comandaId} FOR UPDATE`;
   await authorize(tx,{organizacaoId,empresaId,usuarioId});
@@ -70,6 +73,12 @@ export async function compensarRepasseCartaoManualSomenteSandbox({
   if(original.contaFinanceiraId!==pre.contaFinanceiraId||
      money(original.valor)!==money(pre.liquidoDeclarado))
    fail("VALORES_ORIGINAIS_DIVERGENTES");
+  // M.5.18: CAS preflight uses DB values after comanda lock; incorrect/stale
+  // correction details are rejected before any debit, including on replay.
+  const command=validarComandoFinanceiroManualM518({
+   operacao:"CORRIGIR_REPASSE",dados,organizacaoId,empresaId,usuarioId,
+   preparacao:pre,lancamentoOriginal:original
+  });
   const auditOriginal=await tx.auditoria.findMany({where:{
    organizacaoId,empresaId,entidade:"CONCILIACAO_FINANCEIRA",
    entidadeId:original.id,acao:"REPASSE_CARTAO_MANUAL_CONFIRMADO_CI"
@@ -91,6 +100,7 @@ export async function compensarRepasseCartaoManualSomenteSandbox({
       audits.length!==1||
       audits[0].dadosNovos?.referenciaCorrecao!==dados.referenciaCorrecao||
       audits[0].dadosNovos?.motivo!==dados.motivo.trim()||
+      audits[0].dadosNovos?.fingerprintComando!==command.fingerprintComando||
       audits[0].dadosNovos?.confirmacaoAutomaticaDoBanco!==false)
     fail("REPLAY_DIVERGENTE");
    return projection(old,true);
@@ -106,6 +116,7 @@ export async function compensarRepasseCartaoManualSomenteSandbox({
    acao:"REPASSE_CARTAO_MANUAL_COMPENSADO_CI",
    entidade:"CONCILIACAO_FINANCEIRA",entidadeId:correction.id,
    dadosNovos:{origemId:original.id,preparacaoId:pre.id,
+    fingerprintComando:command.fingerprintComando,
     referenciaCorrecao:dados.referenciaCorrecao,
     motivo:dados.motivo.trim(),valorLiquido:money(original.valor),
     contaFinanceiraId:original.contaFinanceiraId,
