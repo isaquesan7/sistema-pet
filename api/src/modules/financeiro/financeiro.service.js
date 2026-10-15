@@ -443,6 +443,11 @@ export async function desconciliar({ organizacaoId, empresaId, usuarioId, id }) 
   return prisma.$transaction(async(tx)=>{
     const atual=await tx.conciliacaoFinanceira.findFirst({where:{id,empresaId}});
     if(!atual) throw new Error("CONCILIACAO_NAO_ENCONTRADA");
+    // M.5.13: a manually attested card repasse is not safely reversible by
+    // the generic reconciliation-delete endpoint (would erase a cash entry).
+    // Exceptional corrections require a separately homologated compensation.
+    if(atual.origem==="REPASSE_CARTAO_MANUAL_UNIFICADO")
+      throw new Error("REPASSE_CARTAO_MANUAL_EXIGE_REVISAO_FINANCEIRA");
     await tx.conciliacaoFinanceira.delete({where:{id}});
     await auditar(tx,{organizacaoId,empresaId,usuarioId,acao:"DESCONCILIAR",entidade:"CONCILIACAO_FINANCEIRA",entidadeId:id,dadosNovos:{origem:atual.origem,origemId:atual.origemId}});
     return atual;
