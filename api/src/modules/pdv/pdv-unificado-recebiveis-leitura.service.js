@@ -64,7 +64,8 @@ export async function listarComandasRecebiveisCartaoLeituraM57({organizacaoId,em
  return prisma.$transaction(async tx=>{
   await autorizar(tx,{organizacaoId,empresaId,usuarioId});
   const registros=await tx.reservaOperacaoUnificada.findMany({
-   where:{empresaId,reserva:{comanda:{rascunhoUnificado:true,cliente:{organizacaoId}}},
+   where:{empresaId,status:{in:["CONCLUIDA","ESTORNADA"]},
+    reserva:{comanda:{rascunhoUnificado:true,cliente:{organizacaoId}}},
     recebimentosManuais:{some:{forma:"CARTAO_CREDITO"}}},
    select:{reserva:{select:{comanda:{select:{id:true,numero:true,status:true}}}}},
    orderBy:[{createdAt:"desc"},{id:"desc"}],take:20
