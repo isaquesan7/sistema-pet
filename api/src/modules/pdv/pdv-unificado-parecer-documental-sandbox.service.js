@@ -83,7 +83,9 @@ export async function registrarParecerPreBaixaSomenteSandbox({
    organizacaoId,empresaId,acao:"REPASSE_CARTAO_CONCILIADO_MANUAL_CI",
    entidade:"ParcelaRecebivelManualUnificado",entidadeId:{in:ids}
   },select:{entidadeId:true,usuarioId:true,dadosNovos:true}});
-  if(declarations.length!==ids.length||declarations.some(a=>
+  if(declarations.length!==ids.length||
+     new Set(declarations.map(a=>a.entidadeId)).size!==ids.length||
+     declarations.some(a=>
     a.usuarioId===conferenteId||a.dadosNovos?.status!=="CONCILIADA"||
     a.dadosNovos?.provaBancariaIndependente!==false))
    fail("SEGREGACAO_DA_DECLARACAO");
@@ -95,7 +97,7 @@ export async function registrarParecerPreBaixaSomenteSandbox({
      preAudits[0].dadosNovos?.fingerprint!==pre.fingerprint)
    fail("AUDITORIA_PREPARACAO_INVALIDA");
   const pedido=validarParecerDocumentalM511({
-   preparacaoFingerprint:pre.fingerprint,conferenteId,...evidencia
+   ...evidencia,preparacaoFingerprint:pre.fingerprint,conferenteId
   });
   const existing=await tx.parecerPreBaixaCartaoManualUnificada.findUnique({
    where:{preparacaoId:pre.id}
