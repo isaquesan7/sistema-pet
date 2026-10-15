@@ -9,6 +9,7 @@ import {ShieldCheck,RefreshCw,WalletCards} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import {formatCurrency} from "../lib/formatters.js";
+import UnifiedCardManualDryRun from "./UnifiedCardManualDryRun.jsx";
 
 const textStatus={
  AGUARDANDO_REPASSE:"Aguardando repasse",
@@ -53,6 +54,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/etapas")).data.dados
  });
+ const dryRun=useQuery({
+  queryKey:["unified-card-m517-preview",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/simulacao-manual")).data.dados
+ });
  const history=useQuery({
   queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
@@ -80,7 +87,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -120,6 +127,12 @@ export default function UnifiedCardReceivablesPanel(){
        <td>{operationStatus[p.etapa]||"Revisão financeira necessária"}</td>
       </tr>)}</tbody>
     </table></div>:null}
+    {dryRun.isLoading?<p>Preparando simulação local...</p>:null}
+    {dryRun.isError?<p className="alert alert--error" role="alert">O simulador não está disponível porque os dados não puderam ser validados. {getApiErrorMessage(dryRun.error)}</p>:null}
+    {dryRun.data?.leituraSomente&&dryRun.data?.permitePostFinanceiro===false?
+     <UnifiedCardManualDryRun
+      key={[selectedOrganization?.id,companyId,effectiveId].join(":")}
+      planos={dryRun.data.planos} empresaId={companyId} comandaId={effectiveId}/>:null}
     <p><strong>Controles de segurança:</strong> a preparação, a segunda conferência e os lançamentos são feitos por funcionários autorizados. As ações de confirmação e correção não estão disponíveis nesta tela nem foram publicadas.</p>
     <h3>Histórico financeiro manual — somente leitura</h3>
     <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
