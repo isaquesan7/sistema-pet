@@ -1089,9 +1089,9 @@ test("cross-company saving respects prices, access, rollback and version",async(
   pagamentos:await prisma.pagamento.count(),caixa:await prisma.movimentacaoCaixa.count(),
   estoque:await prisma.movimentacaoEstoque.count(),fiscal:await prisma.documentoFiscal.count()
  },bankCountBefore);
- // A reconciled card installment MUST block manual reversal, not double refund.
+ // A prepared external repasse MUST block legacy reversal pending human review.
  await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
-  /M3C_REPASSE_CONCILIADO/);
+  /M3C_PRE_BAIXA_EXIGE_REVISAO/);
  // CI fixture reset ONLY: exercises the legacy reversal path for pending card
  // installments in the next block; NEVER provide a real un-reconcile operation.
  await prisma.$transaction([
@@ -1102,6 +1102,20 @@ test("cross-company saving respects prices, access, rollback and version",async(
   prisma.parcelaRecebivelManualUnificado.update({where:{id:p0.id},
    data:{status:"AGUARDANDO_REPASSE",conciliadoEm:null}})
  ]);
+ // M.5.10 CI TEST FIXTURE CLEANUP ONLY. Real pre-settlements have no
+ // delete/undo endpoint. Do not apply this reset in a real environment.
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
+  /M3C_PRE_BAIXA_EXIGE_REVISAO/);
+ await prisma.parcelaPreBaixaCartaoManualUnificada.deleteMany({
+  where:{preparacaoId:preRecord.preparacaoId}
+ });
+ await prisma.auditoria.deleteMany({where:{
+  acao:"PRE_BAIXA_CARTAO_PREPARADA_CI",entidadeId:preRecord.preparacaoId
+ }});
+ await prisma.preparacaoBaixaCartaoManualUnificada.delete({
+  where:{id:preRecord.preparacaoId}
+ });
+ assert.equal(await prisma.preparacaoBaixaCartaoManualUnificada.count(),0);
  await prisma.sessaoCaixa.update({where:{id:session1.id},data:{status:"FECHADO"}});
  await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(reverseCtx),
   /M3C_CAIXA_FECHADO/);
