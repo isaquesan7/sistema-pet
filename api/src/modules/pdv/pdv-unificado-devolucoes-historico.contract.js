@@ -130,10 +130,10 @@ export function projetarHistoricoDevolucoesM523({
  let totalBruto=0,totalDeclarado=0,totalSemDeclaracao=0;
  const resultado=preparacoes.map(pOriginal=>{
   const p=byPrep.get(pOriginal.id),entry=byEntry.get(p.id);
-  const group=grouped.get(p.id).sort((a,b)=>{
-   const dateA=new Date(a.createdAt).getTime(),dateB=new Date(b.createdAt).getTime();
-   return dateA-dateB||a.id.localeCompare(b.id);
-  });
+  // Balance-before is a monotonically decreasing causal sequence.
+  // Timestamp ties must never reorder two legitimate partial refunds.
+  const group=grouped.get(p.id).sort((a,b)=>
+   b.before-a.before||a.id.localeCompare(b.id));
   let remaining=p.brutoCentavos,sum=0;
   const movimentos=group.map(row=>{
    if(!Number.isFinite(new Date(row.createdAt).getTime())||
