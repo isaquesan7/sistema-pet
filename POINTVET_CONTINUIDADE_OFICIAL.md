@@ -1,3 +1,9 @@
+# UPDATE M.5.4.3 — BARREIRAS HTTP REAIS DO PDV UNIFICADO, CI DESCARTÁVEL (15/10/2026)
+
+Nova bateria de integração `api/tests/pointvet-m543-http-checkout-barrier.integration.test.mjs` usa Express REAL apenas em `127.0.0.1` e PostgreSQL CI `pointvet_unified_ci`, sob guardas de ambiente, com 2 organizações/empresas, vínculo sintético e token de teste. Testa sem token, token inválido, ausência de empresa, empresa de outro tenant, preferência habilitada mas checkout indisponível, bloqueio explícito de rotas de fechamento real, e desativação da preferência. Compara antes/depois as contagens de vendas, pagamentos, caixa, estoque, documentos fiscais, crédito e reservas. Workflow executa o teste ANTES de restore sintético. [Especificação M.5.4.3](POINTVET_M543_HTTP_BLOQUEIOS_PREPUBLICACAO.md). **Tudo exclusivamente em CI; não houve staging real, checkout de produção, pagamento, fiscal ou backup real.** Próximo: confirmar CI `validate` e `isolated-postgres` do SHA final, depois autorização explícita para staging segregado e provas externas. PR #36 DRAFT, main/Pet King sem alterações.
+
+---
+
 # UPDATE M.5.4.2 — JANELA DE MUDANÇA APENAS DECLARATIVA (15/10/2026)
 Adicionado contrato puro `pointvet-m542-janela-staging.contract.js` com testes CI. Exige escopo exclusivamente STAGING SINTÉTICO, responsáveis distintos, SHA candidato fixado, ticket, plano de interrupção, infraestrutura segregada e todas as flags externas/produção desligadas. Mesmo com declaração completa NÃO autoriza deploy, migration, restore, rollback, canário ou produção. Não cria nem acessa Railway/staging, não muda Pet King, backup, DNS, fiscal ou pagamentos. Ver [M.5.4](POINTVET_M54_EVIDENCIAS_STAGING.md). Confirmar CI no HEAD final. **Próximo gate:** aprovação operacional explícita de staging segregado; restore real, canário e produção exigem aprovações separadas.
 
