@@ -100,6 +100,7 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas"],
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy"],
   ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/lancamentos"],
+  ["GET","/api/pdv-unificado/recebiveis-cartao/comandas/dummy/conferencia"],
   ["POST","/api/pdv-unificado/simulacao"],
   ["POST","/api/pdv-unificado/rascunhos"],
   ["POST","/api/pdv-unificado/rascunhos/dummy/reservar"],
@@ -133,12 +134,16 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  assert.deepEqual(empty.dados,[],"No card receivables for a synthetic company without sales");
  await request("GET",cardList+"/m57-missing",404,{token,company:companyA});
  await request("GET",cardList+"/m57-missing/lancamentos",404,{token,company:companyA});
+ await request("GET",cardList+"/m57-missing/conferencia",404,{token,company:companyA});
+ await request("GET",cardList+"/%3Fbad/conferencia",400,{token,company:companyA});
+ await request("POST",cardList+"/m57-missing/conferencia",404,{token,company:companyA});
  await request("GET",cardList+"/%3Fbad/lancamentos",400,{token,company:companyA});
  await request("POST",cardList+"/m57-missing/lancamentos",404,{token,company:companyA});
  await request("GET",cardList+"/%3Fbad",400,{token,company:companyA});
  await request("POST",cardList+"/m57-missing",404,{token,company:companyA});
  await request("GET",cardList,403,{token,company:companyB});
  await request("GET",cardList+"/m57-missing/lancamentos",403,{token,company:companyB});
+ await request("GET",cardList+"/m57-missing/conferencia",403,{token,company:companyB});
  await prisma.cargoPermissao.delete({where:{cargoId_permissaoId:{
   cargoId:role.id,permissaoId:financePerm.id
  }}});
@@ -159,6 +164,7 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  assert.equal(disabled.dados.checkoutUnificadoDisponivel,false);
  await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/lancamentos",403,{token,company:companyA});
+ await request("GET","/api/pdv-unificado/recebiveis-cartao/comandas/m57-missing/conferencia",403,{token,company:companyA});
  await request("GET","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
  await request("POST","/api/pdv-unificado/simulacao",403,{token,company:companyA});
  await request("POST","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
