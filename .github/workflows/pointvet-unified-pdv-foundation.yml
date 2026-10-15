@@ -19,6 +19,9 @@ on:
       - "POINTVET_M5_STAGING_RESTORE_PUBLICACAO.md"
       - "POINTVET_M52_STAGING_ISOLAMENTO_CANARIO.md"
       - "POINTVET_M53_SMOKE_ROLLBACK_STAGING.md"
+      - "POINTVET_M54_EVIDENCIAS_STAGING.md"
+      - "api/src/modules/plataforma/pointvet-m54-evidencias.contract.js"
+      - "api/tests/pointvet-m54-evidencias.contract.test.mjs"
       - "api/src/modules/plataforma/pointvet-m53-rollback.contract.js"
       - "api/tests/pointvet-m53-rollback.contract.test.mjs"
       - "api/tests/pointvet-m53-local-smoke.integration.test.mjs"
@@ -123,6 +126,8 @@ jobs:
           node --test api/tests/pointvet-m52-isolamento.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-canario.contract.js
           node --test api/tests/pointvet-m52-canario.contract.test.mjs
+          node --check api/src/modules/plataforma/pointvet-m54-evidencias.contract.js
+          node --test api/tests/pointvet-m54-evidencias.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m53-rollback.contract.js
           node --test api/tests/pointvet-m53-rollback.contract.test.mjs
           node --check api/tests/pointvet-m53-local-smoke.integration.test.mjs
