@@ -14,6 +14,7 @@ import {registrarRecebimentoManualSomenteSandbox,consultarRecebimentoManualSomen
 import {efetivarRecebimentosManuaisSomenteSandbox} from "../src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js";
 import {estornarFechamentoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js";
 import {conciliarParcelaCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-conciliacao-manual-sandbox.service.js";
+import {planejarBaixaCartaoM59} from "../src/modules/pdv/pdv-unificado-baixa-cartao.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas} from "../src/modules/financeiro/financeiro.service.js";
@@ -984,6 +985,41 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const livePartial=await consultarRecebiveisCartaoLeituraM57(reportCtx);
  assert.equal(livePartial.totais.pendente,"120.00");
  assert.equal(livePartial.totais.conciliadoDeclarado,"60.00");
+ // M.5.9: preview of a REAL already-declared external card installment.
+ // Operator's bank confirmation still is NOT independently verified by PointVet.
+ const projected=planejarBaixaCartaoM59({resumo:livePartial,pedido:{
+  tipo:"REPASSE_NORMAL",contaFinanceiraId:bank.id,
+  referenciaExtrato:"CI-EXTRATO-"+suffix,dataCredito:"2026-10-15",
+  parcelaIds:[p0.id],tarifaCartao:"1.20",
+  descontoAntecipacao:"0.00",valorLiquidoDeclarado:"58.80",
+  confirmouConferenciaExterna:true
+ }});
+ assert.deepEqual(projected.valores,{
+  bruto:"60.00",tarifaCartao:"1.20",
+  descontoAntecipacao:"0.00",liquidoDeclarado:"58.80"
+ });
+ assert.equal(projected.verificacaoBancariaIndependente,false);
+ assert.equal(projected.baixaRealExecutada,false);
+ assert.equal(projected.gerarCaixa,false);
+ assert.equal(projected.registrarConciliacaoFinanceira,false);
+ assert.throws(()=>planejarBaixaCartaoM59({resumo:livePartial,pedido:{
+  tipo:"REPASSE_NORMAL",contaFinanceiraId:bank.id,
+  referenciaExtrato:"CI-EXTRATO-"+suffix,dataCredito:"2026-10-15",
+  parcelaIds:[receipts[1].id],tarifaCartao:"0.00",
+  descontoAntecipacao:"0.00",valorLiquidoDeclarado:"60.00",
+  confirmouConferenciaExterna:true
+ }}),/M59_PARCELA_SEM_DECLARACAO/,
+ "An unreconciled card installment can never be projected as bank deposit");
+ const advance=planejarBaixaCartaoM59({resumo:livePartial,pedido:{
+  tipo:"ANTECIPACAO",contaFinanceiraId:bank.id,
+  referenciaExtrato:"CI-ANTECIP-"+suffix,dataCredito:"2026-10-15",
+  parcelaIds:[p0.id],tarifaCartao:"1.20",
+  descontoAntecipacao:"2.50",valorLiquidoDeclarado:"56.30",
+  confirmouConferenciaExterna:true
+ }});
+ assert.equal(advance.valores.liquidoDeclarado,"56.30");
+ assert.equal(advance.baixaRealExecutada,false);
+
  const [legacyAfter,flowAfter,pendingAfter,bankAfter]=await Promise.all([
   resumoFinanceiro(financialScope),fluxoFinanceiro(financialScope),
   pendentesConciliacao({empresaId:ids.co1}),listarContas(ids.co1)
@@ -1066,6 +1102,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(reverseReport.totais.pendente,"0.00");
  assert.equal(reverseReport.totais.conciliadoDeclarado,"0.00");
  assert.equal(reverseReport.linhas[0].situacao,"ESTORNADO");
+ assert.throws(()=>planejarBaixaCartaoM59({resumo:reverseReport,pedido:{
+  tipo:"REPASSE_NORMAL",contaFinanceiraId:bank.id,
+  referenciaExtrato:"CI-EXTRATO-"+suffix,dataCredito:"2026-10-15",
+  parcelaIds:[p0.id],tarifaCartao:"1.20",
+  descontoAntecipacao:"0.00",valorLiquidoDeclarado:"58.80",
+  confirmouConferenciaExterna:true
+ }}),/M59_LINHA_INVALIDA/,
+ "Reversed card installments must not regain bank revenue by preview");
+
  const liveReversed=await consultarRecebiveisCartaoLeituraM57(reportCtx);
  assert.equal(liveReversed.totais.estornado,"180.00");
  assert((await listarComandasRecebiveisCartaoLeituraM57(readCtx)).some(
