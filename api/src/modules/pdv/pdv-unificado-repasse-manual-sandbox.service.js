@@ -10,6 +10,7 @@
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
 import {avaliarIntegridadePreBaixaNoTxM513} from "./pdv-unificado-diagnostico-pre-baixa-sandbox.service.js";
+import {validarComandoFinanceiroManualM518} from "./pdv-unificado-comando-financeiro.contract.js";
 const ORIGEM="REPASSE_CARTAO_MANUAL_UNIFICADO";
 const fail=code=>{throw Error("M513_"+code);};
 const money=v=>{const [n,d=""]=String(v).split(".");return n+"."+d.padEnd(2,"0");};
@@ -82,6 +83,12 @@ export async function registrarRepasseCartaoManualSomenteSandbox({
   });
   if(!diagnostics.integridadeInternaAprovada)
    fail("DOSSIÊ_INTERNO_INVALIDO");
+  // M.5.18 optimistic binding INSIDE the same serialized transaction
+  // that writes ledger + audit: stale UI forms cannot post a new deposit.
+  const command=validarComandoFinanceiroManualM518({
+   operacao:"CONFIRMAR_REPASSE",dados,organizacaoId,empresaId,usuarioId,
+   preparacao:pre,parecer:pre.parecerDocumental
+  });
   // A manual deposit may never coexist with a legacy sale-payment
   // reconciliation of the same synthetic credit payment.
   const lines=await tx.linhaRecebimentoManualUnificado.findMany({where:{
@@ -111,6 +118,7 @@ export async function registrarRepasseCartaoManualSomenteSandbox({
         pre.dataCredito.toISOString().slice(0,10)||
       audits.length!==1||
       audits[0].dadosNovos?.preparacaoFingerprint!==pre.fingerprint||
+      audits[0].dadosNovos?.fingerprintComando!==command.fingerprintComando||
       audits[0].dadosNovos?.referenciaExtrato!==dados.referenciaExtrato||
       audits[0].dadosNovos?.confirmacaoAutomaticaDoBanco!==false)
     fail("REPLAY_DIVERGENTE");
@@ -131,6 +139,7 @@ export async function registrarRepasseCartaoManualSomenteSandbox({
    dadosNovos:{
     origem:ORIGEM,origemId:pre.id,
     preparacaoFingerprint:pre.fingerprint,
+    fingerprintComando:command.fingerprintComando,
     parecerId:pre.parecerDocumental.id,
     referenciaExtrato:pre.referenciaExtrato,
     valorBruto:String(pre.bruto),tarifaCartao:String(pre.tarifaCartao),
