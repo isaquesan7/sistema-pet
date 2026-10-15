@@ -73,6 +73,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/devolucao-previa")).data.dados
  });
+ const refundHistory=useQuery({
+  queryKey:["unified-card-m523-refund-ledger",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/devolucoes-historico")).data.dados
+ });
  const history=useQuery({
   queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
@@ -109,7 +115,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching||refundHistory.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();refundHistory.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -178,13 +184,44 @@ export default function UnifiedCardReceivablesPanel(){
       planos={dryRun.data.planos} empresaId={companyId} comandaId={effectiveId}
       onRevalidar={revalidarVersaoM519}/>:null}
     <p><strong>Controles de segurança:</strong> a preparação, a segunda conferência e os lançamentos são feitos por funcionários autorizados. As ações de confirmação e correção não estão disponíveis nesta tela nem foram publicadas.</p>
+    <h3>Declarações de devolução ao cliente — histórico de consulta</h3>
+    <p><strong>Não é um extrato bancário:</strong> estes valores são apenas declarações humanas de devoluções externas registradas no PointVet. O bruto sem declaração não garante saldo disponível para reembolso e não inclui necessariamente operações realizadas fora do sistema.</p>
+    {refundHistory.isLoading?<p>Conferindo histórico e integridade das declarações...</p>:null}
+    {refundHistory.isError?<p className="alert alert--error" role="alert">Não foi possível validar o histórico de devoluções. {getApiErrorMessage(refundHistory.error)}</p>:null}
+    {refundHistory.data?.leituraSomente&&refundHistory.data?.permiteNovoReembolso===false?
+     <div>
+      <div className="finance-open-grid" aria-label="Devoluções externas declaradas por comanda e CNPJ">
+       <div className="panel finance-open-card"><span>Bruto das pré-baixas</span><strong>{money(refundHistory.data.totais.brutoPreparacoes)}</strong></div>
+       <div className="panel finance-open-card"><span>Devoluções declaradas</span><strong>{money(refundHistory.data.totais.devolucoesDeclaradas)}</strong></div>
+       <div className="panel finance-open-card"><span>Bruto sem declaração no livro</span><strong>{money(refundHistory.data.totais.brutoSemDeclaracaoNoLivro)}</strong></div>
+      </div>
+      {refundHistory.data.preparacoes.length?<div className="table-scroll"><table className="data-table">
+       <thead><tr><th>Repasse</th><th>Estado interno</th><th>Bruto</th><th>Devoluções declaradas</th><th>Sem declaração</th><th>Registros</th></tr></thead>
+       <tbody>{refundHistory.data.preparacoes.map(p=><tr key={p.preparacaoId}>
+        <td>{p.referenciaExtrato}</td><td>{p.estadoRepasseInterno==="REPASSE_INTERNO_ATIVO"?"Repasse interno ativo":p.estadoRepasseInterno==="REPASSE_INTERNO_COMPENSADO"?"Repasse interno compensado":"Sem repasse interno"}</td>
+        <td>{money(p.brutoOriginal)}</td><td>{money(p.totalDevolucoesDeclaradas)}</td>
+        <td>{money(p.brutoSemDeclaracaoNoLivro)}</td><td>{p.quantidadeDeclaracoes}</td>
+       </tr>)}</tbody>
+      </table></div>:<p>Nenhuma pré-baixa de cartão para esta comanda.</p>}
+      {refundHistory.data.preparacoes.some(p=>p.movimentos.length)?<div className="table-scroll"><table className="data-table">
+       <thead><tr><th>Referência externa declarada</th><th>Valor bruto declarado</th><th>Restante após declaração</th><th>Funcionário</th><th>Registrado em</th></tr></thead>
+       <tbody>{refundHistory.data.preparacoes.flatMap(p=>p.movimentos.map(m=><tr key={m.id}>
+        <td>{m.referenciaExterna}</td><td>{money(m.valorBrutoDeclarado)}</td>
+        <td>{money(m.saldoBrutoNaoDeclaradoApos)}</td><td>{m.usuarioId}</td>
+        <td>{new Date(m.registradoEm).toLocaleString("pt-BR")}</td>
+       </tr>))}</tbody>
+      </table></div>:<p>Nenhuma declaração de devolução externa registrada para os repasses desta comanda.</p>}
+      <p><strong>Controle:</strong> o histórico não valida comprovantes externos nem permite registrar, corrigir ou executar reembolsos. Qualquer divergência bloqueia a exibição dos totais até revisão financeira.</p>
+     </div>:null}
     {refundPlan.isLoading?<p>Preparando simulação de devolução pós-repasse...</p>:null}
     {refundPlan.isError?<p className="alert alert--error" role="alert">A prévia de devolução está indisponível. {getApiErrorMessage(refundPlan.error)}</p>:null}
-    {refundPlan.data?.leituraSomente&&refundPlan.data?.permiteEstornoAutomatico===false?
+    {refundPlan.data?.leituraSomente&&refundPlan.data?.permiteEstornoAutomatico===false&&refundHistory.data?.leituraSomente&&refundHistory.data?.permiteNovoReembolso===false?
      <UnifiedCardRefundDryRun
       key={[selectedOrganization?.id,companyId,effectiveId,
-       (refundPlan.data.preparacoes||[]).map(x=>x.codigoRevisao).join(":")].join(":")}
-      plano={refundPlan.data} empresaId={companyId} comandaId={effectiveId}/>:null}
+       (refundPlan.data.preparacoes||[]).map(x=>x.codigoRevisao).join(":"),
+       (refundHistory.data?.preparacoes||[]).map(x=>x.preparacaoId+":"+x.totalDevolucoesDeclaradas).join(":")].join(":")}
+      plano={refundPlan.data} empresaId={companyId} comandaId={effectiveId}
+      historico={refundHistory.data}/>:null}
     <h3>Histórico financeiro manual — somente leitura</h3>
     <p>Estas entradas e correções refletem declarações de funcionários sobre valores conferidos fora do PointVet. O saldo é apenas o registro interno da empresa.</p>
     {history.isLoading?<p>Carregando histórico...</p>:null}
