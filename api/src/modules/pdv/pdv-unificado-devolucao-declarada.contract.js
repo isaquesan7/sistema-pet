@@ -20,6 +20,7 @@ export const centavosM522=(value,positive=false)=>{
  return cents;
 };
 export const reaisM522=c=>Math.floor(c/100)+"."+String(c%100).padStart(2,"0");
+const dbMoney=v=>{const t=String(v);if(!/^(?:0|[1-9]\\d{0,9})(?:\\.\\d{1,2})?$/.test(t))fail("VALOR_DB_INVALIDO");const [n,d=""]=t.split(".");return n+"."+d.padEnd(2,"0");};
 export function validarDeclaracaoDevolucaoM522({
  organizacaoId,empresaId,usuarioId,preparacao,parecer,entrada,dados
 }={}){
@@ -42,9 +43,9 @@ export function validarDeclaracaoDevolucaoM522({
     entrada.usuarioId===usuarioId||!dados||
     typeof dados!=="object"||Array.isArray(dados))
   fail("CONTEXTOS_OU_SEGREGACAO_INVALIDOS");
- const bruto=centavosM522(preparacao.bruto,true);
- const liquido=centavosM522(preparacao.liquidoDeclarado,true);
- if(centavosM522(entrada.valor,true)!==liquido||
+ const bruto=centavosM522(dbMoney(preparacao.bruto),true);
+ const liquido=centavosM522(dbMoney(preparacao.liquidoDeclarado),true);
+ if(centavosM522(dbMoney(entrada.valor),true)!==liquido||
     bruto<liquido)fail("REPASSE_ORIGINAL_DIVERGENTE");
  const revisao=gerarReferenciaRevisaoManualM519({
   organizacaoId,empresaId,comandaId:preparacao.comandaId,
