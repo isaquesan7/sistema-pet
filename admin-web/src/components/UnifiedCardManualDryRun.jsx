@@ -37,6 +37,8 @@ function RepasseDraft({plan}){
  return <div className="panel" aria-label="Simulação local de conferência manual">
   <p><strong>{correcting?"Prévia de correção por contralançamento":"Prévia de confirmação de repasse"}</strong></p>
   <p>Bruto: <strong>{plan.valorBruto}</strong> · Tarifa: <strong>{plan.tarifaCartao}</strong> · Antecipação: <strong>{plan.descontoAntecipacao}</strong> · Líquido esperado: <strong>{plan.valorLiquido}</strong> (R$)</p>
+  <p><strong>Versão financeira consultada:</strong> <code title={plan.revisaoFinanceira?.codigoRevisao||""}>{plan.revisaoFinanceira?.codigoRevisao?.slice(0,16)||"indisponível"}</code></p>
+  <p>Referência de revisão interna, não assinatura bancária. Conta financeira: <code>{plan.revisaoFinanceira?.contaFinanceiraIdEsperada||"indisponível"}</code>. A preparação e o parecer devem continuar idênticos quando uma operação real for homologada.</p>
   <p><strong>Somente treinamento:</strong> nenhum dado digitado será enviado ao servidor, salvo, lançado na contabilidade ou transmitido ao banco.</p>
   {correcting?<p>A correção real exige outro funcionário autorizado, análise do lançamento original e contralançamento auditado. Esta tela não faz isso.</p>:null}
   <div className="finance-filterbar">
@@ -63,24 +65,58 @@ function RepasseDraft({plan}){
   {feedback?.ok?<p role="status">Os campos conferem localmente. **Nenhuma operação foi executada.** A autorização do segundo funcionário e a validação transacional continuam pendentes.</p>:null}
  </div>;
 }
-export default function UnifiedCardManualDryRun({planos=[],empresaId,comandaId}){
+export default function UnifiedCardManualDryRun({
+ planos=[],empresaId,comandaId,onRevalidar
+}){
  const [selectedId,setSelectedId]=useState("");
+ const [checking,setChecking]=useState(false);
+ const [revisionNotice,setRevisionNotice]=useState(null);
  const available=planos.filter(p=>p.operacaoSimulavel);
  const current=available.find(p=>p.preparacaoId===selectedId)||available[0];
+ async function checkRevision(){
+  if(!current||typeof onRevalidar!=="function")return;
+  setChecking(true);setRevisionNotice(null);
+  try{
+   const result=await onRevalidar({
+    preparacaoId:current.preparacaoId,
+    codigoRevisao:current.revisaoFinanceira?.codigoRevisao
+   });
+   if(result==="ATUAL")setRevisionNotice({
+    kind:"ok",message:"Versão interna atualizada e conferida. O formulário continua sendo apenas simulação."
+   });
+   else if(result==="ALTERADA")setRevisionNotice({
+    kind:"error",message:"Os dados do repasse mudaram. O formulário anterior foi descartado. Revise novamente todos os valores e referências."
+   });
+   else setRevisionNotice({
+    kind:"error",message:"Não foi possível confirmar a versão atual. Não considere o formulário revisado."
+   });
+  }catch{
+   setRevisionNotice({kind:"error",message:"Falha ao consultar a versão atual. Recarregue a comanda."});
+  }finally{setChecking(false);}
+ }
+
  return <section aria-label="Simulação local de repasse">
   <h3>Simulador de confirmação ou correção manual — sem salvar</h3>
   <p>Exercício de preenchimento antes da homologação operacional. Não gera comprovante, baixa, Pix, caixa nem saldo bancário.</p>
   {!available.length?<p>Não há repasses elegíveis para simulação. Conclua as etapas documentais necessárias fora deste simulador.</p>:<>
    <label>Selecione o repasse para simular
     <select className="form-control" value={current?.preparacaoId||""}
-     onChange={e=>setSelectedId(e.target.value)}>
+     onChange={e=>{setSelectedId(e.target.value);setRevisionNotice(null);}}>
      {available.map(p=><option key={p.preparacaoId} value={p.preparacaoId}>
       {p.referenciaExtrato} · {p.operacaoSimulavel==="SIMULAR_CORRECAO"?"Simular correção":"Simular confirmação"}
      </option>)}
     </select>
    </label>
+   <div>
+    <button type="button" className="secondary-button"
+     disabled={checking||!current?.revisaoFinanceira?.codigoRevisao}
+     onClick={checkRevision}>{checking?"Consultando versão...":"Reconsultar versão financeira (sem salvar)"}</button>
+   </div>
+   {revisionNotice?<p role={revisionNotice.kind==="error"?"alert":"status"}
+    className={revisionNotice.kind==="error"?"alert alert--error":undefined}>
+    {revisionNotice.message}</p>:null}
    <RepasseDraft key={[empresaId,comandaId,current?.preparacaoId,current?.etapa,
-     current?.valorLiquido,current?.referenciaExtrato].join(":")} plan={current}/>
+     current?.revisaoFinanceira?.codigoRevisao].join(":")} plan={current}/>
   </>}
  </section>;
 }
