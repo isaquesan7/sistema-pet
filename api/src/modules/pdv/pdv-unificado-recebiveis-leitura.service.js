@@ -14,8 +14,13 @@ async function autorizar(tx,{organizacaoId,empresaId,usuarioId}){
   tx.usuario.findUnique({where:{id:usuarioId},select:{status:true}}),
   tx.organizacao.findUnique({where:{id:organizacaoId},select:{ativo:true,configuracao:{select:{pdvUnificadoHabilitado:true}}}}),
   tx.usuarioOrganizacao.findUnique({where:{usuarioId_organizacaoId:{usuarioId,organizacaoId}},select:{ativo:true}}),
-  tx.usuarioEmpresa.findUnique({where:{usuarioId_empresaId:{usuarioId,empresaId}},
-   include:{empresa:{select:{ativo:true,organizacaoId:true}},cargo:{include:{permissoes:{include:{permissao:{select:{codigo:true}}}}}}}}})
+  tx.usuarioEmpresa.findUnique({
+   where:{usuarioId_empresaId:{usuarioId,empresaId}},
+   include:{
+    empresa:{select:{ativo:true,organizacaoId:true}},
+    cargo:{include:{permissoes:{include:{permissao:{select:{codigo:true}}}}}}
+   }
+  })
  ]);
  if(usuario?.status!=="ATIVO"||!org?.ativo||!membro?.ativo||
     !vinculo?.ativo||!vinculo.empresa?.ativo||
