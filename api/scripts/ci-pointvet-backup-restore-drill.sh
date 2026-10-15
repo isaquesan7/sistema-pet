@@ -98,6 +98,20 @@ fingerprint "$RESTORE" "$scratch/restore.fp"
 if ! cmp -s "$scratch/source.fp" "$scratch/restore.fp"; then
  echo "POINTVET_M5: SAFE comparison diagnostic (table names, counts and fingerprints only)" >&2
  diff -u "$scratch/source.fp" "$scratch/restore.fp" | head -n 80 >&2 || true
+ # Check definitions contain schema only, never client data; print only the
+ # four documented CHECK constraints whose pg_dump round-trip altered text.
+ for db in "$SOURCE" "$RESTORE"; do
+  echo "POINTVET_M5_CONSTRAINT_DEF $db" >&2
+  psql_ci "$db" --quiet --tuples-only --no-align --command="
+   SELECT c.conname || ' : ' || pg_get_constraintdef(c.oid)
+   FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
+   WHERE n.nspname='public' AND c.conname IN
+    ('fluxos_fiscais_unificados_ci_classe_check',
+     'fluxos_fiscais_unificados_ci_estado_check',
+     'fluxos_fiscais_unificados_ci_tipo_check',
+     'platform_support_tickets_status_check')
+   ORDER BY c.conname;" >&2
+ done
  die "data / schema / sequence mismatch after restore"
 fi
 DATABASE_URL="postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/$RESTORE" \
