@@ -86,6 +86,12 @@ export async function estornarFechamentoManualSomenteSandbox({
    if(prior.fingerprint!==fingerprint)fail("M3C_ESTORNO_DIVERGENTE");
    return replay(tx,prior,comanda,reserva,ops,registro);
   }
+  // M.5.10: once a card pre-baixa was durably registered, the old
+  // pending-only refund path cannot silently reverse it. Human financial
+  // review is mandatory. Same comanda FOR UPDATE guards concurrent requests.
+  if(await tx.preparacaoBaixaCartaoManualUnificada.count({
+   where:{comandaId:id}
+  }))fail("M3C_PRE_BAIXA_EXIGE_REVISAO");
   if(comanda.status!=="FECHADA"||reserva.status!=="RESERVADA"||
      comanda.itens.some(i=>i.status!=="FATURADO")||
      ops.some(o=>o.status!=="CONCLUIDA"||!o.vendaId))fail("M3C_ESTADO_INCONSISTENTE");
