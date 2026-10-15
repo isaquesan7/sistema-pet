@@ -21,10 +21,13 @@ export async function consultarResumoRecebiveisCartaoSomenteSandbox({
    tx.organizacao.findUnique({where:{id:organizacaoId},select:{ativo:true}}),
    tx.usuarioOrganizacao.findUnique({where:{
     usuarioId_organizacaoId:{usuarioId,organizacaoId}},select:{ativo:true}}),
-   tx.usuarioEmpresa.findUnique({where:{
-    usuarioId_empresaId:{usuarioId,empresaId}},include:{
-     empresa:{select:{ativo:true,organizacaoId:true}},
-     cargo:{include:{permissoes:{include:{permissao:{select:{codigo:true}}}}}}}}})
+   tx.usuarioEmpresa.findUnique({
+    where:{usuarioId_empresaId:{usuarioId,empresaId}},
+    include:{
+     empresa:true,
+     cargo:{include:{permissoes:{include:{permissao:true}}}}
+    }
+   })
   ]);
   if(user?.status!=="ATIVO"||!org?.ativo||!orgLink?.ativo||
      !companyLink?.ativo||!companyLink.empresa?.ativo||
