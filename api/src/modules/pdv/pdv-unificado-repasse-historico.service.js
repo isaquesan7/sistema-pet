@@ -22,13 +22,13 @@ export async function listarHistoricoRepasseCartaoM514({
    empresaId,origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",
    origemId:{in:preps.map(p=>p.id)}
   },select:{id:true,origemId:true,valor:true,dataMovimento:true,
-   direcao:true,contaFinanceira:{select:{nome:true}}},
+   direcao:true,contaFinanceira:{select:{nome:true}},
    usuario:{select:{nome:true}}}});
   const reversals=originals.length?await tx.conciliacaoFinanceira.findMany({where:{
    empresaId,origem:"ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO",
    origemId:{in:originals.map(r=>r.id)}
   },select:{id:true,origemId:true,valor:true,dataMovimento:true,
-   direcao:true,contaFinanceira:{select:{nome:true}}},
+   direcao:true,contaFinanceira:{select:{nome:true}},
    usuario:{select:{nome:true}}}}):[];
   return [...originals.map(p=>({
    id:p.id,preparacaoId:p.origemId,tipo:"REPASSE_CONFIRMADO_MANUALMENTE",
