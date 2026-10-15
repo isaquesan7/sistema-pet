@@ -1093,17 +1093,17 @@ test("cross-company saving respects prices, access, rollback and version",async(
  ]);
  assert(reviewed.some(x=>x.status==="fulfilled"),
   "At least one documentary review must commit atomically");
- const review=await registrarParecerPreBaixaSomenteSandbox(reviewCtx);
- assert.equal(review.reutilizada,true);
- assert.equal(review.comprovacaoBancariaIndependente,false);
- assert.equal(review.baixouFinanceiro,false);
- assert.equal(review.creditouBanco,false);
+ const documentaryReview=await registrarParecerPreBaixaSomenteSandbox(reviewCtx);
+ assert.equal(documentaryReview.reutilizada,true);
+ assert.equal(documentaryReview.comprovacaoBancariaIndependente,false);
+ assert.equal(documentaryReview.baixouFinanceiro,false);
+ assert.equal(documentaryReview.creditouBanco,false);
  assert.equal(await prisma.parecerPreBaixaCartaoManualUnificada.count({
   where:{preparacaoId:preRecord.preparacaoId}
  }),1);
  assert.equal(await prisma.auditoria.count({where:{
   acao:"PRE_BAIXA_CARTAO_CONFERENCIA_DOCUMENTAL_CI",
-  entidadeId:review.parecerId
+  entidadeId:documentaryReview.parecerId
  }}),1);
  await assert.rejects(()=>registrarParecerPreBaixaSomenteSandbox({
   ...reviewCtx,evidencia:{...reviewEvidence,evidenciaSha256:"d".repeat(64)}
@@ -1157,10 +1157,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // M.5.11 CI FIXTURE CLEANUP ONLY: the real review has no delete API.
  await prisma.auditoria.deleteMany({where:{
   acao:"PRE_BAIXA_CARTAO_CONFERENCIA_DOCUMENTAL_CI",
-  entidadeId:review.parecerId
+  entidadeId:documentaryReview.parecerId
  }});
  await prisma.parecerPreBaixaCartaoManualUnificada.delete({
-  where:{id:review.parecerId}
+  where:{id:documentaryReview.parecerId}
  });
  // M.5.10 CI TEST FIXTURE CLEANUP ONLY. Real pre-settlements have no
  // delete/undo endpoint. Do not apply this reset in a real environment.
