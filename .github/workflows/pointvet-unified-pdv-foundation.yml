@@ -11,6 +11,9 @@ on:
       - "api/src/modules/clientes/client-finance.service.js"
       - "api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js"
       - "api/src/modules/fiscal/fiscal-unificado-venda.contract.js"
+      - "api/src/modules/fiscal/fiscal-provedor-neutro.contract.js"
+      - "api/tests/fiscal-provedor-neutro.contract.test.mjs"
+      - "POINTVET_M526_PORTA_FISCAL_NEUTRA.md"
       - "api/src/modules/fiscal/fiscal-unificado-protocolo-ci.contract.js"
       - "api/src/modules/fiscal/fiscal-unificado-integridade-ci.contract.js"
       - "api/tests/fiscal-unificado-integridade-ci.contract.test.mjs"
@@ -240,6 +243,8 @@ jobs:
           node --check api/src/modules/clientes/client-finance.service.js
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-venda.contract.js
+          node --check api/src/modules/fiscal/fiscal-provedor-neutro.contract.js
+          node --test api/tests/fiscal-provedor-neutro.contract.test.mjs
           node --check api/src/modules/fiscal/fiscal-unificado-protocolo-ci.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-integridade-ci.contract.js
           node --test api/tests/fiscal-unificado-integridade-ci.contract.test.mjs

@@ -36,6 +36,7 @@ import {createSchema as quoteCreateSchema,createQuote,listQuotes,setQuoteStatus,
 import {previsualizarOrcamentoNoPdvUnificado} from "../src/modules/clientes/client-quote-pdv-preview.service.js";
 import {converterOrcamentoEmRascunhoSomenteSandbox} from "../src/modules/clientes/client-quote-pdv-conversion-sandbox.service.js";
 import {prepararVendaFilhaFiscalSomenteSandbox} from "../src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js";
+import {prepararEnvelopesFiscaisNeutrosM526} from "../src/modules/fiscal/fiscal-provedor-neutro.contract.js";
 import {prepararFluxoFiscalSomenteSandbox,registrarEventoFiscalSimuladoSomenteSandbox,
  diagnosticarFluxoFiscalSomenteSandbox}
  from "../src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js";
@@ -586,6 +587,21 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(fiscalA.emissaoDisponivel,false);
  assert.equal(fiscalA.gerouDocumento,false);
  assert.equal(fiscalB.transmitiu,false);
+ // M.5.26: future provider's INPUT contract only, from authorized child-sale
+ // previews; no live document, number, transmission, tax calculation or SDK.
+ const envelopeA=prepararEnvelopesFiscaisNeutrosM526(fiscalA);
+ const envelopeB=prepararEnvelopesFiscaisNeutrosM526(fiscalB);
+ assert.equal(envelopeA.envelopes[0].origem.empresaId,ids.co1);
+ assert.equal(envelopeB.envelopes[0].origem.empresaId,ids.co2);
+ assert.equal(envelopeA.envelopes[0].documento.tipoEscolhido,"NFE");
+ assert.equal(envelopeB.envelopes[0].documento.tipoEscolhido,"NFSE");
+ assert.equal(envelopeA.envelopes[0].valores.total,"180.00");
+ assert.equal(envelopeB.envelopes[0].valores.total,"140.00");
+ assert.notEqual(envelopeA.envelopes[0].fingerprintEnvelope,
+  envelopeB.envelopes[0].fingerprintEnvelope);
+ assert.equal(envelopeA.habilitaQualquerOperacaoFiscal,false);
+ assert.equal(envelopeB.provedorConectado,false);
+ assert.equal(await prisma.documentoFiscal.count(),fiscalCountBefore);
  assert.deepEqual(await prepararVendaFilhaFiscalSomenteSandbox(fiscalInputA),fiscalA);
  await assert.rejects(()=>prepararVendaFilhaFiscalSomenteSandbox({
   ...fiscalInputA,escolhas:[{classe:"PRODUTO",tipoDocumento:"RECIBO"}]
