@@ -394,6 +394,11 @@ async function sourceForReconciliation(tx, { empresaId, origem, origemId }) {
   if (origem === "PAGAMENTO_VENDA") {
     const p = await tx.pagamento.findFirst({ where: { id: origemId, venda: { empresaId }, status: "APROVADO", forma: { not: "CREDITO_CLIENTE" } }, include: { venda: true } });
     if (!p) throw new Error("MOVIMENTO_NAO_ENCONTRADO");
+    // M.5.13: manual unified CREDIT installments must never be counted again
+    // as a full gross sale payment; their deposit ledger is per net repasse.
+    if(p.forma==="CARTAO_CREDITO"&&await tx.linhaRecebimentoManualUnificado.count({
+      where:{pagamentoId:p.id}
+    })) throw new Error("CARTAO_UNIFICADO_REPASSE_MANUAL_SEPARADO");
     return { direcao:"ENTRADA", valor:n(p.valor), data:p.pagoEm||p.createdAt, descricao:`Venda #${p.venda.numero} · ${p.forma}` };
   }
   if (origem === "BAIXA_TITULO") {
