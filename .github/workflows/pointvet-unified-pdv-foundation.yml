@@ -103,6 +103,7 @@ on:
       - "api/src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js"
       - "admin-web/src/components/UnifiedCardReceivablesPanel.jsx"
       - "POINTVET_M57_PAINEL_RECEBIVEIS_CARTAO.md"
+      - "POINTVET_M58_CONSISTENCIA_FINANCEIRA.md"
       - "api/tests/pdv-unificado-resumo-recebiveis.contract.test.mjs"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
