@@ -371,6 +371,7 @@ enum OrigemConciliacaoFinanceira {
   PAGAMENTO_VENDA
   BAIXA_TITULO
   TRANSACAO_ONLINE
+  REPASSE_CARTAO_MANUAL_UNIFICADO
 }
 
 enum DirecaoFinanceira {
