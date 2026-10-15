@@ -21,6 +21,7 @@ import {diagnosticarPreBaixaSomenteSandbox} from "../src/modules/pdv/pdv-unifica
 import {registrarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-manual-sandbox.service.js";
 import {compensarRepasseCartaoManualSomenteSandbox} from "../src/modules/pdv/pdv-unificado-repasse-compensacao-sandbox.service.js";
 import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "../src/modules/pdv/pdv-unificado-repasse-historico.service.js";
+import {consultarEtapasRepassesM516} from "../src/modules/pdv/pdv-unificado-fluxo-operacional.service.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
 import {listarComandasRecebiveisCartaoLeituraM57,consultarRecebiveisCartaoLeituraM57} from "../src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js";
 import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro,pendentesConciliacao,listarContas,conciliar as conciliarFinanceiro,desconciliar as desconciliarFinanceiro} from "../src/modules/financeiro/financeiro.service.js";
@@ -1049,6 +1050,16 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(preRecord.reutilizada,true);
  assert.equal(preRecord.valorLiquidoDeclarado,"58.80");
  assert.equal(preRecord.creditouBanco,false);
+ const stepsCtx={organizacaoId:ids.org,empresaId:ids.co1,
+  usuarioId:ids.user,comandaId:closingDraft.id};
+ const firstSteps=await consultarEtapasRepassesM516(stepsCtx);
+ assert.equal(firstSteps.preparacoes.length,1);
+ assert.equal(firstSteps.preparacoes[0].etapa,"AGUARDANDO_SEGUNDA_CONFERENCIA");
+ assert.equal(firstSteps.checkoutDisponivel,false);
+ await assert.rejects(()=>consultarEtapasRepassesM516({
+  ...stepsCtx,organizacaoId:ids.other
+ }),/M57_SEM_ACESSO_FINANCEIRO/);
+
  assert.equal(await prisma.preparacaoBaixaCartaoManualUnificada.count(),1);
  assert.equal(await prisma.parcelaPreBaixaCartaoManualUnificada.count(),1);
  assert.equal(await prisma.auditoria.count({where:{
@@ -1102,6 +1113,11 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(documentaryReview.comprovacaoBancariaIndependente,false);
  assert.equal(documentaryReview.baixouFinanceiro,false);
  assert.equal(documentaryReview.creditouBanco,false);
+ const reviewedSteps=await consultarEtapasRepassesM516(stepsCtx);
+ assert.equal(reviewedSteps.preparacoes[0].etapa,
+  "SEGUNDA_CONFERENCIA_DOCUMENTAL_DECLARADA");
+ assert.equal(reviewedSteps.preparacoes[0].valorLiquido,"58.80");
+
  assert.equal(await prisma.parecerPreBaixaCartaoManualUnificada.count({
   where:{preparacaoId:preRecord.preparacaoId}
  }),1);
@@ -1190,6 +1206,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(manualEntry.confirmacaoAutomaticaDoBanco,false);
  assert.equal(manualEntry.pagamentoAprovado,false);
  assert.equal(manualEntry.atualizouSaldoConciliadoInterno,true);
+ const postedSteps=await consultarEtapasRepassesM516(stepsCtx);
+ assert.equal(postedSteps.preparacoes[0].etapa,
+  "REPASSE_INTERNO_CONFIRMADO_MANUALMENTE");
+ assert.equal(postedSteps.preparacoes[0].confirmacaoManualInterna,true);
+ assert.equal(postedSteps.integracaoBancaria,false);
+
  assert.equal(await prisma.conciliacaoFinanceira.count({where:{
   empresaId:ids.co1,origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",
   origemId:preRecord.preparacaoId
@@ -1266,6 +1288,13 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(correction.direcao,"SAIDA");
  assert.equal(correction.transferenciaBancariaExecutada,false);
  assert.equal(correction.apagouLancamentoOriginal,false);
+ const correctedSteps=await consultarEtapasRepassesM516(stepsCtx);
+ assert.equal(correctedSteps.preparacoes[0].etapa,
+  "CORRECAO_INTERNA_REGISTRADA");
+ assert.equal(correctedSteps.preparacoes[0].correcaoInterna,true);
+ assert.equal(correctedSteps.confirmacaoDisponivelNaTela,false);
+ assert.equal(correctedSteps.provaBancariaIndependente,false);
+
  assert.equal(await prisma.conciliacaoFinanceira.count({where:{
   origem:"REPASSE_CARTAO_MANUAL_UNIFICADO",origemId:preRecord.preparacaoId
  }}),1,"Original confirmation remains immutable");
