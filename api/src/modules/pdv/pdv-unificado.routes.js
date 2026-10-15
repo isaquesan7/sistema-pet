@@ -6,7 +6,7 @@ import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuper
 import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
 import {consultarRecebiveisCartaoLeituraM57,listarComandasRecebiveisCartaoLeituraM57} from "./pdv-unificado-recebiveis-leitura.service.js";
-import {listarHistoricoRepasseCartaoM514} from "./pdv-unificado-repasse-historico.service.js";
+import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "./pdv-unificado-repasse-historico.service.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
@@ -33,6 +33,9 @@ function erroRecebiveisM57(error,res,next){
   M57_COMANDA_NAO_ENCONTRADA:[404,"Comanda não encontrada."],
   M57_CONTEXTO_INVALIDO:[400,"Parâmetros inválidos."]
  };
+ if(error?.message?.startsWith("M515_"))return res.status(409).json({
+  success:false,message:"Histórico financeiro incompleto ou divergente. Solicite revisão financeira."
+ });
  if(error?.message?.startsWith("M56_"))return res.status(409).json({
   success:false,message:"Inconsistência de recebíveis identificada. Encaminhe à revisão financeira."
  });
@@ -46,6 +49,27 @@ r.get("/recebiveis-cartao/comandas",
    return res.status(403).json({success:false,message:"PDV unificado desativado."});
   const dados=await listarComandasRecebiveisCartaoLeituraM57({
    organizacaoId:req.organizacao.id,empresaId:req.empresa.id,usuarioId:req.usuario.id
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+/**
+ * M.5.15 — one read-only, financially separated manual confirmation overview.
+ * Never accepts POST/PUT/DELETE, cannot book cash or do actual checkout.
+ */
+r.get("/recebiveis-cartao/comandas/:comandaId/conferencia",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const parsed=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!parsed.success)return res.status(400).json({
+   success:false,message:"Identificador inválido."
+  });
+  const dados=await consultarConferenciaManualM515({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:parsed.data
   });
   return res.set("Cache-Control","no-store").json({success:true,dados});
  }catch(e){erroRecebiveisM57(e,res,next);}
