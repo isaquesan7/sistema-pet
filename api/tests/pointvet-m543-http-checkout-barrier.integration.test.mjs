@@ -120,6 +120,16 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
   "/api/pdv-unificado/pagamentos"]){
   await request("POST",path,404,{token,company:companyA});
  }
+ // Revoking the optional preview preference must not enable a fallback checkout.
+ await prisma.configuracaoOrganizacao.update({
+  where:{organizacaoId:orgA},data:{pdvUnificadoHabilitado:false}
+ });
+ const disabled=await request("GET","/api/pdv-unificado/disponibilidade",200,{token,company:companyA});
+ assert.equal(disabled.dados.preferenciaUnificado,false);
+ assert.equal(disabled.dados.checkoutUnificadoDisponivel,false);
+ await request("GET","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
+ await request("POST","/api/pdv-unificado/simulacao",403,{token,company:companyA});
+ await request("POST","/api/pdv-unificado/rascunhos",403,{token,company:companyA});
  const after=await economicCounts();
  assert.deepEqual(after,before,"HTTP release guard must not change economic/fiscal records");
 });
