@@ -100,6 +100,9 @@ on:
       - "api/tests/pdv-unificado-conciliacao-manual.contract.test.mjs"
       - "api/src/modules/pdv/pdv-unificado-resumo-recebiveis.contract.js"
       - "api/src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js"
+      - "api/src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js"
+      - "admin-web/src/components/UnifiedCardReceivablesPanel.jsx"
+      - "POINTVET_M57_PAINEL_RECEBIVEIS_CARTAO.md"
       - "api/tests/pdv-unificado-resumo-recebiveis.contract.test.mjs"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
@@ -201,6 +204,7 @@ jobs:
           node --test api/tests/pdv-unificado-conciliacao-manual.contract.test.mjs
           node --check api/src/modules/pdv/pdv-unificado-resumo-recebiveis.contract.js
           node --check api/src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js
+          node --check api/src/modules/pdv/pdv-unificado-recebiveis-leitura.service.js
           node --test api/tests/pdv-unificado-resumo-recebiveis.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
       - name: Prisma schema
