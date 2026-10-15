@@ -14,6 +14,9 @@ on:
       - "api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js"
       - "api/tests/fiscal-unificado-venda.contract.test.mjs"
       - "POINTVET_M4C2_PREPARACAO_VENDAS_FILHAS.md"
+      - "POINTVET_M4C3_MIGRACAO_FISCAL_ASSISTIDA.md"
+      - "api/src/modules/fiscal/fiscal-unidades-migracao-sandbox.service.js"
+      - "api/tests/pdv-unificado-fiscal-migracao.integration.test.mjs"
       - "api/src/modules/fiscal/fiscal-unificado-planejamento-sandbox.service.js"
       - "api/tests/fiscal-unificado-planejamento.contract.test.mjs"
       - "api/tests/pdv-unificado-fiscal.integration.test.mjs"
@@ -106,6 +109,7 @@ jobs:
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-venda.contract.js
           node --check api/src/modules/fiscal/fiscal-unificado-venda-sandbox.service.js
+          node --check api/src/modules/fiscal/fiscal-unidades-migracao-sandbox.service.js
           node --test api/tests/fiscal-unificado-venda.contract.test.mjs
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento-sandbox.service.js
           node --test api/tests/fiscal-unificado-planejamento.contract.test.mjs
@@ -184,6 +188,12 @@ jobs:
           NODE_ENV: test
           POINTVET_UNIFIED_SALES_SANDBOX: "1"
         run: node --import tsx --test tests/pdv-unificado-fiscal.integration.test.mjs
+      - name: Verify assisted fiscal topology migration, tenant isolation and logical reversal in CI
+        working-directory: api
+        env:
+          NODE_ENV: test
+          POINTVET_UNIFIED_SALES_SANDBOX: "1"
+        run: node --import tsx --test tests/pdv-unificado-fiscal-migracao.integration.test.mjs
       - name: Verify draft columns and revision conflict
         working-directory: api
         run: node --test tests/pdv-unificado-postgres.smoke.mjs
