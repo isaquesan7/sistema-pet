@@ -29,6 +29,7 @@ import {consultarHistoricoDevolucoesM523,projetarHistoricoDevolucoesEmTransacaoM
 import {consultarDiagnosticoDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js";
 import {consultarDossieDevolucoesM527} from "../src/modules/pdv/pdv-unificado-dossie-devolucoes.service.js";
 import {registrarParecerDevolucaoExternaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-devolucao-ci-sandbox.service.js";
+import {consultarPlanoCustodiaDevolucoesSomenteSandbox} from "../src/modules/pdv/pdv-unificado-custodia-devolucoes-sandbox.service.js";
 import {diagnosticarDivergenciasDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
@@ -1420,6 +1421,24 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(firstDossier.permiteConcluirRevisao,false);
  assert.equal(firstDossier.permiteNovoReembolso,false);
  assert.equal(firstDossier.permiteOperacaoFiscal,false);
+ // M.5.29: custody/retention POLICY PREFLIGHT only, no real evidence intake.
+ const custodyBefore=await consultarPlanoCustodiaDevolucoesSomenteSandbox(stepsCtx);
+ assert.equal(custodyBefore.codigoDossie,firstDossier.codigoDossie);
+ assert.equal(custodyBefore.contagem.declaracoes,1);
+ assert.equal(custodyBefore.contagem.pareceresDeclarados,0);
+ assert.equal(custodyBefore.devolucoes[0].estado,"SEM_PARECER_CI");
+ assert.equal(custodyBefore.prazoRetencaoDias,null);
+ assert.equal(custodyBefore.permiteUpload,false);
+ assert.equal(custodyBefore.permiteArmazenamento,false);
+ await assert.rejects(()=>consultarPlanoCustodiaDevolucoesSomenteSandbox({
+  ...stepsCtx,organizacaoId:ids.other
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
+ await assert.rejects(()=>consultarPlanoCustodiaDevolucoesSomenteSandbox({
+  ...stepsCtx,empresaId:ids.co2
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
+ await assert.rejects(()=>consultarPlanoCustodiaDevolucoesSomenteSandbox({
+  ...stepsCtx,usuarioId:"ci-sem-acesso-externo"
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
  await assert.rejects(()=>consultarDossieDevolucoesM527({
   ...stepsCtx,organizacaoId:ids.other
  }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
@@ -1475,6 +1494,25 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.auditoria.count({where:{
   entidade:"PARECER_DEVOLUCAO_EXTERNA_CI",acao:"DEVOLUCAO_DOCUMENTAL_CONFERIDA_CI"
  }}),1);
+ const custodyCurrent=await consultarPlanoCustodiaDevolucoesSomenteSandbox(stepsCtx);
+ assert.equal(custodyCurrent.contagem.pareceresNaVersaoAtual,1);
+ assert.equal(custodyCurrent.devolucoes[0].estado,
+  "PARECER_DECLARADO_NA_VERSAO_ATUAL");
+ assert.notEqual(custodyCurrent.codigoPlano,custodyBefore.codigoPlano);
+ assert.equal(custodyCurrent.politicaAprovada,false);
+ assert.equal(custodyCurrent.permiteReembolso,false);
+ assert.equal(custodyCurrent.permiteOperacaoFiscal,false);
+ assert(!JSON.stringify(custodyCurrent).includes(evidenceM528.evidenciaReferencia));
+ // Tampered/missing CI audit cannot masquerade as a valid review projection.
+ const custodyAudit=await prisma.auditoria.findFirstOrThrow({where:{
+  entidade:"PARECER_DEVOLUCAO_EXTERNA_CI",entidadeId:savedM528.parecerId
+ }});
+ await prisma.auditoria.update({where:{id:custodyAudit.id},
+  data:{usuarioId:ids.user}});
+ await assert.rejects(()=>consultarPlanoCustodiaDevolucoesSomenteSandbox(stepsCtx),
+  /M529_AUDITORIA_DIVERGENTE/);
+ await prisma.auditoria.update({where:{id:custodyAudit.id},
+  data:{usuarioId:custodyAudit.usuarioId}});
  await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
   ...reviewM528,evidencia:{...evidenceM528,evidenciaReferencia:"CI-ALTERED-REFUND-"+suffix}
  }),/M528_PARECER_EXISTENTE_DIVERGENTE/);
@@ -1535,6 +1573,17 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(fullDossier.totais.quantidadeDeclaracoes,2);
  assert.equal(fullDossier.provasBancariasValidas,false);
  assert.equal(fullDossier.permiteLancamentoFinanceiro,false);
+ const custodyStale=await consultarPlanoCustodiaDevolucoesSomenteSandbox(stepsCtx);
+ assert.equal(custodyStale.contagem.declaracoes,2);
+ assert.equal(custodyStale.contagem.pareceresHistoricos,1);
+ assert.equal(custodyStale.contagem.pareceresNaVersaoAtual,0);
+ assert.equal(custodyStale.devolucoes.find(x=>x.devolucaoId===firstRefund.id)
+  .estado,"PARECER_DE_VERSAO_ANTERIOR");
+ assert.equal(custodyStale.devolucoes.find(x=>x.devolucaoId===secondRefund.id)
+  .estado,"SEM_PARECER_CI");
+ assert.equal(custodyStale.codigoDossie,fullDossier.codigoDossie);
+ assert.equal(custodyStale.prazoRetencaoDias,null);
+ assert.equal(custodyStale.permiteDescarteReal,false);
  assert.equal((await registrarParecerDevolucaoExternaSomenteSandbox(reviewM528)).reutilizada,
   true,"immutable first review remains a historical declaration after dossier changes");
 

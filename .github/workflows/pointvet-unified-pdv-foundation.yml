@@ -178,6 +178,10 @@ on:
       - "api/tests/pdv-unificado-parecer-devolucao-ci.contract.test.mjs"
       - "api/prisma/migrations/20261016143000_refund_documentary_review_ci/**"
       - "POINTVET_M528_REVISAO_DOCUMENTAL_DEVOLUCOES_CI.md"
+      - "api/src/modules/pdv/pdv-unificado-custodia-devolucoes.contract.js"
+      - "api/src/modules/pdv/pdv-unificado-custodia-devolucoes-sandbox.service.js"
+      - "api/tests/pdv-unificado-custodia-devolucoes.contract.test.mjs"
+      - "POINTVET_M529_GOVERNANCA_EVIDENCIAS_CI.md"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
@@ -323,6 +327,9 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-parecer-devolucao-ci.contract.js
           node --check api/src/modules/pdv/pdv-unificado-parecer-devolucao-ci-sandbox.service.js
           node --test api/tests/pdv-unificado-parecer-devolucao-ci.contract.test.mjs
+          node --check api/src/modules/pdv/pdv-unificado-custodia-devolucoes.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-custodia-devolucoes-sandbox.service.js
+          node --test api/tests/pdv-unificado-custodia-devolucoes.contract.test.mjs
           node --test api/tests/pdv-unificado-diagnostico-pre-baixa.contract.test.mjs
           node --test api/tests/pdv-unificado-baixa-cartao.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
