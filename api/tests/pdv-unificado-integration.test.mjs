@@ -36,6 +36,8 @@ import {consultarFronteiraEvidenciasSomenteSandbox}
  from "../src/modules/pdv/pdv-unificado-fronteira-evidencias-sandbox.service.js";
 import {CONTROLES_FRONTEIRA_M531}
  from "../src/modules/pdv/pdv-unificado-fronteira-evidencias.contract.js";
+import {consultarDecisaoAcessoEvidenciaSomenteSandbox}
+ from "../src/modules/pdv/pdv-unificado-acesso-evidencias-sandbox.service.js";
 import {diagnosticarDivergenciasDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
@@ -1474,6 +1476,33 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(storagePreview.permiteUpload,false);
  assert.equal(storagePreview.permiteDescarteReal,false);
  assert.equal(storagePreview.prazoRetencaoDias,null);
+ // M.5.32: no hypothetical CI role can obtain document access, even 10/10.
+ const accessRequestM532={versao:"M5_32_DECISAO_ACESSO_EVIDENCIA_CI_V1",
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  codigoFronteiraEsperado:storagePreview.codigoFronteira,
+  operacao:"DESCARTAR_DOCUMENTO",papelHipotetico:"SEGURANCA_CI"};
+ const accessArgsM532={contexto:stepsCtx,minuta:fullPolicyForStorage,
+  proposta:storageProposalM531,solicitacao:accessRequestM532};
+ const decisionM532=await consultarDecisaoAcessoEvidenciaSomenteSandbox(
+  accessArgsM532);
+ assert.equal(decisionM532.fase,"M5_32_ACESSO_DOCUMENTAL_NEGADO_CI");
+ assert.equal(decisionM532.controlesPlanejados,10);
+ assert.equal(decisionM532.controlesHomologados,0);
+ assert.equal(decisionM532.autorizado,false);
+ assert.equal(decisionM532.permiteDescarte,false);
+ assert.equal(decisionM532.capacidadeEmitida,false);
+ assert.equal(decisionM532.urlAssinadaEmitida,false);
+ assert.equal(decisionM532.bloqueios.includes(
+  "RETENCAO_E_SUSPENSAO_POR_LITIGIO_NAO_HOMOLOGADAS"),true);
+ await assert.rejects(()=>consultarDecisaoAcessoEvidenciaSomenteSandbox({
+  ...accessArgsM532,arquivoBase64:"not-allowed"
+ }),/M532_ENTRADA_NAO_MINIMIZADA/);
+ await assert.rejects(()=>consultarDecisaoAcessoEvidenciaSomenteSandbox({
+  ...accessArgsM532,solicitacao:{...accessRequestM532,empresaId:ids.co2}
+ }),/M532_SOLICITACAO_OU_ESCOPO_INVALIDO/);
+ await assert.rejects(()=>consultarDecisaoAcessoEvidenciaSomenteSandbox({
+  ...accessArgsM532,contexto:{...stepsCtx,organizacaoId:ids.other}
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
  await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
   contexto:stepsCtx,minuta:draftPolicyM530,proposta:storageProposalM531
  }),/M531_MINUTA_TECNICA_INCOMPLETA/);
@@ -1566,6 +1595,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
   contexto:stepsCtx,minuta:fullPolicyForStorage,proposta:storageProposalM531
  }),/M530_PLANO_DESATUALIZADO/);
+ await assert.rejects(()=>consultarDecisaoAcessoEvidenciaSomenteSandbox(
+  accessArgsM532),/M530_PLANO_DESATUALIZADO/);
  const refreshedPolicy={...draftPolicyM530,
   codigoPlanoEsperado:custodyCurrent.codigoPlano,
   requisitos:draftPolicyM530.requisitos.map((r,i)=>i? r:{...r,
@@ -1667,6 +1698,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
   contexto:stepsCtx,minuta:fullPolicyForStorage,proposta:storageProposalM531
  }),/M530_PLANO_DESATUALIZADO/);
+ await assert.rejects(()=>consultarDecisaoAcessoEvidenciaSomenteSandbox(
+  accessArgsM532),/M530_PLANO_DESATUALIZADO/);
  assert.equal((await registrarParecerDevolucaoExternaSomenteSandbox(reviewM528)).reutilizada,
   true,"immutable first review remains a historical declaration after dossier changes");
 
