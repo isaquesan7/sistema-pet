@@ -18,6 +18,8 @@ O botão **Rascunhos recentes** reabria a comanda montando nomes de produto, emp
 
 ## Testes
 
+**CI da implementação concluído:** SHA `4c57775c9cf83db3e2311f70ef9046114af241ed`, [Actions #38966122772](https://github.com/isaquesan7/sistema-pet/actions/runs/38966122772), `validate` e `isolated-postgres` SUCCESS. A atualização documental subsequente exige verificar o novo HEAD.
+
 1. Contrato de reidratação em `api/tests/pdv-unificado-retomada-comanda.contract.test.mjs`: duas empresas, serviço com pet, rascunho cancelado ignorado, nomes e preços persistidos sem catálogo da busca atual, UI ligada à função e mensagens de pendência.
 2. Integração no PostgreSQL **descartável** `api/tests/pdv-unificado-integration.test.mjs`: retomada de comanda de duas empresas com nome/valor/quantidade e snapshot imutável à renomeação posterior do catálogo, sem criar venda ou pagamento.
 3. Build `admin-web` e workflow de CI da PR #36. Verificar `validate` e `isolated-postgres` do **SHA exato**; smoke real depende de staging específico autorizado.
