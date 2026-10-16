@@ -16,9 +16,11 @@ Antes da M.5.35, **Adicionar** no catálogo sempre agrupava linhas com o mesmo `
 
 ## Regressões
 
+**Implementação validada no GitHub:** SHA `72fefe526c963b386adda91be5dbf804c4dcde22`, [Actions #38968102501](https://github.com/isaquesan7/sistema-pet/actions/runs/38968102501), jobs `validate` e `isolated-postgres` **SUCCESS**. A atualização documental subsequente precisa ser validada no novo HEAD.
+
 1. Teste puro `api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs`: serviço repetido cria duas linhas; edição e exclusão por chave não tocam a segunda; produto repetido agrega; a reabertura mantém duas linhas persistidas para pets distintos.
 2. Integração PostgreSQL **descartável** `api/tests/pdv-unificado-integration.test.mjs`: dois pets reais do mesmo tutor na fixture, mesmo serviço com duas quantidades, simulação e rascunho em duas linhas, pré-fechamento sem pendências e total exato, recusa de pet estranho e checkout falso.
-3. Build React e testes do workflow `PointVet Unified PDV Foundation` no SHA exato; até a conclusão da execução CI, **resultado remoto pendente**.
+3. Build React e testes do workflow `PointVet Unified PDV Foundation` no SHA exato: **aprovados** no commit acima.
 
 ## Limites inalterados
 
