@@ -2611,4 +2611,107 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.estoqueSaldo.count({where:{produtoId:readProduct.id}}),0);
  assert.equal(await prisma.movimentacaoEstoque.count({where:{produtoId:readProduct.id}}),0);
 
+ // M.5.39 — 333 g distribuídos por FEFO: 125 g do primeiro lote válido,
+ // 208 g do segundo; lote vencido de 1 g não pode ser consumido.
+ const fefoItem=await prisma.itemCatalogo.create({data:{
+  id:"fefo"+suffix,empresaId:ids.co1,nome:"Ração FEFO granel CI",tipo:"PRODUTO",precoVenda:"15.00"
+ }});
+ const fefoProduct=await prisma.produto.create({data:{
+  itemId:fefoItem.id,unidade:"QUILOGRAMA",controlaEstoque:true,controlaLote:true
+ }});
+ const loteDia=dias=>{
+  const date=new Date();date.setUTCDate(date.getUTCDate()+dias);
+  date.setUTCHours(0,0,0,0);return date;
+ };
+ const fefoExpired=await prisma.loteProduto.create({data:{
+  produtoId:fefoProduct.id,numeroLote:"FEFO_VENCIDO_"+suffix,
+  dataValidade:loteDia(-3),quantidadeAtual:"0.001"
+ }});
+ const fefoFirst=await prisma.loteProduto.create({data:{
+  produtoId:fefoProduct.id,numeroLote:"FEFO_PRIMEIRO_"+suffix,
+  dataValidade:loteDia(15),quantidadeAtual:"0.125"
+ }});
+ const fefoSecond=await prisma.loteProduto.create({data:{
+  produtoId:fefoProduct.id,numeroLote:"FEFO_SEGUNDO_"+suffix,
+  dataValidade:loteDia(40),quantidadeAtual:"0.500"
+ }});
+ await prisma.estoqueSaldo.create({data:{produtoId:fefoProduct.id,quantidade:"0.626"}});
+ const prepararFefo=async(quantidade,valorCentavos)=>{
+  const saleArgs={...args,itens:[{empresaId:ids.co1,
+   itemCatalogoId:fefoItem.id,quantidade}]};
+  const draft=await salvarRascunho(saleArgs);
+  const context={...saleArgs,id:draft.id,versao:1};
+  await reservarOperacoesFechamento(context);
+  const alocacoes=[{empresaId:ids.co1,sessaoCaixaId:session1.id,
+   pagamentos:[{forma:"PIX",valorCentavos}]}];
+  await prepararExecucaoUnificada({...context,dados:{versao:1,alocacoes}});
+  await registrarRecebimentoManualSomenteSandbox({...context,dados:{versao:1,
+   alocacoes:[{...alocacoes[0],pagamentos:[{...alocacoes[0].pagamentos[0],
+    confirmadoPeloAtendente:true}]}]}});
+  await criarVendasFilhasSomenteSandbox(context);
+  return context;
+ };
+
+ // Há 626 g no saldo físico, mas só 625 g em lotes não vencidos.
+ // Um checkout de 626 g deve abortar até os pagamentos já gravados nele.
+ const notFefo=await prepararFefo(0.626,939);
+ const beforeFefoPays=await prisma.pagamento.count();
+ await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox(notFefo),
+  /M3_ESTOQUE_LOTE_INSUFICIENTE/);
+ assert.equal(await prisma.pagamento.count(),beforeFefoPays);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{produtoId:fefoProduct.id}}),0);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:fefoProduct.id}})).quantidade),0.626);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoFirst.id}})).quantidadeAtual),0.125);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoSecond.id}})).quantidadeAtual),0.5);
+
+ const fefoCtx=await prepararFefo(0.333,500);
+ const fefoClosed=await efetivarRecebimentosManuaisSomenteSandbox(fefoCtx);
+ const fefoSaleId=fefoClosed.vendas[0].vendaId;
+ const fefoMovements=await prisma.movimentacaoEstoque.findMany({where:{
+  origemTipo:"VENDA",origemId:fefoSaleId,tipo:"VENDA"
+ }});
+ assert.equal(fefoMovements.length,2,"Uma baixa por lote válido efetivamente consumido");
+ assert.deepEqual(Object.fromEntries(fefoMovements.map(m=>[m.loteId,Number(m.quantidade)])),{
+  [fefoFirst.id]:0.125,[fefoSecond.id]:0.208
+ });
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoExpired.id}})).quantidadeAtual),0.001);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoFirst.id}})).quantidadeAtual),0);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoSecond.id}})).quantidadeAtual),0.292);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:fefoProduct.id}})).quantidade),0.293);
+ assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(fefoCtx)).estoqueMovimentado,false);
+ const fefoReverse={...fefoCtx,dados:{
+  motivo:"Devolução integral de 333 gramas de ração a granel conferida na loja",
+  confirmouDevolucaoExterna:true,referenciaExterna:"FEFO_GRANEL_CI_"+suffix
+ }};
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox({
+  ...fefoReverse,simularFalhaAposEmpresaId:ids.co1
+ }),/M3C_FALHA_SIMULADA_TRANSACAO/);
+ assert.equal(await prisma.estornoFechamentoManualUnificado.count({where:{
+  reserva:{comandaId:fefoCtx.id}
+ }}),0,"Estorno parcial precisa reverter a transação inteira");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:fefoProduct.id}})).quantidade),0.293);
+ const fefoReversed=await estornarFechamentoManualSomenteSandbox(fefoReverse);
+ assert.equal(fefoReversed.reutilizada,false);
+ const fefoRefunds=await prisma.movimentacaoEstoque.findMany({where:{
+  origemTipo:"ESTORNO_MANUAL_UNIFICADO",origemId:fefoReversed.id,tipo:"CANCELAMENTO"
+ }});
+ assert.equal(fefoRefunds.length,2);
+ assert.deepEqual(Object.fromEntries(fefoRefunds.map(m=>[m.loteId,Number(m.quantidade)])),{
+  [fefoFirst.id]:0.125,[fefoSecond.id]:0.208
+ });
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:fefoProduct.id}})).quantidade),0.626);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoExpired.id}})).quantidadeAtual),0.001);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoFirst.id}})).quantidadeAtual),0.125);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:fefoSecond.id}})).quantidadeAtual),0.5);
+ assert.equal((await estornarFechamentoManualSomenteSandbox(fefoReverse)).reutilizada,true);
+ // Replay também precisa detectar adulteração de apenas 1 g em um lote.
+ const refunded=fefoRefunds.find(m=>m.loteId===fefoSecond.id);
+ await prisma.movimentacaoEstoque.update({where:{id:refunded.id},
+  data:{quantidade:"0.207"}});
+ await assert.rejects(()=>estornarFechamentoManualSomenteSandbox(fefoReverse),
+  /M3C_REPLAY_INCONSISTENTE/);
+ await prisma.movimentacaoEstoque.update({where:{id:refunded.id},
+  data:{quantidade:"0.208"}});
+ assert.equal((await estornarFechamentoManualSomenteSandbox(fefoReverse)).reutilizada,true);
+
 });

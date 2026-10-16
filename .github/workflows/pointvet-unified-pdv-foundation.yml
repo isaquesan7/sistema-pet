@@ -9,6 +9,7 @@ on:
       - "POINTVET_M536_VENDA_RACAO_GRANEL_GESTAO.md"
       - "POINTVET_M537_INTEGRIDADE_GRANEL_ESTOQUE.md"
       - "POINTVET_M538_CONCORRENCIA_UNIDADE_GRANEL.md"
+      - "POINTVET_M539_ESTORNO_GRANEL_LOTES_FEFO.md"
       - "POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md"
       - "POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md"
       - "api/prisma/schema.prisma"
@@ -99,6 +100,7 @@ on:
       - "api/src/modules/catalogo/catalogo.controller.js"
       - "api/tests/pointvet-m537-unidade-granel.contract.test.mjs"
       - "api/tests/pointvet-m538-granel-concorrencia.contract.test.mjs"
+      - "api/tests/pointvet-m539-fefo-estorno.contract.test.mjs"
       - "api/src/modules/estoque/estoque.service.js"
       - "api/src/modules/estoque/estoque.controller.js"
       - "api/src/modules/pdv/pdv.service.js"
@@ -287,6 +289,7 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-fechamento-manual-sandbox.service.js
           node --check api/src/modules/pdv/pdv-unificado-estorno-manual.contract.js
           node --check api/src/modules/pdv/pdv-unificado-estorno-manual-sandbox.service.js
+          node --test api/tests/pointvet-m539-fefo-estorno.contract.test.mjs
           node --check api/src/app.js
           node --check api/src/modules/clientes/client-finance.service.js
           node --check api/src/modules/fiscal/fiscal-unificado-planejamento.contract.js

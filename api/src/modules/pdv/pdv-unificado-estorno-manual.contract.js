@@ -26,3 +26,30 @@ export function validarReversaoPendente({parcelas=[],documentosFiscais=[],
  return {aptoParaReversaoInterna:true,reembolsoAutomatico:false,
   dadosExternosVerificadosAutomaticamente:false};
 }
+
+/** M.5.39: uma compensação exata para CADA baixa, preservando produto, lote e 1 g. */
+export function conferirCompensacoesEstoquePorLote(originais=[],compensacoes=[]){
+ if(originais.length!==compensacoes.length)throw Error("M3C_REPLAY_INCONSISTENTE");
+ const porOrigem=new Map();
+ for(const mov of originais){
+  if(!mov.id||porOrigem.has(mov.id))throw Error("M3C_REPLAY_INCONSISTENTE");
+  porOrigem.set(mov.id,mov);
+ }
+ const verificados=new Set();
+ for(const estorno of compensacoes){
+  const referencia=estorno.observacao?.match(/^Compensa movimento (.+)$/)?.[1];
+  const original=porOrigem.get(referencia);
+  const emMil=valor=>Math.round(Number(valor)*1000);
+  const quantidadeOriginal=original&&emMil(original.quantidade);
+  if(!original||verificados.has(referencia)||
+     !Number.isSafeInteger(quantidadeOriginal)||quantidadeOriginal<=0||
+     quantidadeOriginal!==emMil(estorno.quantidade)||
+     original.empresaId!==estorno.empresaId||
+     original.produtoId!==estorno.produtoId||
+     (original.loteId||null)!==(estorno.loteId||null))
+   throw Error("M3C_REPLAY_INCONSISTENTE");
+  verificados.add(referencia);
+ }
+ if(verificados.size!==porOrigem.size)throw Error("M3C_REPLAY_INCONSISTENTE");
+ return true;
+}

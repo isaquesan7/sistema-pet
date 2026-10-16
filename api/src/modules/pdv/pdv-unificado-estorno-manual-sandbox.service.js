@@ -9,7 +9,8 @@ import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
 import {consultarReservaFechamento} from "./pdv-unificado.service.js";
 import {centavosExatos} from "./pdv-unificado-fechamento-manual.contract.js";
-import {normalizarPedidoEstornoManual,fingerprintEstornoManual,validarReversaoPendente}
+import {normalizarPedidoEstornoManual,fingerprintEstornoManual,validarReversaoPendente,
+ conferirCompensacoesEstoquePorLote}
  from "./pdv-unificado-estorno-manual.contract.js";
 const fail=x=>{throw Error(x);};
 const milli=x=>Math.round(Number(x)*1000);
@@ -41,12 +42,13 @@ async function replay(tx,audit,comanda,reserva,ops,registro){
  if(!lines.length||sales.length!==ops.length||sales.some(s=>s.status!=="ESTORNADA")||
     payments.length!==lines.length||payments.some(p=>p.status!=="ESTORNADO")||
     slices.some(p=>p.status!=="ESTORNADA"))fail("M3C_REPLAY_INCONSISTENTE");
- const sold=await tx.movimentacaoEstoque.count({where:{
+ const sold=await tx.movimentacaoEstoque.findMany({where:{
   origemTipo:"VENDA",origemId:{in:ops.map(o=>o.vendaId)},tipo:"VENDA"}});
- const reversed=await tx.movimentacaoEstoque.count({where:{
+ const reversed=await tx.movimentacaoEstoque.findMany({where:{
   origemTipo:"ESTORNO_MANUAL_UNIFICADO",origemId:audit.id,tipo:"CANCELAMENTO"}});
- if(sold!==reversed||audit.snapshot.movimentosEstoque!==reversed)
+ if(audit.snapshot.movimentosEstoque!==reversed.length)
   fail("M3C_REPLAY_INCONSISTENTE");
+ conferirCompensacoesEstoquePorLote(sold,reversed);
  return result(audit,true);
 }
 export async function estornarFechamentoManualSomenteSandbox({
@@ -203,8 +205,12 @@ export async function estornarFechamentoManualSomenteSandbox({
    await tx.$queryRawUnsafe('SELECT "id" FROM "estoque_saldos" WHERE "produtoId"=$1 FOR UPDATE',id);
   for(const id of lots)
    await tx.$queryRawUnsafe('SELECT "id" FROM "lotes_produtos" WHERE "id"=$1 FOR UPDATE',id);
+  const existingLots=await tx.loteProduto.findMany({where:{id:{in:lots}},
+   select:{id:true,produtoId:true}});
+  const lotById=new Map(existingLots.map(l=>[l.id,l]));
   if(await tx.estoqueSaldo.count({where:{produtoId:{in:stocks}}})!==stocks.length||
-     await tx.loteProduto.count({where:{id:{in:lots}}})!==lots.length)
+     existingLots.length!==lots.length||movements.some(m=>
+      m.loteId&&lotById.get(m.loteId)?.produtoId!==m.produtoId))
    fail("M3C_ESTOQUE_INEXISTENTE");
   const audit=await tx.estornoFechamentoManualUnificado.create({data:{
    reservaId:reserva.id,usuarioId,motivo:pedido.motivo,
