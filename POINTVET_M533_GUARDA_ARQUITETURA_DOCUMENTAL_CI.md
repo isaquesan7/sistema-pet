@@ -2,6 +2,8 @@
 
 Data: 16/10/2026. Continuidade da [Issue #37](https://github.com/isaquesan7/sistema-pet/issues/37) no [PR #36 DRAFT](https://github.com/isaquesan7/sistema-pet/pull/36).
 
+Validação da implementação: commit `d9f40aceaa1bb094710dd6f3f4b67b2e448e5d7c`, [Actions #38963499297](https://github.com/isaquesan7/sistema-pet/actions/runs/38963499297), jobs `validate` + `isolated-postgres` **SUCCESS**. Após esta alteração exclusivamente documental, verificar novamente o HEAD final.
+
 ## Objetivo
 
 Adicionar um **teste automatizado de arquitetura**, não uma nova operação de negócio, para proteger o isolamento dos contratos documentais M.5.29–M.5.32. Enquanto a escolha de provedor, a política documental e as aprovações reais estiverem pendentes, o CI deve avisar caso o código seja conectado a HTTP, receba dependências de armazenamento/rede ou passe a escrever no banco.
