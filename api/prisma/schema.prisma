@@ -1636,11 +1636,35 @@ model DevolucaoClienteManualUnificada {
   createdAt DateTime @default(now())
 
   preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+  parecerExternoCi ParecerDevolucaoExternaCi?
 
   @@unique([empresaId, referenciaExterna])
   @@index([organizacaoId,empresaId,preparacaoId])
   @@index([empresaId,comandaId])
   @@map("devolucoes_cliente_manual_unificada")
+}
+
+// M.5.28 — ONLY CI: reviewer-supplied metadata of an external document.
+// No file, verified payment, automatic refund, fiscal effect or public write.
+model ParecerDevolucaoExternaCi {
+  id String @id @default(cuid())
+  devolucaoId String @unique
+  organizacaoId String
+  empresaId String
+  comandaId String
+  conferenteId String
+  evidenciaReferencia String @db.VarChar(120)
+  evidenciaSha256 String @db.VarChar(64)
+  codigoDossie String @db.VarChar(64)
+  fingerprint String @unique @db.VarChar(64)
+  status String @default("CONFERENCIA_DOCUMENTAL_DECLARADA_CI") @db.VarChar(50)
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  devolucao DevolucaoClienteManualUnificada @relation(fields:[devolucaoId],references:[id],onDelete:Restrict)
+
+  @@index([organizacaoId,empresaId,comandaId])
+  @@map("pareceres_devolucao_externa_ci")
 }
 
 // M.5.11 — segunda conferencia DOCUMENTAL, nunca prova bancaria ou baixa.

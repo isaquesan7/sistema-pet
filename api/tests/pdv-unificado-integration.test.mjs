@@ -28,6 +28,7 @@ import {registrarDevolucaoExternaDeclaradaSomenteSandbox} from "../src/modules/p
 import {consultarHistoricoDevolucoesM523,projetarHistoricoDevolucoesEmTransacaoM523} from "../src/modules/pdv/pdv-unificado-devolucoes-historico.service.js";
 import {consultarDiagnosticoDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js";
 import {consultarDossieDevolucoesM527} from "../src/modules/pdv/pdv-unificado-dossie-devolucoes.service.js";
+import {registrarParecerDevolucaoExternaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-devolucao-ci-sandbox.service.js";
 import {diagnosticarDivergenciasDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
@@ -1422,6 +1423,61 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await assert.rejects(()=>consultarDossieDevolucoesM527({
   ...stepsCtx,organizacaoId:ids.other
  }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
+ // M.5.28: reviewer-supplied METADATA only, never real document verification.
+ const auditReviewerId="refund-auditor"+suffix;
+ const evidenceM528={evidenciaReferencia:"CI-DOC-REFUND-"+suffix,
+  evidenciaSha256:"e".repeat(64),confirmouComparacaoDocumental:true};
+ const reviewM528={organizacaoId:ids.org,empresaId:ids.co1,
+  conferenteId:auditReviewerId,devolucaoId:firstRefund.id,
+  codigoDossieEsperado:firstDossier.codigoDossie,evidencia:evidenceM528};
+ assert.equal(await prisma.parecerDevolucaoExternaCi.count(),0);
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,conferenteId:reviewerId
+ }),/M528_CONFERENTE_NAO_INDEPENDENTE/);
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,conferenteId:ids.user
+ }),/M528_CONFERENTE_NAO_INDEPENDENTE/);
+ await prisma.usuario.create({data:{id:auditReviewerId,nome:"Refund CI auditor",
+  email:"refund-audit-"+suffix+"@ci.invalid",senhaHash:"never-login"}});
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox(reviewM528),
+  /M57_SEM_ACESSO_FINANCEIRO/);
+ await prisma.usuarioOrganizacao.create({data:{
+  usuarioId:auditReviewerId,organizacaoId:ids.org,papel:"MEMBRO"
+ }});
+ await prisma.usuarioEmpresa.create({data:{
+  usuarioId:auditReviewerId,empresaId:ids.co1,cargoId:manager.id
+ }});
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,empresaId:ids.co2
+ }),/M528_DECLARACAO_DE_OUTRA_EMPRESA/);
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,codigoDossieEsperado:"f".repeat(64)
+ }),/M528_DOSSIE_DESATUALIZADO/);
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,evidencia:{...evidenceM528,confirmouComparacaoDocumental:false}
+ }),/M528_DECLARACAO_HUMANA_EXPLICITA_OBRIGATORIA/);
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,simularFalhaAposGravacao:true
+ }),/M528_ROLLBACK_SIMULADO/);
+ assert.equal(await prisma.parecerDevolucaoExternaCi.count(),0);
+ const reviewsM528=await Promise.allSettled([
+  registrarParecerDevolucaoExternaSomenteSandbox(reviewM528),
+  registrarParecerDevolucaoExternaSomenteSandbox(reviewM528)
+ ]);
+ assert(reviewsM528.some(x=>x.status==="fulfilled"));
+ const savedM528=await registrarParecerDevolucaoExternaSomenteSandbox(reviewM528);
+ assert.equal(savedM528.reutilizada,true);
+ assert.equal(savedM528.codigoDossie,firstDossier.codigoDossie);
+ assert.equal(savedM528.bancoVerificadoIndependentemente,false);
+ assert.equal(savedM528.permiteReembolso,false);
+ assert.equal(savedM528.permiteOperacaoFiscal,false);
+ assert.equal(await prisma.parecerDevolucaoExternaCi.count(),1);
+ assert.equal(await prisma.auditoria.count({where:{
+  entidade:"PARECER_DEVOLUCAO_EXTERNA_CI",acao:"DEVOLUCAO_DOCUMENTAL_CONFERIDA_CI"
+ }}),1);
+ await assert.rejects(()=>registrarParecerDevolucaoExternaSomenteSandbox({
+  ...reviewM528,evidencia:{...evidenceM528,evidenciaReferencia:"CI-ALTERED-REFUND-"+suffix}
+ }),/M528_PARECER_EXISTENTE_DIVERGENTE/);
 
 
  await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
@@ -1479,6 +1535,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(fullDossier.totais.quantidadeDeclaracoes,2);
  assert.equal(fullDossier.provasBancariasValidas,false);
  assert.equal(fullDossier.permiteLancamentoFinanceiro,false);
+ assert.equal((await registrarParecerDevolucaoExternaSomenteSandbox(reviewM528)).reutilizada,
+  true,"immutable first review remains a historical declaration after dossier changes");
 
 
  assert.equal(await prisma.devolucaoClienteManualUnificada.count({where:{
@@ -1507,6 +1565,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
    lancamentoOriginalIdEsperado:manualEntry.conciliacaoId}
  }),/M514_EXISTE_DEVOLUCAO_CLIENTE_EXIGE_REVISAO/);
  // Disposable CI fixture reset ONLY: no production delete path exists.
+ await prisma.auditoria.deleteMany({where:{
+  entidade:"PARECER_DEVOLUCAO_EXTERNA_CI",acao:"DEVOLUCAO_DOCUMENTAL_CONFERIDA_CI"
+ }});
+ await prisma.parecerDevolucaoExternaCi.deleteMany({where:{
+  devolucaoId:firstRefund.id
+ }});
  await prisma.auditoria.deleteMany({where:{
   entidade:"DEVOLUCAO_CLIENTE_MANUAL",
   entidadeId:{in:[firstRefund.id,secondRefund.id]}

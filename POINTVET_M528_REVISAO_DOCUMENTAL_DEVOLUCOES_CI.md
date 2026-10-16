@@ -1,0 +1,23 @@
+# PointVet M.5.28 — segunda conferência de devoluções, metadados SOMENTE CI
+
+## Finalidade
+A M.5.27 disponibilizou dossiê read-only por declaração de devolução externa; a M.5.28 **prepara** um registro auditado e idempotente de conferência por um funcionário diferente, usando apenas referência e SHA-256 **informados pelo próprio conferente**, sem receber arquivo, nome/dados bancários do tutor ou uma comprovação externa autenticada.
+
+**É um ensaio de fluxo em banco descartável, NÃO uma segunda conferência real concluída.** Hash e referência informados NÃO demonstram que o documento foi apresentado ou que o dinheiro foi transferido. O código não busca extratos nem implementa motor fiscal, reembolso, checkout ou baixa de conta.
+
+## Implementação
+- Migration aditiva `20261016143000_refund_documentary_review_ci` e Prisma `ParecerDevolucaoExternaCi`: uma declaração pode ter um único parecer, por `devolucaoId @unique`; fingerprint único, empresa/organização/comanda, conferente, código do dossiê M.5.27, referência opaca, SHA do suposto comprovante, snapshot e data. FK `ON DELETE RESTRICT`, restrições de estado/hex e índices. O esquema é exercitado **somente em PostgreSQL CI descartável**; não foi aplicado a ambiente real.
+- `validarParecerDevolucaoCiM528`: contrato puro com confirmação humana explícita, referências restritas, SHA-256 de entrada, valores exatos e vínculo de versão. Conferente deve ser diferente do declarante da devolução, preparador da baixa e confirmador do repasse; adulteração gera `M528_*`. Fingerprint liga declaração, identidade do conferente, código do dossiê, valor e metadados da evidência informada.
+- `registrarParecerDevolucaoExternaSomenteSandbox`: **sem rota HTTP**; exige `NODE_ENV=test`, flag CI, URL do banco descartável e `current_database()=pointvet_unified_ci`. Em transação `Serializable`, trava a comanda como M.5.22, revalida acesso financeiro por empresa/opt-in M.5.7, projeta fontes M.5.23/M.5.24 no mesmo snapshot e recompõe dossiê M.5.27. Exige SHA do dossiê atual para novo parecer, cruza a declaração e os participantes. Insere somente parecer + auditoria em uma transação, com rollback integral sob falha e rejeição de alteração de parecer já gravado; replay idêntico retorna o registro original. Replay histórico após nova declaração é identificado como revisão do dossiê anterior, **sem promovê-lo a evidência atual**.
+- Nenhum documento é anexado, não existe upload de comprovante, URL ou armazenamento de bytes sensíveis. Não existe endpoint público, worker, integração bancária/maquininha/PSP/TEF/Open Finance, evento fiscal, autorização de devolução, movimento de caixa, título ou escrita em `Pagamento`, `Venda` ou `DocumentoFiscal`. Todo resultado devolve `bancoVerificadoIndependentemente=false`, `conteudoDocumentoAutenticado=false`, `permiteReembolso=false`, `permiteLancamentoFinanceiro=false`, `permiteOperacaoFiscal=false` e `habilitaCheckout=false`.
+
+## Aceite automatizado
+- Teste puro: autoconsulta/dupla função bloqueadas, aprovação explícita, SHA/centavos válidos, vínculo de versão, integridade de metadados, todas as operações externas desativadas.
+- Integração PostgreSQL descartável: duas declarações de R$20 + R$40; terceiro usuário distinto das partes financeiras; permissão e tenant; documento/referência alterada; versão antiga; rollback injetado, concorrência e idempotência; auditoria atômica e ausência de efeitos externos. Limpeza somente na fixture descartável, preservando o histórico na execução normal do serviço.
+- Workflow `PointVet Unified PDV Foundation`: lint/sintaxe, testes puros, Prisma, build admin, integração multiempresa, HTTP e backup/restore **sintéticos**.
+- **CI final pendente** no commit de implementação; verificar jobs `validate` e `isolated-postgres` e anexar evidência na Issue #37/PR #36.
+
+## Gates e decisão de produto
+Antes de usar comprovação verdadeira: política LGPD e retenção/segurança de documentos, verificação humana efetiva, revisão independente auditada, fluxo de contestação/correção, validação contábil por CNPJ, autorização e staging real segregado/restore real testado. Avaliar módulo de upload posteriormente, **sem capturar arquivos de clientes agora**.
+
+**Motor fiscal permanece ADIADO pela decisão do proprietário:** M.5.26 é somente contrato neutro para futura integração; nem esta revisão nem a interface M.5.27 liberam emissão oficial. PR #36 continua DRAFT, checkout unificado desativado; nenhuma alteração em `main`, Railway, Pet King, produção, staging real ou backup real, sem merge/deploy.
