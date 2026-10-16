@@ -194,6 +194,8 @@ on:
       - "api/src/modules/pdv/pdv-unificado-acesso-evidencias-sandbox.service.js"
       - "api/tests/pdv-unificado-acesso-evidencias.contract.test.mjs"
       - "POINTVET_M532_NEGACAO_ACESSO_DOCUMENTAL_CI.md"
+      - "api/tests/pdv-unificado-fronteira-documental.guardrail.test.mjs"
+      - "POINTVET_M533_GUARDA_ARQUITETURA_DOCUMENTAL_CI.md"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
@@ -351,6 +353,7 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-acesso-evidencias.contract.js
           node --check api/src/modules/pdv/pdv-unificado-acesso-evidencias-sandbox.service.js
           node --test api/tests/pdv-unificado-acesso-evidencias.contract.test.mjs
+          node --test api/tests/pdv-unificado-fronteira-documental.guardrail.test.mjs
           node --test api/tests/pdv-unificado-diagnostico-pre-baixa.contract.test.mjs
           node --test api/tests/pdv-unificado-baixa-cartao.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs
