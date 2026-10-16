@@ -4,7 +4,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
-import {salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
+import {buscarCatalogo,salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
 import {enfileirarAutorizacoesSomenteSandbox,reclamarOutboxSomenteSandbox,verificarExpiracaoOutboxSomenteSandbox,registrarEventoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js";
@@ -2436,5 +2436,61 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.conversaoOrcamentoPdv.count({
   where:{orcamentoId:sameItemQuote.id}
  }),1);
+
+ // M.5.36 — granel: entrada por gramas inteiros ou por valor, lote/estoque
+ // atômicos no PostgreSQL descartável; sem HTTP, PSP ou qualquer documento fiscal.
+ const bulkItem=await prisma.itemCatalogo.create({data:{
+  id:"bulk"+suffix,empresaId:ids.co1,nome:"Ração Adulto Granel CI",tipo:"PRODUTO",precoVenda:"15.00"
+ }});
+ const bulkProduct=await prisma.produto.create({data:{
+  itemId:bulkItem.id,unidade:"QUILOGRAMA",controlaEstoque:true,controlaLote:true
+ }});
+ await prisma.estoqueSaldo.create({data:{produtoId:bulkProduct.id,quantidade:"2.000"}});
+ const bulkLot=await prisma.loteProduto.create({data:{produtoId:bulkProduct.id,
+  numeroLote:"RACAO_GRANEL_"+suffix,quantidadeAtual:"2.000"}});
+ const search=await buscarCatalogo({...args,busca:"Ração Adulto Granel CI"});
+ assert.equal(search.find(x=>x.id===bulkItem.id)?.unidade,"QUILOGRAMA");
+ const bulkArgs={...args,itens:[{empresaId:ids.co1,itemCatalogoId:bulkItem.id,quantidade:0.333}]};
+ const bulkPreview=await simularComanda(bulkArgs);
+ assert.equal(bulkPreview.total,"5.00");
+ assert.equal(bulkPreview.empresas[0].itens[0].quantidade,0.333);
+ await assert.rejects(()=>simularComanda({...bulkArgs,itens:[{
+  ...bulkArgs.itens[0],quantidade:0.33333
+ }]}),/QUANTIDADE_INVALIDA/);
+ const gramItem=await prisma.itemCatalogo.create({data:{
+  id:"gram"+suffix,empresaId:ids.co1,nome:"Produto em Gramas CI",tipo:"PRODUTO",precoVenda:"2.00"
+ }});
+ await prisma.produto.create({data:{itemId:gramItem.id,unidade:"GRAMA",controlaEstoque:false}});
+ await assert.rejects(()=>simularComanda({...bulkArgs,itens:[{
+  empresaId:ids.co1,itemCatalogoId:gramItem.id,quantidade:0.333
+ }]}),/QUANTIDADE_INVALIDA/);
+ assert.equal((await simularComanda({...bulkArgs,itens:[{
+  empresaId:ids.co1,itemCatalogoId:gramItem.id,quantidade:3
+ }]})).total,"6.00");
+ const bulkDraft=await salvarRascunho(bulkArgs);
+ assert.equal(bulkDraft.total,"5.00");
+ const bulkResume=(await listarRascunhos(bulkArgs)).find(x=>x.id===bulkDraft.id);
+ assert.equal(bulkResume?.itens[0].unidade,"QUILOGRAMA");
+ assert.equal(bulkResume?.itens[0].quantidade,0.333);
+ const bulkCtx={...bulkArgs,id:bulkDraft.id,versao:1};
+ assert.equal((await conferirPreFechamento(bulkCtx)).total,"5.00");
+ await reservarOperacoesFechamento(bulkCtx);
+ const bulkPayment={versao:1,alocacoes:[{empresaId:ids.co1,sessaoCaixaId:session1.id,
+  pagamentos:[{forma:"PIX",valorCentavos:500}]}]};
+ await prepararExecucaoUnificada({...bulkCtx,dados:bulkPayment});
+ await registrarRecebimentoManualSomenteSandbox({...bulkCtx,dados:{versao:1,alocacoes:[{
+  empresaId:ids.co1,sessaoCaixaId:session1.id,pagamentos:[{forma:"PIX",valorCentavos:500,confirmadoPeloAtendente:true}]
+ }]}});
+ await criarVendasFilhasSomenteSandbox(bulkCtx);
+ const beforeBulkDocs=await prisma.documentoFiscal.count();
+ const bulkClose=await efetivarRecebimentosManuaisSomenteSandbox(bulkCtx);
+ assert.equal(bulkClose.estoqueMovimentado,true);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:bulkProduct.id}})).quantidade),1.667);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:bulkLot.id}})).quantidadeAtual),1.667);
+ assert.equal(Number((await prisma.movimentacaoEstoque.findFirst({where:{produtoId:bulkProduct.id,
+  origemTipo:"VENDA",origemId:bulkClose.vendas[0].vendaId}})).quantidade),0.333);
+ assert.equal(await prisma.documentoFiscal.count(),beforeBulkDocs);
+ assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(bulkCtx)).estoqueMovimentado,false,
+  "Repetir fechamento não pode baixar 333 g pela segunda vez");
 
 });

@@ -14,9 +14,9 @@ async function empresasAutorizadas({organizacaoId,usuarioId,empresaId},db=prisma
 }
 export async function buscarCatalogo({organizacaoId,usuarioId,empresaId,busca=""}){
  const companies=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
- const items=await prisma.itemCatalogo.findMany({where:{empresaId:{in:companies.map(c=>c.id)},ativo:true,empresa:{organizacaoId,ativo:true},...(busca?{OR:[{nome:{contains:busca,mode:"insensitive"}},{codigoInterno:{contains:busca,mode:"insensitive"}},{codigoBarras:{contains:busca,mode:"insensitive"}}]}:{})},select:{id:true,empresaId:true,nome:true,tipo:true,precoVenda:true,codigoInterno:true,servico:{select:{exigePet:true}}},take:100,orderBy:[{nome:"asc"}]});
+ const items=await prisma.itemCatalogo.findMany({where:{empresaId:{in:companies.map(c=>c.id)},ativo:true,empresa:{organizacaoId,ativo:true},...(busca?{OR:[{nome:{contains:busca,mode:"insensitive"}},{codigoInterno:{contains:busca,mode:"insensitive"}},{codigoBarras:{contains:busca,mode:"insensitive"}}]}:{})},select:{id:true,empresaId:true,nome:true,tipo:true,precoVenda:true,codigoInterno:true,produto:{select:{unidade:true}},servico:{select:{exigePet:true}}},take:100,orderBy:[{nome:"asc"}]});
  const byCompany=new Map(companies.map(c=>[c.id,c]));
- return items.map(x=>({...x,precoVenda:Number(x.precoVenda),empresa:byCompany.get(x.empresaId)}));
+ return items.map(({produto,...x})=>({...x,unidade:produto?.unidade||null,precoVenda:Number(x.precoVenda),empresa:byCompany.get(x.empresaId)}));
 }
 export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteId,itens},db=prisma){
  const cliente=await db.cliente.findFirst({where:{id:clienteId,organizacaoId,ativo:true},select:{id:true,nome:true}});
@@ -25,7 +25,7 @@ export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteI
  const allowed=new Map(companies.map(c=>[c.id,c]));
  if(itens.some(x=>!allowed.has(x.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
  const ids=[...new Set(itens.map(x=>x.itemCatalogoId))];
- const found=await db.itemCatalogo.findMany({where:{id:{in:ids},empresaId:{in:[...allowed.keys()]},ativo:true,empresa:{organizacaoId,ativo:true}},select:{id:true,empresaId:true,nome:true,tipo:true,precoVenda:true,servico:{select:{exigePet:true}}}});
+ const found=await db.itemCatalogo.findMany({where:{id:{in:ids},empresaId:{in:[...allowed.keys()]},ativo:true,empresa:{organizacaoId,ativo:true}},select:{id:true,empresaId:true,nome:true,tipo:true,precoVenda:true,produto:{select:{unidade:true}},servico:{select:{exigePet:true}}}});
  const map=new Map(found.map(i=>[i.id,i]));
  const petIds=[...new Set(itens.map(i=>i.petId).filter(Boolean))];
  const pets=petIds.length?await db.pet.findMany({where:{id:{in:petIds},clienteId,ativo:true,cliente:{organizacaoId}},select:{id:true}}):[];
@@ -37,7 +37,10 @@ export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteI
   // money in integer cents, quantities up to 3 fractional digits.
   const quantityMilli=Math.round(input.quantidade*1000);
   if(Math.abs(quantityMilli/1000-input.quantidade)>0.0000001)throw Error("QUANTIDADE_INVALIDA");
+  // Estoque de gramas usa unidades inteiras; o de kg usa 0,001 kg = 1 g.
+  if(item.produto?.unidade==="GRAMA"&&quantityMilli%1000!==0)throw Error("QUANTIDADE_INVALIDA");
   const totalCents=Math.round(cents(item.precoVenda)*quantityMilli/1000);
+  if(["QUILOGRAMA","GRAMA"].includes(item.produto?.unidade)&&totalCents<1)throw Error("TOTAL_GRANEL_ZERADO");
   return {empresaId:item.empresaId,empresa:allowed.get(item.empresaId).nomeFantasia,itemCatalogoId:item.id,descricao:item.nome,petId:input.petId||null,quantidade:quantityMilli/1000,valorUnitario:serialize(cents(item.precoVenda)),valorTotal:serialize(totalCents),totalCents};
  });
  const groups=new Map();
@@ -82,10 +85,10 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
 export async function listarRascunhos({organizacaoId,usuarioId,empresaId}){
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
  const allowed=new Map(acessiveis.map(a=>[a.id,a]));
- const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{id:true,empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,descricao:true,valorUnitario:true,valorTotal:true,status:true,itemCatalogo:{select:{tipo:true,servico:{select:{exigePet:true}}}}}}},orderBy:{createdAt:"desc"},take:100});
+ const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{id:true,empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,descricao:true,valorUnitario:true,valorTotal:true,status:true,itemCatalogo:{select:{tipo:true,produto:{select:{unidade:true}},servico:{select:{exigePet:true}}}}}}},orderBy:{createdAt:"desc"},take:100});
  // A linha salva é a fonte da retomada; buscas de catálogo podem estar filtradas,
  // ter sido renomeadas ou não devolver um item desativado. Pre-close revalida tudo.
- return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(({itemCatalogo,...i})=>({...i,quantidade:Number(i.quantidade),valorUnitario:Number(i.valorUnitario),valorTotal:Number(i.valorTotal),empresaNome:allowed.get(i.empresaId).nomeFantasia,tipo:itemCatalogo?.tipo,exigePet:Boolean(itemCatalogo?.servico?.exigePet)}))}));
+ return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(({itemCatalogo,...i})=>({...i,quantidade:Number(i.quantidade),valorUnitario:Number(i.valorUnitario),valorTotal:Number(i.valorTotal),empresaNome:allowed.get(i.empresaId).nomeFantasia,tipo:itemCatalogo?.tipo,unidade:itemCatalogo?.produto?.unidade||null,exigePet:Boolean(itemCatalogo?.servico?.exigePet)}))}));
 }
 
 /** Pre-close verification only. Never mutates invoices, stock, credit or payments.

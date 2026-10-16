@@ -12,6 +12,7 @@ export function rehydrateUnifiedDraft(saved){
   empresa:i.empresaNome,
   preco:Number(i.valorUnitario),
   tipo:i.tipo,
+  unidade:i.unidade||null,
   exigePet:Boolean(i.exigePet)
  }));
 }
@@ -19,11 +20,11 @@ export function rehydrateUnifiedDraft(saved){
 /** Products can share a line. Each service is a separate pet-linked activity. */
 export function addUnifiedCatalogItem(lines,item,lineKey){
  const existing=item.tipo!=="SERVICO"?lines.findIndex(x=>x.empresaId===item.empresaId&&x.itemCatalogoId===item.id):-1;
- if(existing>=0)return lines.map((row,index)=>index===existing?{...row,quantidade:row.quantidade+1}:row);
+ if(existing>=0)return lines.map((row,index)=>index===existing?{...row,quantidade:row.quantidade+1,entradaGranel:null,erroEntradaGranel:null}:row);
  return [...lines,{
   lineKey,itemCatalogoId:item.id,empresaId:item.empresaId,
   nome:item.nome,empresa:item.empresa?.nomeFantasia,quantidade:1,
-  preco:Number(item.precoVenda),petId:"",tipo:item.tipo,
+  preco:Number(item.precoVenda),petId:"",tipo:item.tipo,unidade:item.unidade||null,
   exigePet:Boolean(item.servico?.exigePet)
  }];
 }

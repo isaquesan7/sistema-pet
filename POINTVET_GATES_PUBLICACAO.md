@@ -34,6 +34,8 @@
 
 # POINTVET — GATES OFICIAIS DE PUBLICAÇÃO DO PDV UNIFICADO
 
+> **M.5.36 (16/10/2026) — GRANEL É GATE COMERCIAL:** antes de lançar o PDV de gestão na Pet King, homologar R$ 15/kg com porções em gramas inteiros e venda por valor, cálculo autoritativo, baixa/estorno exatos de saldo e lote, saldo insuficiente, concorrência e bloqueio de mudança silenciosa de unidade após histórico. [Escopo e testes](POINTVET_M536_VENDA_RACAO_GRANEL_GESTAO.md). A prévia e o banco CI não equivalem à liberação de checkout de gestão. Motor fiscal permanece futuro e separado.
+
 > **M.5.33 (16/10/2026) — SENTINELA CI DE ISOLAMENTO DOCUMENTAL:** o [teste de fronteira arquitetural](POINTVET_M533_GUARDA_ARQUITETURA_DOCUMENTAL_CI.md) inspeciona importações e alcançabilidade HTTP dos módulos M.5.29–M.5.32; acusa mudanças de dependências, exposição de rota, escrita direta, arquivo/rede ou importação dinâmica e demonstra detecção por quatro mutações sintéticas. Não adiciona runtime nem substitui auditoria ou aprovação humana. Storage, documentos reais, retenção, ações financeiras, checkout e motor fiscal permanecem bloqueados; provedor fiscal será escolhido futuramente pelo proprietário.
 
 > **M.5.32 (16/10/2026) — ACESSO DOCUMENTAL SEMPRE NEGADO:** o [contrato de decisão sintética CI](POINTVET_M532_NEGACAO_ACESSO_DOCUMENTAL_CI.md) cobre captura, leitura, exportação, descarte e restauração, usando somente papéis hipotéticos e fingerprint da M.5.31. Todas as decisões retornam `autorizado:false`, inclusive com 10/10 controles **planejados**. Não há autenticação/credenciais reais, token, URL, arquivo, endpoint ou permissão operacional. Política e retenção seguem não aprovadas, storage não escolhido/implementado e motor fiscal adiado; sem publicação, merge ou deploy.

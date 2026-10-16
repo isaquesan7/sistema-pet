@@ -6,6 +6,7 @@ import {ArrowLeft,Plus,Trash2,ShieldCheck} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
 import {formatCurrency} from "../lib/formatters.js";
 import {rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
+import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount} from "../lib/unifiedBulk.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import "../clients.css";
 export default function UnifiedPdvPreviewPage(){
@@ -17,6 +18,7 @@ export default function UnifiedPdvPreviewPage(){
  const [localChanges,setLocalChanges]=useState(false);
  const [clientSearch,setClientSearch]=useState(""),[clientId,setClientId]=useState("");
  const [search,setSearch]=useState(""),[lines,setLines]=useState([]);
+ const hasBulkErrors=lines.some(row=>Boolean(row.erroEntradaGranel));
  const nextLineId=useRef(0);
  const eligibility=useQuery({queryKey:["unified-eligibility",selectedOrganization?.id],queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados});
  const enabled=Boolean(eligibility.data?.preferenciaUnificado);
@@ -41,26 +43,46 @@ export default function UnifiedPdvPreviewPage(){
    setLines(rehydrateUnifiedDraft(saved));preview.reset();
  }
  function add(item){const key=`nova:${++nextLineId.current}`;setLocalChanges(true);setSavedNotice("");setLines(rows=>addUnifiedCatalogItem(rows,item,key));preview.reset();}
+ function editBulk(row,raw){
+  const parsed=row.modoGranel==="VALOR"?bulkFromAmount(raw,row.preco,row.unidade):bulkFromGrams(raw,row.unidade);
+  const totalZero=!parsed.erro&&bulkTotalCents({...row,quantidade:parsed.quantidade})<1;
+  setLines(ls=>updateUnifiedLine(ls,row.lineKey,{
+   entradaGranel:raw,erroEntradaGranel:parsed.erro||(totalZero?"Esse peso gera total de R$ 0,00. Ajuste o peso ou o preço cadastrado.":null),
+   ...(parsed.erro||totalZero?{}:{quantidade:parsed.quantidade})
+  }));
+  setLocalChanges(true);preview.reset();
+ }
  return <div className="page-stack pv-unified-preview">
   <Link className="ghost-button pv-back" to="/pdv"><ArrowLeft size={18}/> Voltar ao PDV</Link>
   <section className="page-heading"><div><span className="page-kicker">Fase 20.1 · Homologação</span><h1>Comanda multiempresa — Simulação</h1><p>Confira itens e valores por empresa. Nenhuma venda ou pagamento será registrado nesta tela.</p></div></section>
   {eligibility.isLoading?<p>Conferindo acesso...</p>:eligibility.isError?<p className="alert alert--error">{getApiErrorMessage(eligibility.error)}</p>:!enabled?<div className="panel pv-detail-panel"><h2>Preferência ainda desativada</h2><p>Um gestor pode habilitar a preferência em Configurações → Módulos. Isso libera somente a simulação e não altera o PDV tradicional.</p></div>:<>
    <section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><h2>Rascunhos recentes</h2><button type="button" className="ghost-button" onClick={()=>{setDraft(null);setClientId("");setLines([]);setLocalChanges(false);setSavedNotice("");preview.reset();}}>Nova comanda</button></div>{draftList.isError&&<p className="alert alert--error">{getApiErrorMessage(draftList.error)}</p>}{(draftList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>#{d.numero} · {d.cliente.nome} · versão {d.versaoRascunho}</button>)}</section>
    <section className="panel pv-detail-panel"><h2>Cliente</h2><input className="form-control" placeholder="Buscar tutor" value={clientSearch} onChange={e=>setClientSearch(e.target.value)}/><select className="form-control" value={clientId} onChange={e=>{setClientId(e.target.value);setLocalChanges(true);preview.reset();}} aria-label="Selecione cliente" disabled={isReserved}><option value="">Selecione um cliente ativo</option>{(clients.data||[]).map(c=><option value={c.id} key={c.id}>{c.nome}</option>)}</select></section>
-   <section className="panel pv-detail-panel"><h2>Produtos e serviços autorizados</h2><input className="form-control" placeholder="Buscar em suas empresas" value={search} onChange={e=>setSearch(e.target.value)}/>{catalog.isError&&<p className="alert alert--error">{getApiErrorMessage(catalog.error)}</p>}<div className="pv-unified-catalog">{(catalog.data||[]).map(item=><div key={item.id}><div><strong>{item.nome}</strong><span>{item.empresa?.nomeFantasia} · {formatCurrency(item.precoVenda)}</span></div><button className="ghost-button" disabled={isReserved} onClick={()=>add(item)}><Plus size={16}/> Adicionar</button></div>)}</div></section>
+   <section className="panel pv-detail-panel"><h2>Produtos e serviços autorizados</h2><input className="form-control" placeholder="Buscar em suas empresas" value={search} onChange={e=>setSearch(e.target.value)}/>{catalog.isError&&<p className="alert alert--error">{getApiErrorMessage(catalog.error)}</p>}<div className="pv-unified-catalog">{(catalog.data||[]).map(item=><div key={item.id}><div><strong>{item.nome}</strong><span>{item.empresa?.nomeFantasia} · {formatCurrency(item.precoVenda)} por {stockUnitLabel(item.unidade)}</span></div><button className="ghost-button" disabled={isReserved} onClick={()=>add(item)}><Plus size={16}/> Adicionar</button></div>)}</div></section>
    <section className="panel pv-detail-panel"><h2>Itens da simulação</h2>
     {lines.map(row=><div className="pv-unified-line" key={row.lineKey}>
-     <div><strong>{row.nome}</strong><small>{row.empresa} · {formatCurrency(row.preco)} por unidade {row.rascunhoItemId?"(valor salvo)":""}</small></div>
+     <div><strong>{row.nome}</strong><small>{row.empresa} · {formatCurrency(row.preco)} por {stockUnitLabel(row.unidade)} {row.rascunhoItemId?"(valor salvo)":""}</small></div>
      {row.tipo==="SERVICO"&&<label>{row.exigePet?"Pet obrigatório":"Pet (opcional)"}
       <select className="form-control" value={row.petId||""} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{petId:e.target.value}));setLocalChanges(true);preview.reset();}}>
        <option value="">Selecione o pet</option>{(clientDetails.data?.pets||[]).map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
       </select>
      </label>}
-     <label>Quantidade<input type="number" min="0.001" max="10000" step="0.001" className="form-control" value={row.quantidade} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(e.target.value)}));setLocalChanges(true);preview.reset();}}/></label>
+     {isBulkWeightProduct(row)?<div className="pv-unified-bulk">
+      <label>Registrar por
+       <select className="form-control" value={row.modoGranel||"PESO"} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{modoGranel:e.target.value,entradaGranel:null,erroEntradaGranel:null}));setLocalChanges(true);preview.reset();}}>
+        <option value="PESO">Peso (gramas)</option><option value="VALOR">Valor (R$)</option>
+       </select>
+      </label>
+      <label>{row.modoGranel==="VALOR"?"Valor desejado (R$)":"Peso na balança (g)"}
+       <input className="form-control" type="text" inputMode={row.modoGranel==="VALOR"?"decimal":"numeric"} value={row.entradaGranel??(row.modoGranel==="VALOR"?(bulkTotalCents(row)/100).toFixed(2):String(bulkGrams(row)))} disabled={isReserved} onChange={e=>editBulk(row,e.target.value)} aria-invalid={Boolean(row.erroEntradaGranel)}/>
+      </label>
+      <small>{bulkGrams(row)?.toLocaleString("pt-BR")} g · {formatCurrency(bulkTotalCents(row)/100)} (prévia, estoque em {stockUnitLabel(row.unidade)})</small>
+      {row.erroEntradaGranel&&<small className="pv-unified-bulk-error" role="alert">{row.erroEntradaGranel}</small>}
+     </div>:<label>Quantidade<input type="number" min="0.001" max="10000" step="0.001" className="form-control" value={row.quantidade} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(e.target.value)}));setLocalChanges(true);preview.reset();}}/></label>}
      <button className="icon-button" title="Remover esta linha" disabled={isReserved} onClick={()=>{setLines(ls=>removeUnifiedLine(ls,row.lineKey));setLocalChanges(true);preview.reset();}}><Trash2 size={18}/></button>
     </div>)}
     {!lines.length&&<p className="pv-empty">Adicione produtos e serviços para simular.</p>}
-    <div className="pv-pet-card-actions"><button className="primary-button" disabled={!clientId||!lines.length||preview.isPending||isReserved} onClick={()=>preview.mutate()}><ShieldCheck size={17}/> Validar e calcular sem cobrar</button><button type="button" className="ghost-button" disabled={!clientId||!lines.length||save.isPending||isReserved} onClick={()=>{setSavedNotice("");save.mutate();}}> {save.isPending?"Salvando...":draft?"Atualizar rascunho":"Salvar rascunho"} </button></div>
+    <div className="pv-pet-card-actions"><button className="primary-button" disabled={!clientId||!lines.length||hasBulkErrors||preview.isPending||isReserved} onClick={()=>preview.mutate()}><ShieldCheck size={17}/> Validar e calcular sem cobrar</button><button type="button" className="ghost-button" disabled={!clientId||!lines.length||hasBulkErrors||save.isPending||isReserved} onClick={()=>{setSavedNotice("");save.mutate();}}> {save.isPending?"Salvando...":draft?"Atualizar rascunho":"Salvar rascunho"} </button></div>
     {save.isError&&<p className="alert alert--error">{getApiErrorMessage(save.error)}</p>}{savedNotice&&<p className="alert alert--success">{savedNotice}</p>}{closingReview.isError&&<p className="alert alert--error">{getApiErrorMessage(closingReview.error)}</p>}{closingPlan.isError&&<p className="alert alert--error">{getApiErrorMessage(closingPlan.error)}</p>}
     {closingPlan.data&&!localChanges&&<div className="pv-unified-total"><h3>Planejamento por empresa — sem executar</h3>{closingPlan.data.operacoes.map(op=><div key={op.empresaId}><span>{op.empresa} · {op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}<p>Operações apenas planejadas. O sistema não cria vendas, não movimenta caixa e não emite notas fiscais.</p></div>}{reservation.isError&&<p className="alert alert--error">{getApiErrorMessage(reservation.error)}</p>}
  {reserveMutation.isError&&<p className="alert alert--error">{getApiErrorMessage(reserveMutation.error)}</p>}
