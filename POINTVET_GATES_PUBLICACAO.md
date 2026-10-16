@@ -30,6 +30,8 @@
 
 # POINTVET — GATES OFICIAIS DE PUBLICAÇÃO DO PDV UNIFICADO
 
+> **M.5.30 (16/10/2026) — MINUTA NÃO É APROVAÇÃO:** a [matriz de critérios técnicos CI](POINTVET_M530_MINUTA_POLITICA_DOCUMENTAL_CI.md) pode registrar apenas **referências sintéticas de controles** em memória, vinculadas ao plano M.5.29 e às áreas propostas. Mesmo 10/10 especificados não significa política, assinatura, base legal, prazo de retenção, auditoria de comprovante ou liberação operacional. Sem rotas, arquivos, armazenamento/descarte, financeiro ou emissão fiscal; provedor fiscal permanece adiado.
+
 > **M.5.29 (16/10/2026) — GOVERNANÇA SEM DOCUMENTOS REAIS:** o [plano de custódia/retenção CI](POINTVET_M529_GOVERNANCA_EVIDENCIAS_CI.md) avalia o estado de pareceres M.5.28 por versão do dossiê e lista dez decisões pendentes de privacidade, autenticação, retenção/descarte e revisão contábil/fiscal por CNPJ. Não cria prova, arquivo, prazo legal, autorização de upload/descarte, estorno, nota fiscal, checkout ou operação financeira. Somente consulta interna no PostgreSQL descartável; sem HTTP. Provedor/motor fiscal ainda não escolhido.
 
 > **M.5.28 (16/10/2026) — PARECER DOCUMENTAL SÓ CI:** a [trilha de revisão](POINTVET_M528_REVISAO_DOCUMENTAL_DEVOLUCOES_CI.md) guarda apenas metadados simulados com segunda pessoa e SHA informado, sem receber nem verificar comprovante verdadeiro. A existência do parecer NÃO comprova devolução, não autoriza dinheiro/checkout/documento fiscal, nem conclui a revisão independente real. A futura cadeia de custódia LGPD/documental, validação humana, política fiscal por CNPJ, staging e restore reais permanecem obrigatórias e dependentes de autorização. Motor fiscal segue adiado.

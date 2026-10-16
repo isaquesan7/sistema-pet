@@ -14,7 +14,7 @@ const hash=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
 
 // Deliberately no approved duration, purpose or legal basis here. Each
 // decision needs a separately approved, versioned policy before real intake.
-const gates=Object.freeze([
+export const GATES_CUSTODIA_M529=Object.freeze([
  "FINALIDADE_E_BASE_LEGAL_APROVADAS",
  "MINIMIZACAO_E_CATEGORIAS_DE_DADOS_APROVADAS",
  "ACESSO_SEGREGADO_E_AUDITORIA_DE_CONSULTAS",
@@ -26,6 +26,7 @@ const gates=Object.freeze([
  "REGRAS_CONTABEIS_E_FISCAIS_POR_CNPJ",
  "STAGING_RESTORE_ROLLBACK_E_HOMOLOGACAO_HUMANA"
 ]);
+const gates=GATES_CUSTODIA_M529;
 
 export function planejarCustodiaDevolucoesM529({dossie,pareceres=[]}={}){
  if(dossie?.fase!=="M5_27_DOSSIE_REVISAO_INDEPENDENTE_READ_ONLY"||

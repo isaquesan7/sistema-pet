@@ -30,6 +30,8 @@ import {consultarDiagnosticoDevolucoesM524} from "../src/modules/pdv/pdv-unifica
 import {consultarDossieDevolucoesM527} from "../src/modules/pdv/pdv-unificado-dossie-devolucoes.service.js";
 import {registrarParecerDevolucaoExternaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-parecer-devolucao-ci-sandbox.service.js";
 import {consultarPlanoCustodiaDevolucoesSomenteSandbox} from "../src/modules/pdv/pdv-unificado-custodia-devolucoes-sandbox.service.js";
+import {avaliarMinutaCustodiaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-minuta-custodia-sandbox.service.js";
+import {RESPONSABILIDADES_CUSTODIA_M530} from "../src/modules/pdv/pdv-unificado-minuta-custodia.contract.js";
 import {diagnosticarDivergenciasDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
@@ -1430,6 +1432,27 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(custodyBefore.prazoRetencaoDias,null);
  assert.equal(custodyBefore.permiteUpload,false);
  assert.equal(custodyBefore.permiteArmazenamento,false);
+ // M.5.30: strictly synthetic policy DRAFT, tied to M.5.29 plan SHA.
+ const draftPolicyM530={versao:"M5_30_MINUTA_CUSTODIA_CI_V1",
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  codigoPlanoEsperado:custodyBefore.codigoPlano,
+  requisitos:custodyBefore.pendenciasPolitica.map(codigo=>({
+   codigo,areaResponsavel:RESPONSABILIDADES_CUSTODIA_M530[codigo],
+   especificado:false,referenciaControle:null
+  }))};
+ const policyPreview=await avaliarMinutaCustodiaSomenteSandbox({
+  contexto:stepsCtx,minuta:draftPolicyM530
+ });
+ assert.equal(policyPreview.coberturaTecnica.pendentes,10);
+ assert.equal(policyPreview.politicaAprovada,false);
+ assert.equal(policyPreview.permiteUpload,false);
+ assert.equal(policyPreview.prazoRetencaoHomologado,null);
+ await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
+  contexto:stepsCtx,minuta:draftPolicyM530,arquivoBase64:"not-allowed"
+ }),/M530_ENTRADA_NAO_MINIMIZADA/);
+ await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
+  contexto:{...stepsCtx,organizacaoId:ids.other},minuta:draftPolicyM530
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
  await assert.rejects(()=>consultarPlanoCustodiaDevolucoesSomenteSandbox({
   ...stepsCtx,organizacaoId:ids.other
  }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
@@ -1499,6 +1522,19 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(custodyCurrent.devolucoes[0].estado,
   "PARECER_DECLARADO_NA_VERSAO_ATUAL");
  assert.notEqual(custodyCurrent.codigoPlano,custodyBefore.codigoPlano);
+ await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
+  contexto:stepsCtx,minuta:draftPolicyM530
+ }),/M530_PLANO_DESATUALIZADO/);
+ const refreshedPolicy={...draftPolicyM530,
+  codigoPlanoEsperado:custodyCurrent.codigoPlano,
+  requisitos:draftPolicyM530.requisitos.map((r,i)=>i? r:{...r,
+   especificado:true,referenciaControle:"CI-M530_CONTROLE_01"})};
+ const currentPolicy=await avaliarMinutaCustodiaSomenteSandbox({
+  contexto:stepsCtx,minuta:refreshedPolicy
+ });
+ assert.equal(currentPolicy.coberturaTecnica.especificados,1);
+ assert.equal(currentPolicy.politicaAprovada,false);
+ assert.equal(currentPolicy.permiteArmazenamento,false);
  assert.equal(custodyCurrent.politicaAprovada,false);
  assert.equal(custodyCurrent.permiteReembolso,false);
  assert.equal(custodyCurrent.permiteOperacaoFiscal,false);
@@ -1584,6 +1620,9 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(custodyStale.codigoDossie,fullDossier.codigoDossie);
  assert.equal(custodyStale.prazoRetencaoDias,null);
  assert.equal(custodyStale.permiteDescarteReal,false);
+ await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
+  contexto:stepsCtx,minuta:refreshedPolicy
+ }),/M530_PLANO_DESATUALIZADO/);
  assert.equal((await registrarParecerDevolucaoExternaSomenteSandbox(reviewM528)).reutilizada,
   true,"immutable first review remains a historical declaration after dossier changes");
 
