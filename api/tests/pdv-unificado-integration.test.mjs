@@ -4,6 +4,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
+import {atualizarItem} from "../src/modules/catalogo/catalogo.service.js";
 import {buscarCatalogo,salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
@@ -2492,5 +2493,44 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.documentoFiscal.count(),beforeBulkDocs);
  assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(bulkCtx)).estoqueMovimentado,false,
   "Repetir fechamento não pode baixar 333 g pela segunda vez");
+
+ // M.5.37 — não reinterpretar 333 g como 0.333 g após existência de estoque,
+ // lote e venda. Uma tentativa que também muda preço deve reverter por inteiro.
+ await assert.rejects(()=>atualizarItem({empresaId:ids.co1,organizacaoId:ids.org,
+  usuarioId:ids.user,id:bulkItem.id,dados:{precoVenda:99,produto:{unidade:"GRAMA"}}
+ }),/UNIDADE_ESTOQUE_EM_USO/);
+ const afterAttempt=await prisma.itemCatalogo.findUnique({where:{id:bulkItem.id},include:{produto:true}});
+ assert.equal(afterAttempt.produto.unidade,"QUILOGRAMA");
+ assert.equal(Number(afterAttempt.precoVenda),15,"Preço não deve mudar em PATCH rejeitado");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:bulkProduct.id}})).quantidade),1.667);
+ // É permitida a correção antes de existir saldo, lote, inventário ou comanda.
+ const fresh=await atualizarItem({empresaId:ids.co1,organizacaoId:ids.org,
+  usuarioId:ids.user,id:gramItem.id,dados:{produto:{unidade:"QUILOGRAMA"}}
+ });
+ assert.equal(fresh.produto.unidade,"QUILOGRAMA");
+
+ // A quantidade 1.668 kg excede o saldo 1.667 kg em apenas 1 g: nenhuma
+ // linha financeira, lote ou venda finalizada pode sobreviver ao rollback.
+ const shortageArgs={...bulkArgs,itens:[{...bulkArgs.itens[0],quantidade:1.668}]};
+ const shortagePreview=await simularComanda(shortageArgs);
+ assert.equal(shortagePreview.total,"25.02");
+ const shortageDraft=await salvarRascunho(shortageArgs);
+ const shortageCtx={...shortageArgs,id:shortageDraft.id,versao:1};
+ await reservarOperacoesFechamento(shortageCtx);
+ const shortagePayment={versao:1,alocacoes:[{empresaId:ids.co1,sessaoCaixaId:session1.id,
+  pagamentos:[{forma:"PIX",valorCentavos:2502}]}]};
+ await prepararExecucaoUnificada({...shortageCtx,dados:shortagePayment});
+ await registrarRecebimentoManualSomenteSandbox({...shortageCtx,dados:{versao:1,alocacoes:[{
+  empresaId:ids.co1,sessaoCaixaId:session1.id,
+  pagamentos:[{forma:"PIX",valorCentavos:2502,confirmadoPeloAtendente:true}]
+ }]}});
+ await criarVendasFilhasSomenteSandbox(shortageCtx);
+ const paymentsBefore=await prisma.pagamento.count();
+ await assert.rejects(()=>efetivarRecebimentosManuaisSomenteSandbox(shortageCtx),/M3_ESTOQUE_INSUFICIENTE/);
+ assert.equal(await prisma.pagamento.count(),paymentsBefore,"Pagamento deve reverter no rollback");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:bulkProduct.id}})).quantidade),1.667);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:bulkLot.id}})).quantidadeAtual),1.667);
+ assert.equal(await prisma.venda.count({where:{comandaId:shortageDraft.id,status:"FINALIZADA"}}),0);
+ assert.equal(await prisma.documentoFiscal.count(),beforeBulkDocs);
 
 });

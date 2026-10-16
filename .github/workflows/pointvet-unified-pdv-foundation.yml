@@ -7,6 +7,7 @@ on:
       - "POINTVET_M534_RETOMADA_COMANDA_GESTAO.md"
       - "POINTVET_M535_SERVICOS_MULTI_PETS_GESTAO.md"
       - "POINTVET_M536_VENDA_RACAO_GRANEL_GESTAO.md"
+      - "POINTVET_M537_INTEGRIDADE_GRANEL_ESTOQUE.md"
       - "POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md"
       - "POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md"
       - "api/prisma/schema.prisma"
@@ -91,6 +92,11 @@ on:
       - "api/tests/pdv-unificado-racao-granel.contract.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
       - "admin-web/src/lib/unifiedBulk.js"
+      - "admin-web/src/pages/CatalogPage.jsx"
+      - "api/src/modules/catalogo/catalogo.service.js"
+      - "api/src/modules/catalogo/catalogo-unidade.service.js"
+      - "api/src/modules/catalogo/catalogo.controller.js"
+      - "api/tests/pointvet-m537-unidade-granel.contract.test.mjs"
       - "api/src/modules/pdv/pdv-unificado-preparacao.service.js"
       - "api/src/modules/pdv/pdv-unificado-venda-sandbox.service.js"
       - "api/src/modules/pdv/pdv-unificado-autorizacao-sandbox.service.js"
@@ -302,6 +308,7 @@ jobs:
           node --test api/tests/pdv-unificado-retomada-comanda.contract.test.mjs
           node --test api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs
           node --test api/tests/pdv-unificado-racao-granel.contract.test.mjs
+          node --test api/tests/pointvet-m537-unidade-granel.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs
           node --test api/tests/pdv-unificado-fechamento-manual.contract.test.mjs
           node --check api/src/modules/pdv/pdv-unificado-conciliacao-manual.contract.js

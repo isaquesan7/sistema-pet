@@ -22,6 +22,6 @@ Data: 16/10/2026. Issue #37; PR #36 Draft. Requisito confirmado pelo proprietár
 ## Restrições para o piloto comercial
 
 - O sistema ainda precisa de revisão E2E por atendentes com balança e estoque real em staging autorizado; não existe checkout unificado operacional liberado no ambiente Pet King.
-- A alteração da `unidade` de estoque de produto com histórico/rascunho precisa de política de imutabilidade ou conversão auditada. Antes do release, bloquear mudança silenciosa de unidade em produtos com movimento ou comandas abertas e adicionar o gate correspondente de testes.
+- A alteração da `unidade` de estoque de produto com histórico/rascunho passou a ser bloqueada pelo PATCH na [M.5.37](POINTVET_M537_INTEGRIDADE_GRANEL_ESTOQUE.md), ainda pendente de CI PostgreSQL remoto e prova de concorrência com criação simultânea do primeiro saldo. Uma futura conversão de unidade exige procedimento auditado independente.
 - Inventário real, saldo insuficiente, lotes múltiplos, cancelamento/estorno parcial e movimentações concorrentes por grama precisam de regressão integrada no fluxo de gestão homologado antes do piloto.
 - Motor fiscal **fora do escopo** desta fase; manter porta futura neutra. Nenhum merge, deploy, migração ou operação em banco/estabelecimento real é autorizado por este documento.

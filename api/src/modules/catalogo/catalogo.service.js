@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma.js";
+import {protegerUnidadeEstoque} from "./catalogo-unidade.service.js";
 
 function arredondar(valor, casas = 2) {
   const fator = 10 ** casas;
@@ -341,7 +342,11 @@ export async function atualizarItem({ empresaId, organizacaoId, usuarioId, id, d
         })
       : null;
 
+  const alterandoUnidade=atual.tipo==="PRODUTO"&&dados.produto?.unidade&&dados.produto.unidade!==atual.produto?.unidade;
   return prisma.$transaction(async (tx) => {
+    if(alterandoUnidade)await protegerUnidadeEstoque(tx,{
+      itemId:id,produtoId:atual.produto.id,unidadeAnterior:atual.produto.unidade,unidadeNova:dados.produto.unidade
+    });
     await tx.itemCatalogo.update({
       where: { id },
       data: {
@@ -405,5 +410,5 @@ export async function atualizarItem({ empresaId, organizacaoId, usuarioId, id, d
       where: { id },
       include: { categoria: true, produto: true, servico: true },
     });
-  });
+  },{isolationLevel:alterandoUnidade?"Serializable":"ReadCommitted"});
 }

@@ -34,6 +34,8 @@
 
 # POINTVET — GATES OFICIAIS DE PUBLICAÇÃO DO PDV UNIFICADO
 
+> **M.5.37 (16/10/2026) — TRAVA DE UNIDADE + ROLLBACK POR 1 G:** a alteração da unidade de um SKU com saldo/lote/histórico passa a ser negada pelo catálogo; teste CI confirma que falta de 1 g recusa venda inteira sem movimento residual ou nota fiscal. [M.5.37](POINTVET_M537_INTEGRIDADE_GRANEL_ESTOQUE.md). **Pendente CI remoto, concorrência real e homologação antes do piloto.** Não habilita checkout, motor fiscal ou deploy.
+
 > **M.5.36 (16/10/2026) — GRANEL É GATE COMERCIAL:** antes de lançar o PDV de gestão na Pet King, homologar R$ 15/kg com porções em gramas inteiros e venda por valor, cálculo autoritativo, baixa/estorno exatos de saldo e lote, saldo insuficiente, concorrência e bloqueio de mudança silenciosa de unidade após histórico. [Escopo e testes](POINTVET_M536_VENDA_RACAO_GRANEL_GESTAO.md). A prévia e o banco CI não equivalem à liberação de checkout de gestão. Motor fiscal permanece futuro e separado.
 
 > **M.5.33 (16/10/2026) — SENTINELA CI DE ISOLAMENTO DOCUMENTAL:** o [teste de fronteira arquitetural](POINTVET_M533_GUARDA_ARQUITETURA_DOCUMENTAL_CI.md) inspeciona importações e alcançabilidade HTTP dos módulos M.5.29–M.5.32; acusa mudanças de dependências, exposição de rota, escrita direta, arquivo/rede ou importação dinâmica e demonstra detecção por quatro mutações sintéticas. Não adiciona runtime nem substitui auditoria ou aprovação humana. Storage, documentos reais, retenção, ações financeiras, checkout e motor fiscal permanecem bloqueados; provedor fiscal será escolhido futuramente pelo proprietário.

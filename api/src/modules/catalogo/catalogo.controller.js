@@ -20,6 +20,8 @@ function erro(error, res, next) {
     CUSTO_INVALIDO: [400, "Custo inválido."],
     PRECO_INVALIDO: [400, "Preço inválido."],
     PRECO_OU_MARKUP_OBRIGATORIO: [400, "Informe preço de venda ou markup."],
+    UNIDADE_ESTOQUE_EM_USO: [409, "Este produto possui saldo, movimentações ou histórico comercial. Para mudar a unidade, crie outro cadastro e transfira o estoque com conferência."],
+    UNIDADE_ESTOQUE_DESATUALIZADA: [409, "A unidade deste produto foi alterada por outro usuário. Recarregue o cadastro."],
   };
   const resposta = mapa[error.message];
   if (resposta) return res.status(resposta[0]).json({ success: false, message: resposta[1] });
