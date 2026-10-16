@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma.js";
+import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 
 function data(valor) {
   return valor ? new Date(`${valor}T00:00:00.000Z`) : null;
@@ -15,9 +16,9 @@ function validarPeriodo(inicio, fim) {
   }
 }
 
-async function validarItens(empresaId, itens) {
+async function validarItens(empresaId, itens, db = prisma) {
   const ids = [...new Set(itens.map((item) => item.itemCatalogoId))];
-  const encontrados = await prisma.itemCatalogo.findMany({
+  const encontrados = await db.itemCatalogo.findMany({
     where: { id: { in: ids }, empresaId, ativo: true },
     select: { id: true },
   });
@@ -48,12 +49,14 @@ export async function listarModelos(organizacaoId, empresaId) {
 }
 
 export async function criarModelo(organizacaoId, empresaId, dados) {
-  await validarItens(empresaId, dados.itens);
   const inicioVigencia = data(dados.inicioVigencia);
   const fimVigencia = data(dados.fimVigencia);
   validarPeriodo(inicioVigencia, fimVigencia);
 
-  return prisma.pacoteModelo.create({
+  return prisma.$transaction(async (tx) => {
+   await travarUnidadesProdutos(tx, dados.itens.map((item) => item.itemCatalogoId));
+   await validarItens(empresaId, dados.itens, tx);
+   return tx.pacoteModelo.create({
     data: {
       organizacaoId,
       empresaId,
@@ -77,6 +80,7 @@ export async function criarModelo(organizacaoId, empresaId, dados) {
       itens: { include: { itemCatalogo: true } },
       _count: { select: { compras: true } },
     },
+   });
   });
 }
 
@@ -98,6 +102,10 @@ export async function atualizarModelo(organizacaoId, empresaId, id, dados) {
   validarPeriodo(inicioVigencia, fimVigencia);
 
   return prisma.$transaction(async (tx) => {
+    if (dados.itens) {
+      await travarUnidadesProdutos(tx, dados.itens.map((item) => item.itemCatalogoId));
+      await validarItens(empresaId, dados.itens, tx);
+    }
     await tx.pacoteModelo.update({
       where: { id },
       data: {

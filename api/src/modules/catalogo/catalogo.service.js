@@ -410,5 +410,8 @@ export async function atualizarItem({ empresaId, organizacaoId, usuarioId, id, d
       where: { id },
       include: { categoria: true, produto: true, servico: true },
     });
-  },{isolationLevel:alterandoUnidade?"Serializable":"ReadCommitted"});
+  // M.5.38: a verificação das tabelas-filhas DEVE enxergar linhas que foram
+  // confirmadas enquanto aguardávamos o FOR UPDATE do produto. ReadCommitted
+  // obtém snapshot novo após a trava; Serializable manteria snapshot anterior.
+  },{isolationLevel:"ReadCommitted"});
 }

@@ -1,6 +1,7 @@
 import prisma from "../../config/prisma.js";
 import { criarRecebivelFiadoNoTx } from "../financeiro/financeiro.service.js";
 import { criarDocumentoAutomaticoVenda } from "../fiscal/fiscal.service.js";
+import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -41,6 +42,7 @@ async function validarPet(tx, organizacaoId, petId, clienteId) {
 
 async function prepararItens(tx, { empresaId, organizacaoId, clienteId, itens }) {
   const ids = [...new Set(itens.map((item) => item.itemCatalogoId))];
+  await travarUnidadesProdutos(tx, ids);
   const catalogo = await tx.itemCatalogo.findMany({
     where: {
       id: { in: ids },

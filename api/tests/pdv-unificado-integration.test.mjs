@@ -5,6 +5,8 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
 import {atualizarItem} from "../src/modules/catalogo/catalogo.service.js";
+import {protegerUnidadeEstoque,travarUnidadesProdutos} from "../src/modules/catalogo/catalogo-unidade.service.js";
+import {criarEntrada} from "../src/modules/estoque/estoque.service.js";
 import {buscarCatalogo,salvarRascunho,listarRascunhos,simularComanda,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 import {criarVendasFilhasSomenteSandbox} from "../src/modules/pdv/pdv-unificado-venda-sandbox.service.js";
@@ -2532,5 +2534,81 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:bulkLot.id}})).quantidadeAtual),1.667);
  assert.equal(await prisma.venda.count({where:{comandaId:shortageDraft.id,status:"FINALIZADA"}}),0);
  assert.equal(await prisma.documentoFiscal.count(),beforeBulkDocs);
+
+ // M.5.38 — disputa real no PostgreSQL entre o primeiro vínculo de comanda
+ // e o PATCH da unidade. O escritor primeiro bloqueia a troca de kg para g.
+ const raceItem=await prisma.itemCatalogo.create({data:{
+  id:"race"+suffix,empresaId:ids.co1,nome:"Ração concorrente CI",tipo:"PRODUTO",precoVenda:"15.00"
+ }});
+ const raceProduct=await prisma.produto.create({data:{
+  itemId:raceItem.id,unidade:"QUILOGRAMA",controlaEstoque:true
+ }});
+ const latch=()=>{let liberar;const promise=new Promise(resolve=>{liberar=resolve;});return {promise,liberar};};
+ const writerGate=latch(),writerAcquired=latch();
+ const firstWriter=prisma.$transaction(async tx=>{
+  await travarUnidadesProdutos(tx,[raceItem.id]);
+  writerAcquired.liberar();
+  await writerGate.promise;
+  const cart=await tx.comanda.create({data:{clienteId:ids.client,rascunhoUnificado:true}});
+  await tx.comandaItem.create({data:{comandaId:cart.id,empresaId:ids.co1,
+   itemCatalogoId:raceItem.id,descricao:"Ração concorrente CI",quantidade:"0.333",
+   valorUnitario:"15.00",valorTotal:"5.00"}});
+ },{timeout:15000});
+ await writerAcquired.promise;
+ const lateUnitEdit=atualizarItem({empresaId:ids.co1,organizacaoId:ids.org,
+  usuarioId:ids.user,id:raceItem.id,dados:{produto:{unidade:"GRAMA"}}});
+ const unresolved=Symbol("aguardando");
+ try{
+  assert.equal(await Promise.race([
+   lateUnitEdit.then(()=>"concluida",()=>"rejeitada"),
+   new Promise(resolve=>setTimeout(()=>resolve(unresolved),80))
+  ]),unresolved,"O PATCH não deve passar pela trava enquanto a comanda escreve");
+ }finally{writerGate.liberar();}
+ await firstWriter;
+ await assert.rejects(()=>lateUnitEdit,/UNIDADE_ESTOQUE_EM_USO/);
+ assert.equal((await prisma.produto.findUnique({where:{id:raceProduct.id}})).unidade,"QUILOGRAMA");
+ assert.equal(await prisma.comandaItem.count({where:{itemCatalogoId:raceItem.id}}),1);
+
+ // Caminho inverso: unidade alterada PRIMEIRO impede a comanda com 333
+ // milésimos de grama; não deixa sequer uma linha de rascunho no banco.
+ const readItem=await prisma.itemCatalogo.create({data:{
+  id:"read"+suffix,empresaId:ids.co1,nome:"Ração alterada antes da comanda",tipo:"PRODUTO",precoVenda:"15.00"
+ }});
+ const readProduct=await prisma.produto.create({data:{
+  itemId:readItem.id,unidade:"QUILOGRAMA",controlaEstoque:true
+ }});
+ const editorGate=latch(),editorAcquired=latch();
+ const editFirst=prisma.$transaction(async tx=>{
+  await protegerUnidadeEstoque(tx,{itemId:readItem.id,produtoId:readProduct.id,
+   unidadeAnterior:"QUILOGRAMA",unidadeNova:"GRAMA"});
+  editorAcquired.liberar();
+  await editorGate.promise;
+  await tx.produto.update({where:{id:readProduct.id},data:{unidade:"GRAMA"}});
+ },{isolationLevel:"ReadCommitted",timeout:15000});
+ await editorAcquired.promise;
+ const lateDraft=salvarRascunho({...args,itens:[{
+  empresaId:ids.co1,itemCatalogoId:readItem.id,quantidade:0.333
+ }]});
+ try{
+  assert.equal(await Promise.race([
+   lateDraft.then(()=>"concluida",()=>"rejeitada"),
+   new Promise(resolve=>setTimeout(()=>resolve(unresolved),80))
+  ]),unresolved,"A comanda precisa aguardar a mudança de unidade");
+ }finally{editorGate.liberar();}
+ await editFirst;
+ await assert.rejects(()=>lateDraft,error=>
+  /QUANTIDADE_INVALIDA|P2034|40001|serialize/i.test(String(error?.message)+" "+String(error?.code)));
+ assert.equal(await prisma.comandaItem.count({where:{itemCatalogoId:readItem.id}}),0);
+ assert.equal((await prisma.produto.findUnique({where:{id:readProduct.id}})).unidade,"GRAMA");
+
+ // A entrada de estoque também lê a unidade APÓS a trava. Se o catálogo
+ // mudou para grama, 0,333 deixa de ser 333 g e deve ser rejeitado.
+ const entryBefore=await prisma.entradaEstoque.count({where:{empresaId:ids.co1}});
+ await assert.rejects(()=>criarEntrada({empresaId:ids.co1,organizacaoId:ids.org,
+  usuarioId:ids.user,dados:{itens:[{itemCatalogoId:readItem.id,
+   quantidade:0.333,custoUnitario:10}]}}),/QUANTIDADE_INVALIDA/);
+ assert.equal(await prisma.entradaEstoque.count({where:{empresaId:ids.co1}}),entryBefore);
+ assert.equal(await prisma.estoqueSaldo.count({where:{produtoId:readProduct.id}}),0);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{produtoId:readProduct.id}}),0);
 
 });

@@ -5,6 +5,7 @@
  */
 import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
+import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 import {exigirBancoIsolado} from "../pdv/pdv-unificado-venda-sandbox.service.js";
 import {previsualizarOrcamentoNoPdvUnificado,previewQuoteSchema}
  from "./client-quote-pdv-preview.service.js";
@@ -91,6 +92,9 @@ export async function converterOrcamentoEmRascunhoSomenteSandbox({
      prior.clienteId!==clienteId)fail("M4B_CROSS_TENANT");
    return checkExisting(tx,prior,quote,{vinculos:parsed.vinculos,fingerprintKey});
   }
+  // Preço/quantidade do produto devem ser lidos depois de bloquear mudança
+  // de unidade, inclusive na primeira conversão de orçamento (CI isolado).
+  await travarUnidadesProdutos(tx,parsed.vinculos.map(x=>x.itemCatalogoId));
   const current=await previsualizarOrcamentoNoPdvUnificado({
    organizacaoId,usuarioId,empresaId,clienteId,orcamentoId,vinculos:parsed.vinculos
   },tx);

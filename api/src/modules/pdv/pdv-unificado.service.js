@@ -4,6 +4,7 @@
 import {z} from "zod";
 import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
+import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 const itemSchema=z.object({empresaId:z.string().min(1),itemCatalogoId:z.string().min(1),petId:z.string().nullable().optional(),quantidade:z.number().positive().max(10000)}).strict();
 export const previewSchema=z.object({clienteId:z.string().min(1),itens:z.array(itemSchema).min(1).max(100)}).strict();
 const cents=v=>Math.round(Number(v)*100);
@@ -53,6 +54,9 @@ export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteI
  * inside the database transaction; no inventory, sale or payment is created. */
 export async function salvarRascunho(args,{id=null,versao=null}={}){
  return prisma.$transaction(async tx=>{
+  // Uma mudança kg↔g nunca pode ocorrer entre a leitura da unidade e a
+  // primeira linha persistida da comanda; bloqueie inclusive novos SKUs.
+  await travarUnidadesProdutos(tx,args.itens.map(x=>x.itemCatalogoId));
   const previa=await simularComanda(args,tx);
   let comanda;
   if(id){

@@ -43,11 +43,12 @@ test("concorrência com unidade já alterada bloqueia; PATCH sem mudança não c
  assert.equal(same.calls.lock,0);
 });
 
-test("PATCH usa transação serializável, retorna 409 e não modifica fiscal",()=>{
+test("PATCH revalida sob lock com snapshot atual, retorna 409 e não modifica fiscal",()=>{
  const service=readFileSync(new URL("../src/modules/catalogo/catalogo.service.js",import.meta.url),"utf8");
  const controller=readFileSync(new URL("../src/modules/catalogo/catalogo.controller.js",import.meta.url),"utf8");
  assert.match(service,/if\(alterandoUnidade\)await protegerUnidadeEstoque\(tx/);
- assert.match(service,/isolationLevel:alterandoUnidade\?"Serializable"/);
+ assert.match(service,/isolationLevel:"ReadCommitted"/);
+ assert.match(service,/snapshot novo após a trava/);
  assert.match(controller,/UNIDADE_ESTOQUE_EM_USO:\s*\[409/);
  assert.doesNotMatch(service,/documentoFiscal|criarDocumentoAutomaticoVenda|prestadorFiscal/);
 });
