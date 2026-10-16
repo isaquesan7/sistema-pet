@@ -12,23 +12,28 @@ import {projetarHistoricoDevolucoesEmTransacaoM523}
  from "./pdv-unificado-devolucoes-historico.service.js";
 import {diagnosticarDivergenciasDevolucoesM524}
  from "./pdv-unificado-diagnostico-devolucoes.contract.js";
-export async function consultarDiagnosticoDevolucoesM524({
+/** Reusable authorized source snapshot; caller MUST hold the same transaction. */
+export async function reunirFontesConferenciaDevolucoesEmTransacaoM524(tx,{
  organizacaoId,empresaId,usuarioId,comandaId
 }={}){
- // Authorization, both projections and their comparison see exactly the
- // same database snapshot. Never use two independently committed reads here.
- return prisma.$transaction(async tx=>{
-  await consultarRecebiveisCartaoEmTransacaoM57(tx,{
-   organizacaoId,empresaId,usuarioId,comandaId
-  });
-  const fluxo=await projetarEtapasRepassesEmTransacaoM516(tx,{
-   organizacaoId,empresaId,comandaId
-  });
-  const historico=await projetarHistoricoDevolucoesEmTransacaoM523(tx,{
-   organizacaoId,empresaId,comandaId
-  });
-  return diagnosticarDivergenciasDevolucoesM524({
-   organizacaoId,empresaId,comandaId,fluxo,historico
-  });
- },{isolationLevel:"RepeatableRead",maxWait:8000,timeout:20000});
+ await consultarRecebiveisCartaoEmTransacaoM57(tx,{
+  organizacaoId,empresaId,usuarioId,comandaId
+ });
+ const fluxo=await projetarEtapasRepassesEmTransacaoM516(tx,{
+  organizacaoId,empresaId,comandaId
+ });
+ const historico=await projetarHistoricoDevolucoesEmTransacaoM523(tx,{
+  organizacaoId,empresaId,comandaId
+ });
+ const diagnostico=diagnosticarDivergenciasDevolucoesM524({
+  organizacaoId,empresaId,comandaId,fluxo,historico
+ });
+ return {diagnostico,historico};
+}
+export async function consultarDiagnosticoDevolucoesM524(contexto={}){
+ // M.5.25: authorization and both sources MUST stay on ONE RepeatableRead
+ // snapshot. The wrapper remains the public service entry point.
+ return prisma.$transaction(async tx=>
+  (await reunirFontesConferenciaDevolucoesEmTransacaoM524(tx,contexto)).diagnostico,
+ {isolationLevel:"RepeatableRead",maxWait:8000,timeout:20000});
 }

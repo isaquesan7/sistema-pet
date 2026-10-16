@@ -12,6 +12,7 @@ import {discriminarTarifasAntecipacoesM520} from "./pdv-unificado-discriminacao-
 import {planejarDevolucaoAposRepasseM521} from "./pdv-unificado-estorno-pos-repasse.contract.js";
 import {consultarHistoricoDevolucoesM523} from "./pdv-unificado-devolucoes-historico.service.js";
 import {consultarDiagnosticoDevolucoesM524} from "./pdv-unificado-diagnostico-devolucoes.service.js";
+import {consultarDossieDevolucoesM527} from "./pdv-unificado-dossie-devolucoes.service.js";
 import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
@@ -40,6 +41,7 @@ function erroRecebiveisM57(error,res,next){
   M57_CONTEXTO_INVALIDO:[400,"Parâmetros inválidos."]
  };
  if(error?.message?.startsWith("M524_"))return res.status(409).json({success:false,message:"Não foi possível reconciliar os dados internos das devoluções. Solicite revisão financeira."});
+ if(error?.message?.startsWith("M527_"))return res.status(409).json({success:false,message:"Dossiê de conferência indisponível por inconsistência. Revalide os registros financeiros."});
  if(error?.message?.startsWith("M523_")||error?.message?.startsWith("M522_"))return res.status(409).json({success:false,message:"Histórico de devoluções incompleto ou inconsistente. Solicite revisão financeira."});
  if(error?.message?.startsWith("M521_"))return res.status(409).json({success:false,message:"Devolução simulada indisponível por inconsistência. Solicite revisão financeira."});
  if(error?.message?.startsWith("M520_"))return res.status(409).json({success:false,message:"Composição dos repasses inválida. Solicite revisão financeira."});
@@ -125,6 +127,22 @@ r.get("/recebiveis-cartao/comandas/:comandaId/diagnostico-devolucoes",
    .safeParse(req.params.comandaId);
   if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
   const dados=await consultarDiagnosticoDevolucoesM524({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+/** M.5.27 — readonly checklist by declaration, never document attestation. */
+r.get("/recebiveis-cartao/comandas/:comandaId/dossie-devolucoes",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await consultarDossieDevolucoesM527({
    organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
    usuarioId:req.usuario.id,comandaId:id.data
   });

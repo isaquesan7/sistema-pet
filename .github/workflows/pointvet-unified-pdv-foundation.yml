@@ -169,6 +169,10 @@ on:
       - "api/tests/pdv-unificado-diagnostico-devolucoes.contract.test.mjs"
       - "POINTVET_M524_CONFERENCIA_DEVOLUCOES_EXTERNAS.md"
       - "POINTVET_M525_SNAPSHOT_CONSISTENTE_DEVOLUCOES.md"
+      - "api/src/modules/pdv/pdv-unificado-dossie-devolucoes.contract.js"
+      - "api/src/modules/pdv/pdv-unificado-dossie-devolucoes.service.js"
+      - "api/tests/pdv-unificado-dossie-devolucoes.contract.test.mjs"
+      - "POINTVET_M527_DOSSIE_CONFERENCIA_DEVOLUCOES.md"
       - "POINTVET_M56_RESUMO_RECEBIVEIS_CARTAO.md"
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
@@ -308,6 +312,9 @@ jobs:
           node --check api/src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js
           node --check api/src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js
           node --test api/tests/pdv-unificado-diagnostico-devolucoes.contract.test.mjs
+          node --check api/src/modules/pdv/pdv-unificado-dossie-devolucoes.contract.js
+          node --check api/src/modules/pdv/pdv-unificado-dossie-devolucoes.service.js
+          node --test api/tests/pdv-unificado-dossie-devolucoes.contract.test.mjs
           node --test api/tests/pdv-unificado-diagnostico-pre-baixa.contract.test.mjs
           node --test api/tests/pdv-unificado-baixa-cartao.contract.test.mjs
           node --test api/tests/pdv-unificado-estorno-manual.contract.test.mjs

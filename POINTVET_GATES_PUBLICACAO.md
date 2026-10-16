@@ -30,6 +30,8 @@
 
 # POINTVET — GATES OFICIAIS DE PUBLICAÇÃO DO PDV UNIFICADO
 
+> **M.5.27 (16/10/2026) — DOSSIÊ NÃO É PROVA:** o [dossiê de conferência independente](POINTVET_M527_DOSSIE_CONFERENCIA_DEVOLUCOES.md) organiza registros de devolução para futura análise de dois responsáveis, mas NÃO valida comprovantes, não registra revisão concluída nem comprova dinheiro fora do PointVet. Nenhum checkout, reembolso, lançamento contábil ou operação fiscal foi liberado. Captura de evidências reais/LGPD, revisão humana, staging e restore reais continuam gates sujeitos a autorização; provedor/motor fiscal continuam adiados.
+
 > **DECISÃO 15/10/2026 — MOTOR FISCAL ADIADO:** a escolha do provedor fiscal cabe ao proprietário e está pendente. Manter arquitetura fiscal neutra ([M.5.26](POINTVET_M526_PORTA_FISCAL_NEUTRA.md)) e previews M.4C/M.4D sem emitir, cancelar, reservar números, gerar XML ou integrar serviços externos. **Não bloquear o desenvolvimento de módulos não fiscais por falta do motor**; a liberação comercial de operações que exigem emissão fiscal segue bloqueada até escolha, integração e homologação legítima, além dos demais gates. PSP/maquininhas também não são parte do plano de integração atual.
 
 > Arquivo de decisão: acompanhar junto de [CONTINUIDADE_OFICIAL](./POINTVET_CONTINUIDADE_OFICIAL.md) e da [Issue #37](https://github.com/isaquesan7/sistema-pet/issues/37).  

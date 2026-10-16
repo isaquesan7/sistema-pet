@@ -95,6 +95,12 @@ export default function UnifiedCardReceivablesPanel(){
   queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
    encodeURIComponent(effectiveId)+"/diagnostico-devolucoes")).data.dados
  });
+ const dossier=useQuery({
+  queryKey:["unified-card-m527-refund-dossier",companyId,selectedOrganization?.id,effectiveId],
+  enabled:enabled&&Boolean(effectiveId),
+  queryFn:async()=>(await api.get("/pdv-unificado/recebiveis-cartao/comandas/"+
+   encodeURIComponent(effectiveId)+"/dossie-devolucoes")).data.dados
+ });
  const history=useQuery({
   queryKey:["unified-card-m515",companyId,selectedOrganization?.id,effectiveId],
   enabled:enabled&&Boolean(effectiveId),
@@ -131,7 +137,7 @@ export default function UnifiedCardReceivablesPanel(){
      </select>
     </label>
     <button className="secondary-button" type="button"
-     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching||refundHistory.isFetching||diagnostic.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();refundHistory.refetch();diagnostic.refetch();}}>
+     disabled={!effectiveId||report.isFetching||history.isFetching||workflow.isFetching||dryRun.isFetching||breakdown.isFetching||refundPlan.isFetching||refundHistory.isFetching||diagnostic.isFetching||dossier.isFetching} onClick={()=>{report.refetch();history.refetch();workflow.refetch();dryRun.refetch();breakdown.refetch();refundPlan.refetch();refundHistory.refetch();diagnostic.refetch();dossier.refetch();}}>
      <RefreshCw size={14}/> Atualizar leitura
     </button>
    </div>
@@ -217,6 +223,23 @@ export default function UnifiedCardReceivablesPanel(){
        </tr>)}</tbody>
       </table></div>:<p>Nenhuma pré-baixa de cartão para conferir nesta comanda.</p>}
       <p><strong>Exige aprovação futura:</strong> documentação externa, responsabilidade do operador, conferência contábil/fiscal por CNPJ e política de recuperação de taxas e antecipação. Nenhuma declaração é considerada comprovada automaticamente.</p>
+     </div>:null}
+    <h3>Dossiê para segunda conferência — somente leitura</h3>
+    <p>Roteiro para um conferente diferente da pessoa que declarou cada devolução. Referências e valores são informações internas; os comprovantes, o beneficiário, o extrato externo e o tratamento contábil/fiscal ainda precisam ser verificados fora do PointVet. Não é aprovação nem registro de conferência.</p>
+    {dossier.isLoading?<p>Organizando as declarações para a revisão independente...</p>:null}
+    {dossier.isError?<p className="alert alert--error" role="alert">Dossiê bloqueado por dados incompletos ou inconsistentes. {getApiErrorMessage(dossier.error)}</p>:null}
+    {dossier.data?.leituraSomente&&dossier.data?.permiteConcluirRevisao===false?
+     <div>
+      <p>Referência do dossiê: <code title={dossier.data.codigoDossie}>{dossier.data.codigoDossie?.slice(0,16)}</code>. Declarações sem comprovação independente: <strong>{dossier.data.totais.quantidadeDeclaracoes}</strong>, total informado <strong>{money(dossier.data.totais.valorDeclaradoSemProva)}</strong>.</p>
+      {dossier.data.totais.quantidadeDeclaracoes?<div className="table-scroll"><table className="data-table">
+       <thead><tr><th>Referência declarada</th><th>Valor</th><th>Data do registro</th><th>Conferência pendente</th></tr></thead>
+       <tbody>{dossier.data.preparacoes.flatMap(p=>p.declaracoes.map(m=><tr key={m.declaracaoId}>
+        <td>{m.referenciaInformada}</td><td>{money(m.valorDeclarado)}</td>
+        <td>{new Date(m.registradoEm).toLocaleString("pt-BR")}</td>
+        <td>Comprovante, valor, data, destinatário, extrato externo e segundo conferente distinto do declarante</td>
+       </tr>))}</tbody>
+      </table></div>:<p>Não há declaração externa para revisar. A ausência de registro não comprova ausência de devoluções feitas fora do sistema.</p>}
+      <p><strong>Bloqueado:</strong> nenhuma declaração foi verificada neste dossiê; ele não emite nota, altera contas, autoriza devolução, conclui revisão ou libera o checkout.</p>
      </div>:null}
     <h3>Declarações de devolução ao cliente — histórico de consulta</h3>
     <p><strong>Não é um extrato bancário:</strong> estes valores são apenas declarações humanas de devoluções externas registradas no PointVet. O bruto sem declaração não garante saldo disponível para reembolso e não inclui necessariamente operações realizadas fora do sistema.</p>

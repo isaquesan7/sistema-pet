@@ -27,6 +27,7 @@ import {planejarDevolucaoAposRepasseM521,simularDevolucaoAposRepasseM521} from "
 import {registrarDevolucaoExternaDeclaradaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-devolucao-declarada-sandbox.service.js";
 import {consultarHistoricoDevolucoesM523,projetarHistoricoDevolucoesEmTransacaoM523} from "../src/modules/pdv/pdv-unificado-devolucoes-historico.service.js";
 import {consultarDiagnosticoDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.service.js";
+import {consultarDossieDevolucoesM527} from "../src/modules/pdv/pdv-unificado-dossie-devolucoes.service.js";
 import {diagnosticarDivergenciasDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
@@ -1409,6 +1410,18 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(firstReview.preparacoes[0].pendencias.includes(
   "RECUPERACAO_TARIFA_NAO_VERIFICADA"),true);
  assert.equal(firstReview.confrontoDeDocumentosExternosRealizado,false);
+ const firstDossier=await consultarDossieDevolucoesM527(stepsCtx);
+ assert.equal(firstDossier.totais.valorDeclaradoSemProva,"20.00");
+ assert.equal(firstDossier.totais.quantidadeDeclaracoes,1);
+ assert.equal(firstDossier.codigoDiagnosticoOrigem,firstReview.codigoDiagnostico);
+ assert.equal(firstDossier.preparacoes[0].declaracoes[0].declaranteUsuarioId,
+  customerRefundCtx.usuarioId);
+ assert.equal(firstDossier.permiteConcluirRevisao,false);
+ assert.equal(firstDossier.permiteNovoReembolso,false);
+ assert.equal(firstDossier.permiteOperacaoFiscal,false);
+ await assert.rejects(()=>consultarDossieDevolucoesM527({
+  ...stepsCtx,organizacaoId:ids.other
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
 
 
  await assert.rejects(()=>registrarDevolucaoExternaDeclaradaSomenteSandbox({
@@ -1457,6 +1470,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(completeDeclarationReview.totais.brutoSemDeclaracaoNoLivro,"0.00");
  assert.equal(completeDeclarationReview.politicaFiscalHomologada,false);
  assert.equal(completeDeclarationReview.habilitaCheckout,false);
+ const fullDossier=await consultarDossieDevolucoesM527(stepsCtx);
+ assert.equal(fullDossier.codigoDiagnosticoOrigem,
+  completeDeclarationReview.codigoDiagnostico);
+ assert.notEqual(fullDossier.codigoDossie,firstDossier.codigoDossie);
+ assert.equal(fullDossier.totais.valorDeclaradoSemProva,"60.00");
+ assert.equal(fullDossier.totais.brutoSemDeclaracao,"0.00");
+ assert.equal(fullDossier.totais.quantidadeDeclaracoes,2);
+ assert.equal(fullDossier.provasBancariasValidas,false);
+ assert.equal(fullDossier.permiteLancamentoFinanceiro,false);
 
 
  assert.equal(await prisma.devolucaoClienteManualUnificada.count({where:{
