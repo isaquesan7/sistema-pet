@@ -28,7 +28,7 @@ Seis aprovações/ações externas **seguem pendentes**: validação da polític
 
 - Testes puros: matriz parcialmente preenchida, 10/10 controles sem aprovação real, assinatura SHA determinística independente da ordem, minuta stale após mudança de `codigoPlano`, falsificação de empresa/escopo/controle, entrada com URL/bytes não permitida, referências inválidas e flags sempre desativadas.
 - Integração PostgreSQL descartável: contexto financeiro autorizado e tenant, minuta inicial, invalidação automática após parecer M.5.28, ensaio de um controle proposto e nova invalidação após segunda devolução/dossiê alterado; sem escrita/auditoria de aprovação, sem efeitos econômicos/fiscais.
-- Workflow `PointVet Unified PDV Foundation`: valida sintaxe e testes puros, build e Prisma, E2E PostgreSQL multiempresa/HTTP e restore/rollback **sintéticos**. **CI da implementação e do HEAD documental ainda pendentes de verificação.**
+- Workflow `PointVet Unified PDV Foundation`: valida sintaxe e testes puros, build e Prisma, E2E PostgreSQL multiempresa/HTTP e restore/rollback **sintéticos**. **CI da implementação APROVADO:** SHA `5e3651b9e03232692f87debc073905e5e7c791df`, [Actions #38937659519](https://github.com/isaquesan7/sistema-pet/actions/runs/38937659519), `validate` + `isolated-postgres` **SUCCESS**. Revalidar separadamente o HEAD após esta atualização documental.
 
 ## Decisões reais futuras, não implementadas
 
