@@ -2,6 +2,8 @@
 
 Data: 16/10/2026. Continuidade da [Issue #37](https://github.com/isaquesan7/sistema-pet/issues/37) no [PR #36 DRAFT](https://github.com/isaquesan7/sistema-pet/pull/36).
 
+Validação da implementação: commit `27754f2879b40bb19012c557269f01e7f20cb232`, [Actions #38961163793](https://github.com/isaquesan7/sistema-pet/actions/runs/38961163793), `validate` + `isolated-postgres` **SUCCESS** em CI efêmero. A atualização documental posterior requer nova validação do HEAD.
+
 ## Propósito
 
 Preparar o ponto de decisão de acesso a **futuras** evidências, com comportamento **deny-by-default**. Não é autenticação, autorização de usuário, sistema de permissões real, repositório de evidências ou tokenizador. É uma prévia sintética do que *não* pode ser feito enquanto as decisões e implementações necessárias não existirem.
