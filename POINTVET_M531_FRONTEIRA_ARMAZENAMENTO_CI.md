@@ -2,6 +2,8 @@
 
 Data: 16/10/2026. Continuidade controlada da [Issue #37](https://github.com/isaquesan7/sistema-pet/issues/37) no [PR #36 DRAFT](https://github.com/isaquesan7/sistema-pet/pull/36).
 
+Validação da implementação: commit `ffdf3fb362427a820b1db24a0f55ec3694e8cf42`, [Actions #38957591525](https://github.com/isaquesan7/sistema-pet/actions/runs/38957591525), ambos `validate` e `isolated-postgres` **SUCCESS** (somente CI descartável). A atualização documental posterior exige validação própria no HEAD final.
+
 ## Objetivo e decisão de escopo
 
 Especificar **o que um futuro adaptador seguro de evidências documentais deverá comprovar**, sem criar o adaptador e sem selecionar serviço de armazenamento. A matriz é uma **prévia de planejamento sintético**, exclusivamente em memória; não recebe arquivo, conteúdo, URL, dados de clientes, chaves, credenciais, identificação de comprovante real, nem inicia transferência. **Mesmo 10/10 controles planejados não representam implementação, segurança homologada, autorização de captura ou retenção.**
