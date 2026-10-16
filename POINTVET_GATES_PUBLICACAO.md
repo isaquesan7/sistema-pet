@@ -30,6 +30,8 @@
 
 # POINTVET — GATES OFICIAIS DE PUBLICAÇÃO DO PDV UNIFICADO
 
+> **M.5.31 (16/10/2026) — FRONTEIRA DE ARMAZENAMENTO NÃO É ADAPTADOR:** a [especificação de controles sintéticos CI](POINTVET_M531_FRONTEIRA_ARMAZENAMENTO_CI.md) exige a minuta técnica M.5.30 com 10/10 e planeja isolamento por tenant/CNPJ, criptografia, chaves, acesso mínimo, malware, auditoria, descarte e resposta a incidentes. **Nenhum controle está implementado ou homologado**, não existe provedor, arquivo, URL, upload, retenção/descarte, rota, permissão de captura nem homologação jurídica; 10/10 planejados não mudam isso. Motor fiscal segue adiado até escolha do provedor; sem operação real, staging, deploy ou merge.
+
 > **M.5.30 (16/10/2026) — MINUTA NÃO É APROVAÇÃO:** a [matriz de critérios técnicos CI](POINTVET_M530_MINUTA_POLITICA_DOCUMENTAL_CI.md) pode registrar apenas **referências sintéticas de controles** em memória, vinculadas ao plano M.5.29 e às áreas propostas. Mesmo 10/10 especificados não significa política, assinatura, base legal, prazo de retenção, auditoria de comprovante ou liberação operacional. Sem rotas, arquivos, armazenamento/descarte, financeiro ou emissão fiscal; provedor fiscal permanece adiado.
 
 > **M.5.29 (16/10/2026) — GOVERNANÇA SEM DOCUMENTOS REAIS:** o [plano de custódia/retenção CI](POINTVET_M529_GOVERNANCA_EVIDENCIAS_CI.md) avalia o estado de pareceres M.5.28 por versão do dossiê e lista dez decisões pendentes de privacidade, autenticação, retenção/descarte e revisão contábil/fiscal por CNPJ. Não cria prova, arquivo, prazo legal, autorização de upload/descarte, estorno, nota fiscal, checkout ou operação financeira. Somente consulta interna no PostgreSQL descartável; sem HTTP. Provedor/motor fiscal ainda não escolhido.

@@ -32,6 +32,10 @@ import {registrarParecerDevolucaoExternaSomenteSandbox} from "../src/modules/pdv
 import {consultarPlanoCustodiaDevolucoesSomenteSandbox} from "../src/modules/pdv/pdv-unificado-custodia-devolucoes-sandbox.service.js";
 import {avaliarMinutaCustodiaSomenteSandbox} from "../src/modules/pdv/pdv-unificado-minuta-custodia-sandbox.service.js";
 import {RESPONSABILIDADES_CUSTODIA_M530} from "../src/modules/pdv/pdv-unificado-minuta-custodia.contract.js";
+import {consultarFronteiraEvidenciasSomenteSandbox}
+ from "../src/modules/pdv/pdv-unificado-fronteira-evidencias-sandbox.service.js";
+import {CONTROLES_FRONTEIRA_M531}
+ from "../src/modules/pdv/pdv-unificado-fronteira-evidencias.contract.js";
 import {diagnosticarDivergenciasDevolucoesM524} from "../src/modules/pdv/pdv-unificado-diagnostico-devolucoes.contract.js";
 import {planejarIntencoesManuaisM517,simularIntencaoManualM517} from "../src/modules/pdv/pdv-unificado-intencao-manual.contract.js";
 import {consultarResumoRecebiveisCartaoSomenteSandbox} from "../src/modules/pdv/pdv-unificado-resumo-recebiveis-sandbox.service.js";
@@ -1447,6 +1451,40 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(policyPreview.politicaAprovada,false);
  assert.equal(policyPreview.permiteUpload,false);
  assert.equal(policyPreview.prazoRetencaoHomologado,null);
+ // M.5.31: a scoped, unimplemented STORAGE DESIGN, no bytes or provider.
+ const fullPolicyForStorage={...draftPolicyM530,
+  requisitos:draftPolicyM530.requisitos.map((r,i)=>({...r,
+   especificado:true,referenciaControle:`CI-M531_CONTROLE_${i+100}`}))};
+ const fullMinutePreview=await avaliarMinutaCustodiaSomenteSandbox({
+  contexto:stepsCtx,minuta:fullPolicyForStorage
+ });
+ assert.equal(fullMinutePreview.coberturaTecnica.especificados,10);
+ const storageProposalM531={versao:"M5_31_FRONTEIRA_EVIDENCIAS_CI_V1",
+  organizacaoId:ids.org,empresaId:ids.co1,comandaId:closingDraft.id,
+  codigoMinutaEsperado:fullMinutePreview.codigoMinuta,
+  controles:Object.fromEntries(CONTROLES_FRONTEIRA_M531.map(c=>[c,true]))};
+ const storagePreview=await consultarFronteiraEvidenciasSomenteSandbox({
+  contexto:stepsCtx,minuta:fullPolicyForStorage,proposta:storageProposalM531
+ });
+ assert.equal(storagePreview.coberturaPlanejamento.planejados,10);
+ assert.equal(storagePreview.coberturaPlanejamento.propostaTecnicaCompleta,true);
+ assert.equal(storagePreview.provedorArmazenamentoSelecionado,false);
+ assert.equal(storagePreview.autorizacaoParaCaptura,false);
+ assert.equal(storagePreview.permiteArmazenamento,false);
+ assert.equal(storagePreview.permiteUpload,false);
+ assert.equal(storagePreview.permiteDescarteReal,false);
+ assert.equal(storagePreview.prazoRetencaoDias,null);
+ await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
+  contexto:stepsCtx,minuta:draftPolicyM530,proposta:storageProposalM531
+ }),/M531_MINUTA_TECNICA_INCOMPLETA/);
+ await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
+  contexto:stepsCtx,minuta:fullPolicyForStorage,proposta:storageProposalM531,
+  arquivoBase64:"not-allowed"
+ }),/M531_ENTRADA_NAO_MINIMIZADA/);
+ await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
+  contexto:{...stepsCtx,organizacaoId:ids.other},
+  minuta:fullPolicyForStorage,proposta:storageProposalM531
+ }),/M57_SEM_ACESSO_FINANCEIRO|M57_COMANDA_NAO_ENCONTRADA/);
  await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
   contexto:stepsCtx,minuta:draftPolicyM530,arquivoBase64:"not-allowed"
  }),/M530_ENTRADA_NAO_MINIMIZADA/);
@@ -1524,6 +1562,9 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.notEqual(custodyCurrent.codigoPlano,custodyBefore.codigoPlano);
  await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
   contexto:stepsCtx,minuta:draftPolicyM530
+ }),/M530_PLANO_DESATUALIZADO/);
+ await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
+  contexto:stepsCtx,minuta:fullPolicyForStorage,proposta:storageProposalM531
  }),/M530_PLANO_DESATUALIZADO/);
  const refreshedPolicy={...draftPolicyM530,
   codigoPlanoEsperado:custodyCurrent.codigoPlano,
@@ -1622,6 +1663,9 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(custodyStale.permiteDescarteReal,false);
  await assert.rejects(()=>avaliarMinutaCustodiaSomenteSandbox({
   contexto:stepsCtx,minuta:refreshedPolicy
+ }),/M530_PLANO_DESATUALIZADO/);
+ await assert.rejects(()=>consultarFronteiraEvidenciasSomenteSandbox({
+  contexto:stepsCtx,minuta:fullPolicyForStorage,proposta:storageProposalM531
  }),/M530_PLANO_DESATUALIZADO/);
  assert.equal((await registrarParecerDevolucaoExternaSomenteSandbox(reviewM528)).reutilizada,
   true,"immutable first review remains a historical declaration after dossier changes");
