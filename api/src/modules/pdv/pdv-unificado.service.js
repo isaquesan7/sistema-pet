@@ -82,10 +82,10 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
 export async function listarRascunhos({organizacaoId,usuarioId,empresaId}){
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
  const allowed=new Map(acessiveis.map(a=>[a.id,a]));
- const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{id:true,empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,descricao:true,valorUnitario:true,valorTotal:true,status:true,itemCatalogo:{select:{servico:{select:{exigePet:true}}}}}}},orderBy:{createdAt:"desc"},take:100});
+ const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{id:true,empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,descricao:true,valorUnitario:true,valorTotal:true,status:true,itemCatalogo:{select:{tipo:true,servico:{select:{exigePet:true}}}}}}},orderBy:{createdAt:"desc"},take:100});
  // A linha salva é a fonte da retomada; buscas de catálogo podem estar filtradas,
  // ter sido renomeadas ou não devolver um item desativado. Pre-close revalida tudo.
- return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(({itemCatalogo,...i})=>({...i,quantidade:Number(i.quantidade),valorUnitario:Number(i.valorUnitario),valorTotal:Number(i.valorTotal),empresaNome:allowed.get(i.empresaId).nomeFantasia,exigePet:Boolean(itemCatalogo?.servico?.exigePet)}))}));
+ return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(({itemCatalogo,...i})=>({...i,quantidade:Number(i.quantidade),valorUnitario:Number(i.valorUnitario),valorTotal:Number(i.valorTotal),empresaNome:allowed.get(i.empresaId).nomeFantasia,tipo:itemCatalogo?.tipo,exigePet:Boolean(itemCatalogo?.servico?.exigePet)}))}));
 }
 
 /** Pre-close verification only. Never mutates invoices, stock, credit or payments.

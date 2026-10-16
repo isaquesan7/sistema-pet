@@ -2,6 +2,7 @@
  * Never depend on the current catalog search or treat old prices as approved. */
 export function rehydrateUnifiedDraft(saved){
  return (saved.itens||[]).filter(i=>i.status==="ATIVO").map(i=>({
+  lineKey:`persistida:${i.id}`,
   rascunhoItemId:i.id,
   empresaId:i.empresaId,
   itemCatalogoId:i.itemCatalogoId,
@@ -10,8 +11,29 @@ export function rehydrateUnifiedDraft(saved){
   nome:i.descricao,
   empresa:i.empresaNome,
   preco:Number(i.valorUnitario),
+  tipo:i.tipo,
   exigePet:Boolean(i.exigePet)
  }));
+}
+
+/** Products can share a line. Each service is a separate pet-linked activity. */
+export function addUnifiedCatalogItem(lines,item,lineKey){
+ const existing=item.tipo!=="SERVICO"?lines.findIndex(x=>x.empresaId===item.empresaId&&x.itemCatalogoId===item.id):-1;
+ if(existing>=0)return lines.map((row,index)=>index===existing?{...row,quantidade:row.quantidade+1}:row);
+ return [...lines,{
+  lineKey,itemCatalogoId:item.id,empresaId:item.empresaId,
+  nome:item.nome,empresa:item.empresa?.nomeFantasia,quantidade:1,
+  preco:Number(item.precoVenda),petId:"",tipo:item.tipo,
+  exigePet:Boolean(item.servico?.exigePet)
+ }];
+}
+
+export function updateUnifiedLine(lines,lineKey,patch){
+ return lines.map(row=>row.lineKey===lineKey?{...row,...patch}:row);
+}
+
+export function removeUnifiedLine(lines,lineKey){
+ return lines.filter(row=>row.lineKey!==lineKey);
 }
 
 export const unifiedPrecloseMessages={

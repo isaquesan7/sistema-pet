@@ -474,6 +474,30 @@ test("cross-company saving respects prices, access, rollback and version",async(
  const persistedAfterRename=(await listarRascunhos(args)).find(x=>x.id===draft.id);
  assert.equal(persistedAfterRename.itens.find(i=>i.itemCatalogoId===ids.it1)?.descricao,"Ração","Snapshot da comanda não deve mudar com o catálogo");
  await prisma.itemCatalogo.update({where:{id:ids.it1},data:{nome:"Ração"}});
+ // M.5.35: dois pets do mesmo tutor podem ter o MESMO serviço na mesma comanda.
+ const specie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino CI"}});
+ const petBela="bela"+suffix,petTico="tico"+suffix;
+ await prisma.pet.createMany({data:[
+  {id:petBela,clienteId:ids.client,especieId:specie.id,nome:"Bela"},
+  {id:petTico,clienteId:ids.client,especieId:specie.id,nome:"Tico"}
+ ]});
+ const multiPetArgs={...args,itens:[
+  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:1,petId:petBela},
+  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:2,petId:petTico}
+ ]};
+ const multiPetPreview=await simularComanda(multiPetArgs);
+ assert.equal(multiPetPreview.total,"210.00");
+ assert.deepEqual(multiPetPreview.empresas[0].itens.map(i=>i.petId),[petBela,petTico]);
+ const multiPetDraft=await salvarRascunho(multiPetArgs);
+ const multiPetResume=(await listarRascunhos(args)).find(x=>x.id===multiPetDraft.id);
+ assert.deepEqual(multiPetResume.itens.map(x=>[x.itemCatalogoId,x.petId,x.quantidade,x.tipo]).sort((a,b)=>a[1].localeCompare(b[1])),[
+  [ids.it2,petBela,1,"SERVICO"],[ids.it2,petTico,2,"SERVICO"]
+ ],"Mesmo item de serviço precisa permanecer em linhas distintas por pet");
+ const multiPetReview=await conferirPreFechamento({...multiPetArgs,id:multiPetDraft.id,versao:1});
+ assert.equal(multiPetReview.pendencias.length,0);
+ assert.equal(multiPetReview.total,"210.00");
+ assert.equal(multiPetReview.checkoutHabilitado,false);
+ await assert.rejects(()=>simularComanda({...multiPetArgs,itens:[{...multiPetArgs.itens[0],petId:"pet-fora-do-tutor"}]}),/PET_INVALIDO/);
  assert.equal(await prisma.venda.count({where:{comandaId:draft.id}}),0,"Saving a separate draft must not create a sale");
  assert.equal(await prisma.pagamento.count(),0,"Draft must not create payments");
  const updated=await salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:2}]},{id:draft.id,versao:1});

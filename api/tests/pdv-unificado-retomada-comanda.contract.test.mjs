@@ -6,7 +6,7 @@ import {rehydrateUnifiedDraft,unifiedPrecloseMessages} from "../../admin-web/src
 test("retomada de comanda multiempresa usa os snapshots persistidos sem catálogo da busca atual",()=>{
  const saved={itens:[
   {id:"linha-1",empresaId:"petshop",empresaNome:"Loja Pet",itemCatalogoId:"racao",descricao:"Ração premium 1kg",valorUnitario:99.9,quantidade:2,petId:null,exigePet:false,status:"ATIVO"},
-  {id:"linha-2",empresaId:"banho",empresaNome:"Banho e Tosa",itemCatalogoId:"servico",descricao:"Banho pequeno porte",valorUnitario:75,quantidade:1,petId:"pet-1",exigePet:true,status:"ATIVO"},
+  {id:"linha-2",empresaId:"banho",empresaNome:"Banho e Tosa",itemCatalogoId:"servico",descricao:"Banho pequeno porte",valorUnitario:75,quantidade:1,petId:"pet-1",tipo:"SERVICO",exigePet:true,status:"ATIVO"},
   {id:"linha-antiga",empresaId:"banho",empresaNome:"Banho e Tosa",itemCatalogoId:"antigo",descricao:"Removido",valorUnitario:10,quantidade:1,status:"CANCELADO"}
  ]};
  const rows=rehydrateUnifiedDraft(saved);
@@ -16,6 +16,7 @@ test("retomada de comanda multiempresa usa os snapshots persistidos sem catálog
   ["linha-2","Banho pequeno porte","Banho e Tosa",75]
  ]);
  assert.deepEqual(rows.map(x=>[x.petId,x.exigePet]),[["",false],["pet-1",true]]);
+ assert.deepEqual(rows.map(x=>x.lineKey),["persistida:linha-1","persistida:linha-2"]);
  assert.equal(rows[0].quantidade,2);
 });
 
