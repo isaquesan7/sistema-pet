@@ -1,3 +1,5 @@
+> **DECISÃO DE PRODUTO — 16/10/2026: PRIMEIRA PUBLICAÇÃO É PDV DE GESTÃO.** Escopo inicial: tutor/pet, catálogo, comanda e venda, recebimentos **declarados manualmente** por atendente e empresa/CNPJ, caixa, estoque, estorno auditável e relatórios de gestão. **Integração com emissor, transmissão/cancelamento de NF-e/NFC-e/NFS-e e escolha do provedor fiscal NÃO são requisitos técnicos da primeira publicação** e ficam para uma fase futura, usando a porta neutra M.5.26. Isso **não dispensa obrigações legais de emissão/documentação fiscal**, que cada operação deve cumprir por meio apropriado fora deste novo módulo enquanto ele não emitir; condições legais/contábeis precisam ser avaliadas antes de ativar operações comerciais. PSP, TEF, maquininha e banco também não são requisitos. Checkout unificado permanece desabilitado e nenhuma liberação está autorizada. Esta decisão de escopo prevalece sobre exigências de *motor fiscal* e *PSP* nos marcos históricos abaixo.
+
 > **M.5.3 — SMOKE E ROLLBACK APENAS CI:** API Express verdadeira executada exclusivamente em 127.0.0.1 e pointvet_unified_ci para GETs /api/health, /api/health/database, autorização negada no PDV e portal e 404, com contagens económicas/fiscais invariáveis. Checklist de SHA candidato/anterior e evidências reais de restore/rollback é NÃO EXECUTÁVEL. Mesmo marcado completo, não autoriza produção. **Ainda não há staging real verificado, DNS/SSL testado externamente, backup real restaurado nem rollback de release executado.** [M.5.3](POINTVET_M53_SMOKE_ROLLBACK_STAGING.md).
 
 > **M.5.2 — PREPARAÇÃO CI / NÃO EXISTE STAGING VERIFICADO:** contratos puros impedem compartilhar projeto Railway/cluster e host PostgreSQL/banco/bucket/DNS com produção; exigem e-mail sink, webhooks e serviços externos desligados, somente dados sintéticos e PDV unificado/PSP/crédito/fiscal real desativados. Diagnóstico de canário declara sinal de PAUSA perante qualquer falha de segurança, divergência financeira/estoque, HTTP 5xx, latência, backup vencido ou alerta crítico, mas JAMAIS executa ação automática. Metadados e métricas são de teste, não evidência de infraestrutura; pending ambiente staging próprio, restore autorizado de backup real, métricas e DNS/TLS verificados, revisão humana/opt-in. [M.5.2 detalhada](POINTVET_M52_STAGING_ISOLAMENTO_CANARIO.md).
@@ -51,8 +53,8 @@
 
 ## 1. Definições — não confundir
 **Preview/homologação:** interface, catálogo, comanda e preparação de venda sem movimento de dinheiro, estoque ou documento fiscal; preferir ambiente de staging separado. Feature flags desativadas por padrão.
-**Beta comercial:** fluxo completo para um grupo pequeno de empresas/recebedores autorizados, PSP integrado quando aplicável, fiscal conforme exigências legais e plano de contingência/rollback testado.
-**Lançamento geral:** suporte a organizações arbitrárias, CNPJs e múltiplas unidades, conciliação e relatórios, monitoramento, suporte e gestão de incidentes.
+**Beta de gestão controlada:** vendas e recebimentos manualmente declarados por atendentes de um grupo pequeno de empresas/CNPJs autorizados, sem PSP nem emissão fiscal pelo novo PDV; observância fiscal/contábil comprovada em processo externo aplicável, com plano de contingência/rollback testado.
+**Lançamento geral de gestão:** onboarding das empresas/CNPJs e unidades **suportadas nesta versão**, conciliação e relatórios de gestão, monitoramento, suporte e gestão de incidentes. Mesmo CNPJ em múltiplas unidades só após fase e modelo próprios.
 
 ## 2. Critérios de aceite por área
 
@@ -60,42 +62,42 @@
 | --- | --- | --- |
 | Multi-tenant e acesso por empresa | Testes de papéis/revogação no backend | Auditoria de endpoints, tokens, acesso cruzado e credenciais |
 | Comandas e rascunhos | Prisma migrations isoladas, preço/pet/estoque validados | Reserva e retry idempotentes mesmo após falhas/corridas |
-| Orçamentos no perfil do tutor + PDV (PR #35) | CRUD e filtro de tutor, não gera venda ao aprovar | Conversão idempotente, valores/empresa/fiscal auditáveis |
-| Crédito do tutor (PR #35) | Ledger só leitura, saldos e histórico consistentes | Razão transacional com conciliação, estorno, limites e bloqueio concorrente |
+| Orçamentos no perfil do tutor + PDV (PR #35) | CRUD e filtro de tutor, não gera venda ao aprovar | Integração e conversão idempotente somente se aprovadas para o lote; caso contrário, manter conversão indisponível |
+| Crédito do tutor (PR #35) | Ledger só leitura, saldos e histórico consistentes | Fora do primeiro fechamento de gestão até homologação própria de razão, conciliação, estorno e concorrência |
 | Caixa/empresa | Alocação conferida por empresa, sem cobrar | Forma informada pelo atendente e recebimento efetivo atribuído à empresa/CNPJ correto; sem split do sistema |
 | Formas manuais (sem PSP) | Interface registra débito/crédito/dinheiro/Pix/transferência por empresa, com confirmação e caixa | Contrato auditável de atendente, parcelas, comprovante opcional, lançamento único e estornos seguros |
 | Operação durável | Snapshot, chave de fechamento e bloqueio de duplicidade | Registro transacional idempotente de pagamentos e movimentos de caixa sem PSP, recuperação e reprocessamento seguro |
-| Fiscal | Fluxo pré-planejado sem emissão | Documento separado por emissor/tipo, testes UF/município, autorização fiscal |
+| Fiscal | Porta futura neutra, sem emissão | **Motor fiscal fora do escopo técnico**; antes de operar, validar o processo externo de cumprimento das obrigações aplicáveis por CNPJ/UF/município, sem alegar que este módulo emite documento |
 | Estoque | Comanda não dá baixa em sandbox | Baixa/estorno únicos e conciliados por empresa |
-| Mesmo CNPJ em unidades distintas | Decisão de modelo jurídico operacional/documentada | Migração segura da restrição `Empresa.cnpj @unique` com matriz de casos |
+| Mesmo CNPJ em unidades distintas | Decisão de modelo operacional documentada | Excluir esse cenário do piloto até fase própria com migração segura de `Empresa.cnpj @unique` |
 | Segurança de lançamento | CI, PostgreSQL staging, review, restore em staging | Canário, backup restaurável, rollback, alertas e suporte |
 | PDV individual | Continua funcionando com preferência desativada | Regressão E2E e migração reversível de preferência |
 
 ## 3. Bloqueios absolutos no momento
 1. **PR #36** em DRAFT, sem checkout real. PSP e maquininha NÃO são dependência nem pré-requisito do novo fechamento.
-2. **PR #35** em DRAFT: integrar Orçamentos/Crédito do Cliente; não descartar a ficha do tutor.
-3. Unidades que compartilham CNPJ ainda não são suportadas no modelo atual (campo `Empresa.cnpj @unique`).
+2. **PR #35** em DRAFT: revisar integração de Orçamentos do Cliente sem perder ficha do tutor; crédito como forma de pagamento segue desabilitado até homologação própria.
+3. Unidades que compartilham CNPJ ainda não são suportadas no modelo atual (campo `Empresa.cnpj @unique`); não incluir no lote inicial.
 4. Registros MANUAIS de cartão/dinheiro/Pix por empresa, comprovação pelo atendente, idempotência, auditoria, estornos e conciliação contábil ainda não homologados.
-5. Documentos fiscais separados por empresa/tipo, regras legais e testes de emissão ainda não homologados.
+5. Processo externo aplicável de documentação fiscal e conferência contábil por empresa/CNPJ ainda não comprovado para o piloto. **Implementar emissor dentro do PointVet não é requisito da versão de gestão.**
 6. Backup restaurável, teste de rollback, monitoramento, canário e integração `main` sem divergências ainda pendentes.
 
 ## 4. Sequência recomendada
 **Gate A — Read-only preview/staging:** validar PR #36, migrations, segurança, testes E2E no staging e manter o modo `checkoutHabilitado=false`. Pode ocorrer antes das etapas fiscais reais.
 
-**Gate B — Beta comercial controlada:** recebimentos MANUAIS individuais por empresa/CNPJ com comprovantes opcionais, declaração e auditoria do atendente, idempotência/controle de caixa, fiscal por emissor, estoque/estorno, integração Orçamentos/Crédito conforme escopo, canário apenas em lojas piloto. **Sem PSP.**
+**Gate B — Beta de gestão controlada:** recebimentos MANUAIS por empresa/CNPJ com confirmação e auditoria de atendente, idempotência/caixa, estoque/estorno e relatórios de gestão; demonstrar o cumprimento fiscal/contábil por processo externo aplicável e registrar a limitação do módulo. Orçamentos apenas no fluxo homologado; crédito como pagamento, unidades com mesmo CNPJ e emissão fiscal pelo PointVet permanecem desligados. Canário restrito a lojas piloto **após autorização explícita**. **Sem PSP.**
 
-**Gate C — Lançamento amplo:** onboarding multi-CNPJ/múltiplas unidades, observabilidade operacional, atendimento a incidentes, experiência consolidada e regressão para tenants que mantêm PDV individual.
+**Gate C — Lançamento amplo de gestão:** onboarding multi-CNPJ e unidades já suportadas, observabilidade operacional, atendimento a incidentes, experiência consolidada e regressão do PDV individual. Mesmo CNPJ/múltiplas unidades e crédito requerem gates funcionais separados. **Gate futuro independente:** emissão fiscal pelo PointVet, só após escolha explícita do provedor e homologação específica.
 
 ## 5. Estimativa e comunicação
-**Não existe ETA tecnicamente validada.** Uma estimativa de calendário depende da definição do PSP, emissor fiscal, desenho do mesmo CNPJ, testes com usuários e disponibilidade de homologação. Em atualizações de status, publicar evidência: commit SHA, CI do HEAD, ambiente, teste de contingência e último gate aprovado — nunca porcentagem inventada.
+**Não existe ETA tecnicamente validada.** Uma estimativa de calendário depende da conclusão e revisão do fluxo manual de gestão, definição das empresas/unidades do primeiro lote, testes com usuários, processo fiscal/contábil externo aplicável e disponibilidade de staging/restore/rollback. **Não depende da escolha de PSP ou motor fiscal** para a versão de gestão. Em atualizações de status, publicar evidência: commit SHA, CI do HEAD, ambiente, teste de contingência e último gate aprovado — nunca porcentagem inventada.
 
-**PRIORIDADE ATUAL**: fase M.2 do recebimento manual multiempresa: persistência auditável e idempotente por operação, usuário, caixa, forma, parcelas e valor. Depois M.3, efetivação transacional dos lançamentos e estoque por empresa. Não lançar fechamento real com base apenas em contrato de teste.
+**PRIORIDADE ATUAL (16/10):** corrigir experiência real de comanda, retomada e pré-fechamento do PDV de gestão; revisar e homologar o caminho manual M.2/M.3 já ensaiado **apenas no PostgreSQL CI**; definir lote piloto por CNPJ, verificar PR #35 no escopo escolhido e preparar homologação operacional com autorização. Não lançar fechamento real com base apenas em contrato de teste.
 
 ## 6. Protocolo de release
 - Aprovar integração com `main` somente após reviews e CI do SHA HEAD.
 - Homologar migrations aditivas em banco restaurado a partir de cópia saneada; avaliar locking e duração.
 - Testar tenants com flag desligada, empresa única, múltiplos CNPJs, mesmo CNPJ quando suportado, funcionário com acesso parcial e CNPJ sem PSP configurado.
-- Garantir backups, rollback sem perder dados, métricas e alarme para pendência de autorização, reprocessamento e divergência fiscal.
+- Garantir backups, rollback sem perder dados, métricas e alarmes para operações financeiras/estoque divergentes, com tratamento separado do cumprimento fiscal externo.
 - Documentar incidentes e comunicação ao cliente; ativar por grupo e capacidade de desligar checkout sem destruir vendas existentes.
 
 > **Proibido confundir publicação do PointVet já existente com liberação do novo PDV Unificado.** O atual PDV permanece operacional independentemente dos gates acima.

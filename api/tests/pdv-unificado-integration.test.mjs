@@ -465,6 +465,15 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.itemCatalogo.update({where:{id:ids.it2},data:{precoVenda:"70.00"}});
  const entries=await listarRascunhos(args);
  assert(entries.some(x=>x.id===draft.id));
+ const resumed=entries.find(x=>x.id===draft.id);
+ assert.deepEqual(resumed.itens.map(i=>[i.descricao,i.empresaNome,i.valorUnitario,i.quantidade]).sort((a,b)=>a[0].localeCompare(b[0])),[
+  ["Banho","Estética",70,2],["Ração","Loja",180,1]
+ ],"Retomar comanda deve recuperar itens persistidos, sem depender da busca do catálogo");
+ assert(resumed.itens.every(i=>Boolean(i.id)&&i.exigePet===false));
+ await prisma.itemCatalogo.update({where:{id:ids.it1},data:{nome:"Ração renomeada no catálogo"}});
+ const persistedAfterRename=(await listarRascunhos(args)).find(x=>x.id===draft.id);
+ assert.equal(persistedAfterRename.itens.find(i=>i.itemCatalogoId===ids.it1)?.descricao,"Ração","Snapshot da comanda não deve mudar com o catálogo");
+ await prisma.itemCatalogo.update({where:{id:ids.it1},data:{nome:"Ração"}});
  assert.equal(await prisma.venda.count({where:{comandaId:draft.id}}),0,"Saving a separate draft must not create a sale");
  assert.equal(await prisma.pagamento.count(),0,"Draft must not create payments");
  const updated=await salvarRascunho({...args,itens:[{empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:2}]},{id:draft.id,versao:1});
