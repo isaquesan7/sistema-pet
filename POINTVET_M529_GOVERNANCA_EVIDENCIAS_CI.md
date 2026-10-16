@@ -31,7 +31,7 @@ Todos os pontos permanecem **pendentes**, mesmo quando existe parecer M.5.28 lig
 
 O resultado mantém `politicaAprovada=false`, `cadeiaCustodiaRealDisponivel=false`, `conteudoDocumentoAutenticado=false`, `bancoVerificadoIndependentemente=false`, `permiteUpload=false`, `permiteArmazenamento=false`, `permiteExportacao=false`, `permiteDescarteReal=false`, `permiteReembolso=false`, `permiteLancamentoFinanceiro=false`, `permiteOperacaoFiscal=false` e `habilitaCheckout=false`.
 
-Testes: contrato puro (retorno mínimo/redigido, ausência de prazo, flags desligadas, cenários com/sem parecer, revisão histórica, adulteração, cross-CNPJ e duplicidade) e integração PostgreSQL descartável (autorização, trilha de auditoria íntegra/adulterada, mudança de dossiê e zero efeito financeiro/fiscal). Workflow valida lint/contrato, regressões multiempresa/HTTP e backup/restore **sintético**. **CI de implementação pendente de confirmação no HEAD.**
+Testes: contrato puro (retorno mínimo/redigido, ausência de prazo, flags desligadas, cenários com/sem parecer, revisão histórica, adulteração, cross-CNPJ e duplicidade) e integração PostgreSQL descartável (autorização, trilha de auditoria íntegra/adulterada, mudança de dossiê e zero efeito financeiro/fiscal). Workflow valida lint/contrato, regressões multiempresa/HTTP e backup/restore **sintético**. **CI da implementação aprovado:** `b3a7a27c0635b2363e00968f43b11482ea76d5c3`, [Actions #38934425893](https://github.com/isaquesan7/sistema-pet/actions/runs/38934425893), `validate` + `isolated-postgres` **SUCCESS**. O HEAD documental final exige nova verificação.
 
 ## Próximos gates — nenhum liberado
 
