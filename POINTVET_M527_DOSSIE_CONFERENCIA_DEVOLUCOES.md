@@ -19,7 +19,7 @@ A M.5.23 mantém o livro de declarações humanas de devolução externa, a M.5.
 - `api/tests/pdv-unificado-dossie-devolucoes.contract.test.mjs`: 0/1/2 declarações, R$20 e R$40 de R$60, hashing estável e versionado, obrigações sempre pendentes, falsificação, CNPJ, IDs/referências duplicadas, usuário, data, ordem/centavos e falsas aprovações.
 - `api/tests/pdv-unificado-integration.test.mjs`: PostgreSQL descartável com declaração persistida e auditada, dossiê antes/depois de nova declaração, acesso cruzado negado, nenhum documento fiscal ou pagamento criado pelo dossiê.
 - `api/tests/pointvet-m543-http-checkout-barrier.integration.test.mjs`: GET protegido, opt-out, cross-tenant, IDs malformados, métodos de escrita inexistentes e contagens econômicas estáveis.
-- CI: `PointVet Unified PDV Foundation` em PR Draft, `validate` + `isolated-postgres` requeridos. **Status CI de implementação: pendente de execução.** Backup/restore do workflow é apenas SINTÉTICO.
+- **CI de implementação APROVADO:** HEAD `a09249558345c26886176d18e5670ee752fada05`, [Actions #38916013325](https://github.com/isaquesan7/sistema-pet/actions/runs/38916013325), jobs `validate SUCCESS` + `isolated-postgres SUCCESS`. Integração e permissões HTTP exercitadas em PostgreSQL descartável; build de painel, regressões financeiras/fiscais CI e backup/restore **SINTÉTICO** aprovados. Verificar separadamente o HEAD documental subsequente.
 
 ## Próximos gates oficiais
 1. Planejar com consentimento e revisão LGPD a coleta/guarda dos comprovantes reais com minimização, retenção e auditoria; verificação **humana por dois responsáveis diferentes**, sem depender de banco/maquininha integrado.
