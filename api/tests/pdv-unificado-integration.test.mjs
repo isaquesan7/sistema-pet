@@ -2714,4 +2714,103 @@ test("cross-company saving respects prices, access, rollback and version",async(
   data:{quantidade:"0.208"}});
  assert.equal((await estornarFechamentoManualSomenteSandbox(fefoReverse)).reutilizada,true);
 
+ // M.5.40 — disputa real pelo mesmo produto/lote, com caixas distintos para
+ // que não seja apenas a trava de sessão de caixa a serializar as vendas.
+ const corridaCash=await prisma.caixa.create({data:{
+  empresaId:ids.co1,nome:"Caixa concorrente granel CI"
+ }});
+ const corridaSession=await prisma.sessaoCaixa.create({data:{
+  caixaId:corridaCash.id,usuarioAberturaId:ids.user
+ }});
+ const produtoCorrida=async(rotulo,gramas)=>{
+  const item=await prisma.itemCatalogo.create({data:{
+   empresaId:ids.co1,nome:rotulo+suffix,tipo:"PRODUTO",precoVenda:"10.00"
+  }});
+  const produto=await prisma.produto.create({data:{
+   itemId:item.id,unidade:"QUILOGRAMA",controlaEstoque:true,controlaLote:true
+  }});
+  await prisma.estoqueSaldo.create({data:{produtoId:produto.id,
+   quantidade:(gramas/1000).toFixed(3)}});
+  const lote=await prisma.loteProduto.create({data:{
+   produtoId:produto.id,numeroLote:rotulo+suffix,
+   dataValidade:loteDia(20),quantidadeAtual:(gramas/1000).toFixed(3)
+  }});
+  return {item,produto,lote};
+ };
+ const prepararUmGrama=async(itemId,sessaoCaixaId)=>{
+  const saleArgs={...args,itens:[{empresaId:ids.co1,itemCatalogoId:itemId,
+   quantidade:0.001}]};
+  assert.equal((await simularComanda(saleArgs)).total,"0.01");
+  const draft=await salvarRascunho(saleArgs);
+  const ctx={...saleArgs,id:draft.id,versao:1};
+  await reservarOperacoesFechamento(ctx);
+  const alocacoes=[{empresaId:ids.co1,sessaoCaixaId,
+   pagamentos:[{forma:"PIX",valorCentavos:1}]}];
+  await prepararExecucaoUnificada({...ctx,dados:{versao:1,alocacoes}});
+  await registrarRecebimentoManualSomenteSandbox({...ctx,dados:{versao:1,
+   alocacoes:[{...alocacoes[0],pagamentos:[{...alocacoes[0].pagamentos[0],
+    confirmadoPeloAtendente:true}]}]}});
+  await criarVendasFilhasSomenteSandbox(ctx);
+  return ctx;
+ };
+ const fecharEmDisputa=async(produtoId,contextos)=>{
+  const acquired=latch(),release=latch();
+  const guard=prisma.$transaction(async tx=>{
+   await tx.$queryRaw`SELECT "id" FROM "estoque_saldos" WHERE "produtoId"=${produtoId} FOR UPDATE`;
+   acquired.liberar();
+   await release.promise;
+  },{timeout:15000});
+  await acquired.promise;
+  const pending=Promise.allSettled(contextos.map(ctx=>
+   efetivarRecebimentosManuaisSomenteSandbox(ctx)));
+  const waiting=Symbol("fechamentos ainda aguardam o saldo travado");
+  try{
+   assert.equal(await Promise.race([pending.then(()=>"concluido"),
+    new Promise(resolve=>setTimeout(()=>resolve(waiting),80))]),waiting,
+   "Fechamentos concorrentes devem aguardar a liberação do mesmo estoque");
+  }finally{release.liberar();}
+  await guard;
+  return pending;
+ };
+
+ // Com 2 g e duas vendas de 1 g, AMBAS precisam concluir; conflito P2034
+ // só pode repetir uma transação que já foi integralmente revertida.
+ const doisGramas=await produtoCorrida("RACAO_DUAS_VENDAS_",2);
+ const duasVendas=await Promise.all([
+  prepararUmGrama(doisGramas.item.id,session1.id),
+  prepararUmGrama(doisGramas.item.id,corridaSession.id)
+ ]);
+ const doisResultados=await fecharEmDisputa(doisGramas.produto.id,duasVendas);
+ assert.deepEqual(doisResultados.map(x=>x.status),["fulfilled","fulfilled"],
+  "Retentar serialização deve permitir consumir 2 g em duas vendas de 1 g");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:doisGramas.produto.id}})).quantidade),0);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:doisGramas.lote.id}})).quantidadeAtual),0);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{
+  produtoId:doisGramas.produto.id,tipo:"VENDA"
+ }}),2);
+ assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(duasVendas[0])).estoqueMovimentado,false);
+ assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(duasVendas[1])).estoqueMovimentado,false);
+
+ // Com APENAS 1 g, uma única venda vence. A outra reavalia o novo saldo,
+ // falha por falta de estoque e não persiste Pagamento ou movimento órfão.
+ const ultimoGrama=await produtoCorrida("RACAO_ULTIMO_GRAMA_",1);
+ const ultimasVendas=await Promise.all([
+  prepararUmGrama(ultimoGrama.item.id,session1.id),
+  prepararUmGrama(ultimoGrama.item.id,corridaSession.id)
+ ]);
+ const pagamentosAntes=await prisma.pagamento.count();
+ const docsAntes=await prisma.documentoFiscal.count();
+ const ultimosResultados=await fecharEmDisputa(ultimoGrama.produto.id,ultimasVendas);
+ assert.equal(ultimosResultados.filter(r=>r.status==="fulfilled").length,1);
+ const unicaFalha=ultimosResultados.find(r=>r.status==="rejected")?.reason;
+ assert.match(String(unicaFalha?.message),/M3_ESTOQUE_INSUFICIENTE/,
+  "Conflito de serialização deve terminar com falta de estoque real");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:ultimoGrama.produto.id}})).quantidade),0);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:ultimoGrama.lote.id}})).quantidadeAtual),0);
+ assert.equal(await prisma.movimentacaoEstoque.count({where:{
+  produtoId:ultimoGrama.produto.id,tipo:"VENDA"
+ }}),1);
+ assert.equal(await prisma.pagamento.count(),pagamentosAntes+1);
+ assert.equal(await prisma.documentoFiscal.count(),docsAntes);
+
 });

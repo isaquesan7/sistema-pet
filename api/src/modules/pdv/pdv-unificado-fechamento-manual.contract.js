@@ -6,6 +6,19 @@
  */
 import {createHash} from "node:crypto";
 const FORMAS=new Set(["DINHEIRO","PIX","CARTAO_DEBITO","CARTAO_CREDITO","TRANSFERENCIA"]);
+/** M.5.40: repetição limitada APENAS para abortos serializáveis do PostgreSQL. */
+export async function executarComRetrySerializableM540(executar,{tentativas=3}={}){
+ if(typeof executar!=="function"||!Number.isInteger(tentativas)||tentativas<1||tentativas>3)
+  throw Error("M3_RETRY_INVALIDO");
+ for(let tentativa=1;tentativa<=tentativas;tentativa++){
+  try{return await executar();}
+  catch(erro){
+   // P2034: Prisma rolled back the entire transaction (write conflict/deadlock).
+   // Never retry stock shortages, validation, authorizations or unknown failures.
+   if(erro?.code!=="P2034"||tentativa===tentativas)throw erro;
+  }
+ }
+}
 export function centavosExatos(valor){
  const s=String(valor);
  if(!/^(?:0|[1-9]\d{0,10})(?:\.\d{1,2})?$/.test(s))throw Error("M3_VALOR_INVALIDO");

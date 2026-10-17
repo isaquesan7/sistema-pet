@@ -9,7 +9,7 @@
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
 import {consultarReservaFechamento} from "./pdv-unificado.service.js";
-import {centavosExatos,planejarEfetivacaoManualUnificada}
+import {centavosExatos,planejarEfetivacaoManualUnificada,executarComRetrySerializableM540}
  from "./pdv-unificado-fechamento-manual.contract.js";
 
 const BANCO_CI="pointvet_unified_ci";
@@ -57,7 +57,9 @@ async function baixarEstoqueEmpresa(tx,{op,usuarioId}){
   const quant=mil(item.quantidade);
   if(!Number.isSafeInteger(quant)||quant<=0)falha("M3_QUANTIDADE_INVALIDA");
   const p=quantidades.get(produto.id)||{produto,unidades:0};
-  p.unidades+=quant;quantidades.set(produto.id,p);
+  p.unidades+=quant;
+  if(!Number.isSafeInteger(p.unidades))falha("M3_QUANTIDADE_INVALIDA");
+  quantidades.set(produto.id,p);
  }
  for(const {produto,unidades} of [...quantidades.values()].sort((a,b)=>a.produto.id.localeCompare(b.produto.id))){
   const total=unidades/1000;
@@ -146,7 +148,7 @@ export async function efetivarRecebimentosManuaisSomenteSandbox({
  organizacaoId,usuarioId,empresaId,id,versao,simularFalhaAposEmpresaId=null
 }){
  exigirBancoIsolado();
- return prisma.$transaction(async tx=>{
+ return executarComRetrySerializableM540(()=>prisma.$transaction(async tx=>{
   const nome=await tx.$queryRaw`SELECT current_database() AS nome`;
   if(nome[0]?.nome!==BANCO_CI)falha("BANCO_NAO_ISOLADO");
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
@@ -252,5 +254,5 @@ export async function efetivarRecebimentosManuaisSomenteSandbox({
    vendas:plano.operacoes.map(o=>({empresaId:o.empresaId,vendaId:o.vendaId,status:"CONCLUIDA"})),
    emissaoFiscal:false,execucaoRealHabilitada:false,creditoClienteUtilizado:false,
    mensagem:"Somente CI: sem fiscal e sem integração do recebível com conciliação real."};
- },{isolationLevel:"Serializable",maxWait:10000,timeout:30000});
+ },{isolationLevel:"Serializable",maxWait:10000,timeout:30000}));
 }
