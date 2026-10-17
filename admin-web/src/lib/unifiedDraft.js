@@ -1,5 +1,20 @@
 /** Rebuild a saved management-PDV draft from its persisted, authorized snapshot.
  * Never depend on the current catalog search or treat old prices as approved. */
+export function buildUnifiedDraftPayload(clientId, lines) {
+ if (typeof clientId !== "string" || !clientId.trim()) {
+  throw new Error("Selecione um cliente antes de validar a comanda.");
+ }
+ return {
+  clienteId: clientId,
+  itens: lines.map(item => ({
+   empresaId: item.empresaId,
+   itemCatalogoId: item.itemCatalogoId,
+   quantidade: item.quantidade,
+   petId: item.petId || null
+  }))
+ };
+}
+
 export function rehydrateUnifiedDraft(saved){
  return (saved.itens||[]).filter(i=>i.status==="ATIVO").map(i=>({
   lineKey:`persistida:${i.id}`,
