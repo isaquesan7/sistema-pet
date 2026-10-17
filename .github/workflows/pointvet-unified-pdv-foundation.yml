@@ -12,6 +12,7 @@ on:
       - "POINTVET_M539_ESTORNO_GRANEL_LOTES_FEFO.md"
       - "POINTVET_M540_CONCORRENCIA_BAIXA_GRANEL.md"
       - "POINTVET_M541_CONFERENCIA_ASSISTIDA_BALANCA.md"
+      - "POINTVET_M542_CONFERENCIA_PAGAMENTOS_MISTOS_GESTAO.md"
       - "POINTVET_DECISAO_PAGAMENTOS_MANUAIS.md"
       - "POINTVET_20_1_UNIFIED_PDV_FOUNDATION.md"
       - "api/prisma/schema.prisma"
@@ -94,8 +95,10 @@ on:
       - "api/tests/pdv-unificado-retomada-comanda.contract.test.mjs"
       - "api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs"
       - "api/tests/pdv-unificado-racao-granel.contract.test.mjs"
+      - "api/tests/pointvet-m542-pagamentos-manuais-ui.contract.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
       - "admin-web/src/lib/unifiedBulk.js"
+      - "admin-web/src/lib/unifiedManualAllocation.js"
       - "admin-web/src/pages/CatalogPage.jsx"
       - "api/src/modules/catalogo/catalogo.service.js"
       - "api/src/modules/catalogo/catalogo-unidade.service.js"
@@ -322,6 +325,7 @@ jobs:
           node --test api/tests/pdv-unificado-retomada-comanda.contract.test.mjs
           node --test api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs
           node --test api/tests/pdv-unificado-racao-granel.contract.test.mjs
+          node --test api/tests/pointvet-m542-pagamentos-manuais-ui.contract.test.mjs
           node --test api/tests/pointvet-m537-unidade-granel.contract.test.mjs
           node --test api/tests/pointvet-m538-granel-concorrencia.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs

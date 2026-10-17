@@ -134,6 +134,20 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(good.preConferenciaAprovada,true);
  assert.equal(good.execucaoDisponivel,false);
  assert.equal(good.empresas.length,2);
+ // M.5.42: o operador pode distribuir manualmente uma mesma empresa entre
+ // dinheiro e Pix, mantendo o outro CNPJ em seu próprio caixa. Sem recebimento.
+ const mixed={versao:1,alocacoes:[
+  {...proper.alocacoes[0],pagamentos:[
+   {forma:"DINHEIRO",valorCentavos:10000},{forma:"PIX",valorCentavos:8000}
+  ]},proper.alocacoes[1]
+ ]};
+ assert(conferenciaAlocacaoSchema.safeParse(mixed).success);
+ const mixedReview=await conferirAlocacaoFechamento({...reservationArgs,dados:mixed});
+ assert.equal(mixedReview.preConferenciaAprovada,true);
+ assert.deepEqual(mixedReview.empresas.find(x=>x.empresaId===ids.co1).formas,[
+  {forma:"DINHEIRO",valor:"100.00"},{forma:"PIX",valor:"80.00"}
+ ]);
+ assert.equal(await prisma.pagamento.count(),0,"conferência mista não recebe dinheiro");
  const prepArgs={...reservationArgs,dados:proper};
  const preparacoesConcorrentes=await Promise.allSettled([
   prepararExecucaoUnificada(prepArgs),prepararExecucaoUnificada(prepArgs)

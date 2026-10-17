@@ -81,7 +81,7 @@
 | Operação durável | Snapshot, chave de fechamento e bloqueio de duplicidade | Registro transacional idempotente de pagamentos e movimentos de caixa sem PSP, recuperação e reprocessamento seguro |
 | Fiscal | Porta futura neutra, sem emissão | **Motor fiscal fora do escopo técnico**; antes de operar, validar o processo externo de cumprimento das obrigações aplicáveis por CNPJ/UF/município, sem alegar que este módulo emite documento |
 | Estoque | Comanda não dá baixa em sandbox | Baixa/estorno únicos e conciliados por empresa |
-| Ração a granel e balança | M.5.41: cálculo em gramas inteiros e conferência digitada de peso/etiqueta **sem salvar leitura** | Homologar fisicamente modelos de balança, etiqueta, centavos, estoque FEFO, concorrência, estorno e instruções ao atendente antes do piloto |
+| Ração a granel (manual) | M.5.41: cálculo em gramas inteiros e conferência digitada **opcional**, sem salvar leitura | Homologar o fluxo **manual** peso/valor, centavos, estoque FEFO, concorrência, estorno e instruções ao atendente; **não exigir conexão nem homologação de hardware de balança** |
 | Mesmo CNPJ em unidades distintas | Decisão de modelo operacional documentada | Excluir esse cenário do piloto até fase própria com migração segura de `Empresa.cnpj @unique` |
 | Segurança de lançamento | CI, PostgreSQL staging, review, restore em staging | Canário, backup restaurável, rollback, alertas e suporte |
 | PDV individual | Continua funcionando com preferência desativada | Regressão E2E e migração reversível de preferência |
@@ -107,6 +107,8 @@
 **PRIORIDADE ATUAL (16/10):** corrigir experiência real de comanda, retomada e pré-fechamento do PDV de gestão; revisar e homologar o caminho manual M.2/M.3 já ensaiado **apenas no PostgreSQL CI**; definir lote piloto por CNPJ, verificar PR #35 no escopo escolhido e preparar homologação operacional com autorização. Não lançar fechamento real com base apenas em contrato de teste.
 
 **Incremento M.5.41 (17/10):** [conferência assistida de balança e etiqueta](POINTVET_M541_CONFERENCIA_ASSISTIDA_BALANCA.md) incluída na **prévia** com testes de 333 g/R$ 5,00, 1 g e 1 centavo de diferença. A leitura é digitada e efêmera, não confirma homologação física nem libera venda, baixa de estoque, fiscal ou publicação. CI do HEAD deve ser verificado ao publicar na PR #36 Draft.
+
+**Decisão expressa do responsável (16/10, Brasília), M.5.42:** o lançamento inicial exige PDV **100% manual**, não integração física com balança/leitor/QR/maquininha. Essas integrações ficam abertas para o futuro e **não são gates do PDV de gestão**. A próxima lacuna atacada foi [alocação de pagamentos mistos na prévia](POINTVET_M542_CONFERENCIA_PAGAMENTOS_MISTOS_GESTAO.md), ainda sem receber dinheiro, baixar estoque ou finalizar. Testar comercialmente o fluxo manual, contratos M.3 em sandbox CI, política fiscal externa aplicável, backup/rollback e piloto autorizado. Sem motor/provedor fiscal agora.
 
 ## 6. Protocolo de release
 - Aprovar integração com `main` somente após reviews e CI do SHA HEAD.

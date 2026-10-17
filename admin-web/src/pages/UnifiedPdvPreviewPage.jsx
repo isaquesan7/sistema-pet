@@ -7,6 +7,7 @@ import api,{getApiErrorMessage} from "../lib/api.js";
 import {formatCurrency} from "../lib/formatters.js";
 import {rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
 import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../lib/unifiedBulk.js";
+import {manualPaymentForms,defaultManualPayment,previewManualAllocation} from "../lib/unifiedManualAllocation.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import "../clients.css";
 export default function UnifiedPdvPreviewPage(){
@@ -127,6 +128,7 @@ function UnifiedBulkScaleCheck({row}){
 /** Pure payment-allocation conference; absolutely no charges or finance writes. */
 function UnifiedAllocationConference({draft,reservation,dirty}){
  const [forms,setForms]=useState({});
+ const nextPaymentId=useRef(0);
  const sessions=useQuery({
   queryKey:["unified-cash-sessions",draft?.id,draft?.versao],
   enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
@@ -137,15 +139,8 @@ function UnifiedAllocationConference({draft,reservation,dirty}){
   enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
   queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/diagnostico-recuperacao`,{params:{versao:draft.versao}})).data.dados
  });
- function alocar(){
-  return reservation.operacoes.map(op=>{
-   const own=(sessions.data||[]).filter(s=>s.empresaId===op.empresaId);
-   const fields=forms[op.empresaId]||{};
-   return {empresaId:op.empresaId,sessaoCaixaId:fields.sessaoCaixaId||own[0]?.sessaoCaixaId||"",
-    pagamentos:[{forma:fields.forma||"PIX",valorCentavos:Math.round(Number(fields.valor??op.valor)*100)}]};
-  });
- }
- const payload=()=>({versao:draft.versao,alocacoes:alocar()});
+ const localCheck=previewManualAllocation(reservation.operacoes,sessions.data||[],forms);
+ const payload=()=>({versao:draft.versao,alocacoes:localCheck.alocacoes});
  const conference=useMutation({
   mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/conferencia-alocacao`,payload())).data.dados
  });
@@ -159,31 +154,43 @@ function UnifiedAllocationConference({draft,reservation,dirty}){
   onSuccess:async()=>{await preparation.refetch();}
  });
  function set(companyId,patch){setForms(current=>({...current,[companyId]:{...current[companyId],...patch}}));conference.reset();prepare.reset();}
+ function paymentRows(op){return forms[op.empresaId]?.pagamentos??[defaultManualPayment(op)];}
+ function changePayment(op,id,patch){set(op.empresaId,{pagamentos:paymentRows(op).map(p=>p.id===id?{...p,...patch}:p)});}
+ function addPayment(op){set(op.empresaId,{pagamentos:[...paymentRows(op),{id:`novo:${++nextPaymentId.current}`,forma:"PIX",valor:""}]});}
+ function removePayment(op,id){set(op.empresaId,{pagamentos:paymentRows(op).filter(p=>p.id!==id)});}
  return <section className="panel pv-detail-panel"><h2>Conferência de pagamentos por empresa</h2>
-  <p>Simulação somente leitura. Selecione um caixa aberto para cada empresa. Não existe cobrança, split, utilização de crédito nem emissão fiscal nesta etapa.</p>
+  <p>Informe a distribuição MANUAL por empresa: dinheiro, Pix, cartões ou transferência, inclusive pagamentos mistos. A soma deve bater exatamente com a comanda. Esta tela apenas confere: não registra recebimento, parcela, caixa, estoque ou nota fiscal.</p>
   {sessions.isError&&<p className="alert alert--error">{getApiErrorMessage(sessions.error)}</p>}
   {reservation.operacoes.map(op=>{
    const opts=(sessions.data||[]).filter(x=>x.empresaId===op.empresaId);
    const current=forms[op.empresaId]||{};
-   return <div key={op.empresaId} className="pv-unified-line">
-    <div><strong>{op.nome} — {formatCurrency(Number(op.valor))}</strong><small>CNPJ: {op.cnpj}</small></div>
-    <label>Caixa aberto<select className="form-control" value={current.sessaoCaixaId||opts[0]?.sessaoCaixaId||""} onChange={e=>set(op.empresaId,{sessaoCaixaId:e.target.value})}>
-     {!opts.length&&<option value="">Nenhum caixa aberto</option>}
-     {opts.map(x=><option key={x.sessaoCaixaId} value={x.sessaoCaixaId}>{x.caixa}</option>)}
-    </select></label>
-    <label>Forma<select className="form-control" value={current.forma||"PIX"} onChange={e=>set(op.empresaId,{forma:e.target.value})}>
-     <option value="PIX">Pix</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Débito</option><option value="CARTAO_CREDITO">Crédito</option><option value="TRANSFERENCIA">Transferência</option>
-    </select></label>
-    <label>Valor simulado<input className="form-control" type="number" min="0.01" step="0.01" value={current.valor??op.valor} onChange={e=>set(op.empresaId,{valor:e.target.value})}/></label>
+   const rows=paymentRows(op);
+   return <div key={op.empresaId} className="pv-unified-manual-company">
+    <div className="pv-detail-section-actions"><strong>{op.nome} — {formatCurrency(Number(op.valor))}</strong><small>CNPJ: {op.cnpj}</small></div>
+    <label>Caixa aberto desta empresa<select className="form-control" value={current.sessaoCaixaId||opts[0]?.sessaoCaixaId||""} onChange={e=>set(op.empresaId,{sessaoCaixaId:e.target.value})}>
+      {!opts.length&&<option value="">Nenhum caixa aberto</option>}
+      {opts.map(x=><option key={x.sessaoCaixaId} value={x.sessaoCaixaId}>{x.caixa}</option>)}
+     </select></label>
+    {rows.map((p,index)=><div className="pv-unified-manual-payment" key={p.id}>
+     <label>Forma {index+1}<select className="form-control" value={p.forma} onChange={e=>changePayment(op,p.id,{forma:e.target.value})}>
+      {manualPaymentForms.map(forma=><option key={forma} value={forma}>{({DINHEIRO:"Dinheiro",PIX:"Pix",CARTAO_DEBITO:"Débito",CARTAO_CREDITO:"Crédito",TRANSFERENCIA:"Transferência"})[forma]}</option>)}
+     </select></label>
+     <label>Valor (R$)<input className="form-control" type="text" inputMode="decimal" placeholder="Ex.: 5,00" value={p.valor} onChange={e=>changePayment(op,p.id,{valor:e.target.value})}/></label>
+     <button type="button" className="ghost-button" disabled={rows.length===1} onClick={()=>removePayment(op,p.id)}>Remover forma</button>
+    </div>)}
+    <button className="ghost-button" type="button" disabled={rows.length>=10} onClick={()=>addPayment(op)}><Plus size={16}/> Adicionar forma</button>
    </div>;
   })}
-  <button className="ghost-button" type="button" disabled={dirty||sessions.isLoading||conference.isPending||!(sessions.data||[]).length} onClick={()=>conference.mutate()}>{conference.isPending?"Conferindo...":"Conferir alocação (sem cobrar)"}</button>
+  {!sessions.isLoading&&localCheck.pendencias.length>0&&<div className="alert alert--error" role="alert"><strong>Revise a divisão antes de conferir:</strong>
+   {localCheck.pendencias.map((p,i)=><p key={`${p.empresaId}-${p.codigo}-${i}`}>{reservation.operacoes.find(op=>op.empresaId===p.empresaId)?.nome||"Comanda"}: {({CAIXA_INDISPONIVEL:"Selecione um caixa aberto desta empresa",TOTAL_INVALIDO:"Total da empresa inválido",PAGAMENTO_INVALIDO:"Forma ou valor inválido",SOMA_DIVERGENTE:"A soma dos pagamentos não corresponde ao total",QUANTIDADE_PAGAMENTOS_INVALIDA:"Informe de 1 a 10 formas de pagamento",EMPRESA_DUPLICADA:"Empresa repetida",SEM_OPERACOES:"Não há empresas para conferir"})[p.codigo]||p.codigo}{p.indice?` (forma ${p.indice})`:""}</p>)}
+  </div>}
+  <button className="ghost-button" type="button" disabled={dirty||!localCheck.pronto||sessions.isLoading||conference.isPending} onClick={()=>conference.mutate()}>{conference.isPending?"Conferindo...":"Conferir alocação (sem cobrar)"}</button>
   {dirty&&<p>Salve as alterações locais antes de conferir a alocação.</p>}
   {conference.isError&&<p className="alert alert--error">{getApiErrorMessage(conference.error)}</p>}
   {conference.data?.preConferenciaAprovada&&!preparation.data&&<div className="pv-unified-total">
    <strong>Próximo estágio: preparação imutável</strong>
    <p>Grava a distribuição validada por empresa para recuperação segura. Continua sem vendas, pagamentos, baixa de estoque ou notas.</p>
-   <button className="ghost-button" type="button" disabled={dirty||prepare.isPending} onClick={()=>prepare.mutate()}>{prepare.isPending?"Preparando...":"Salvar preparação (sem vender)"}</button>
+   <button className="ghost-button" type="button" disabled={dirty||!localCheck.pronto||prepare.isPending} onClick={()=>prepare.mutate()}>{prepare.isPending?"Preparando...":"Salvar preparação (sem vender)"}</button>
   </div>}
   {prepare.isError&&<p className="alert alert--error">{getApiErrorMessage(prepare.error)}</p>}
   {preparation.isError&&<p className="alert alert--error">{getApiErrorMessage(preparation.error)}</p>}
