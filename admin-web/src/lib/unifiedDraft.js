@@ -15,6 +15,19 @@ export function buildUnifiedDraftPayload(clientId, lines) {
  };
 }
 
+/** Cache entries for the unified PDV must never be shared across company
+ * contexts: API authorization depends on the X-Empresa-Id header. */
+export function unifiedScopedQueryKey(resource, organizationId, companyId, ...parts) {
+ return [resource, organizationId ?? null, companyId ?? null, ...parts];
+}
+
+/** Keep the persisted tutor visible while a filtered client search reloads. */
+export function visibleUnifiedClients(clients, selectedClient) {
+ const results = Array.isArray(clients) ? clients : [];
+ if (!selectedClient?.id || results.some(client => client.id === selectedClient.id)) return results;
+ return [selectedClient, ...results];
+}
+
 export function rehydrateUnifiedDraft(saved){
  return (saved.itens||[]).filter(i=>i.status==="ATIVO").map(i=>({
   lineKey:`persistida:${i.id}`,
