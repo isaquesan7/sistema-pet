@@ -3,6 +3,8 @@
  */
 import {test} from "node:test";
 import assert from "node:assert/strict";
+import {bulkFromAmount} from "../../admin-web/src/lib/unifiedBulk.js";
+import {previewManualAllocation} from "../../admin-web/src/lib/unifiedManualAllocation.js";
 import prisma from "../src/config/prisma.js";
 import {atualizarItem} from "../src/modules/catalogo/catalogo.service.js";
 import {protegerUnidadeEstoque,travarUnidadesProdutos} from "../src/modules/catalogo/catalogo-unidade.service.js";
@@ -2509,6 +2511,106 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(await prisma.documentoFiscal.count(),beforeBulkDocs);
  assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(bulkCtx)).estoqueMovimentado,false,
   "Repetir fechamento não pode baixar 333 g pela segunda vez");
+
+ // M.5.43 — jornada manual completa de uma segunda venda a granel:
+ // digitação de R$ 5,00 no navegador -> 333 g -> dinheiro + Pix ->
+ // declaração da atendente -> baixa de saldo/lote -> estorno integral.
+ // Apenas no PostgreSQL descartável; nunca expor este fechamento por HTTP.
+ const moneyToGrams=bulkFromAmount("5,00",bulkItem.precoVenda,"QUILOGRAMA");
+ assert.deepEqual(moneyToGrams,{quantidade:0.333,gramas:333,valorCentavos:500});
+ const splitBulkArgs={...bulkArgs,itens:[{...bulkArgs.itens[0],quantidade:moneyToGrams.quantidade}]};
+ assert.equal((await simularComanda(splitBulkArgs)).total,"5.00",
+  "Servidor precisa recalcular o mesmo preço sem confiar no valor enviado pelo navegador");
+ const splitBulkDraft=await salvarRascunho(splitBulkArgs);
+ const splitBulkCtx={...splitBulkArgs,id:splitBulkDraft.id,versao:1};
+ const splitReservation=await reservarOperacoesFechamento(splitBulkCtx);
+ const splitCashForm={[ids.co1]:{sessaoCaixaId:session1.id,pagamentos:[
+  {id:"dinheiro",forma:"DINHEIRO",valor:"3,00"},
+  {id:"pix",forma:"PIX",valor:"2,00"}
+ ]}};
+ const splitPreview=previewManualAllocation(splitReservation.operacoes,[{
+  empresaId:ids.co1,sessaoCaixaId:session1.id
+ }],splitCashForm);
+ assert.equal(splitPreview.pronto,true);
+ assert.deepEqual(splitPreview.alocacoes,[{
+  empresaId:ids.co1,sessaoCaixaId:session1.id,pagamentos:[
+   {forma:"DINHEIRO",valorCentavos:300},{forma:"PIX",valorCentavos:200}
+  ]
+ }]);
+ const oneCentShort=previewManualAllocation(splitReservation.operacoes,[{
+  empresaId:ids.co1,sessaoCaixaId:session1.id
+ }],{[ids.co1]:{...splitCashForm[ids.co1],pagamentos:[
+  {id:"dinheiro",forma:"DINHEIRO",valor:"2,99"},
+  {id:"pix",forma:"PIX",valor:"2,00"}
+ ]}});
+ assert.equal(oneCentShort.pronto,false);
+ assert(oneCentShort.pendencias.some(p=>p.codigo==="SOMA_DIVERGENTE"&&p.diferencaCentavos===-1));
+ await assert.rejects(()=>prepararExecucaoUnificada({...splitBulkCtx,dados:{
+  versao:1,alocacoes:oneCentShort.alocacoes
+ }}),/ALOCACAO_COM_PENDENCIAS/,"Servidor também rejeita diferença de um centavo");
+ assert.equal(await prisma.venda.count({where:{comandaId:splitBulkDraft.id}}),0);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:splitBulkDraft.id}}}),0);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:bulkProduct.id}})).quantidade),1.667);
+
+ const splitPayload={versao:1,alocacoes:splitPreview.alocacoes};
+ await prepararExecucaoUnificada({...splitBulkCtx,dados:splitPayload});
+ const splitDeclaration={versao:1,alocacoes:splitPreview.alocacoes.map(a=>({
+  ...a,pagamentos:a.pagamentos.map(p=>({...p,confirmadoPeloAtendente:true}))
+ }))};
+ await assert.rejects(()=>registrarRecebimentoManualSomenteSandbox({
+  ...splitBulkCtx,dados:{...splitDeclaration,alocacoes:splitDeclaration.alocacoes.map(a=>({
+   ...a,pagamentos:a.pagamentos.map(p=>({...p,confirmadoPeloAtendente:p.forma!=="PIX"}))
+  }))}
+ }),/RECEBIMENTO_NAO_CONFIRMADO/,"Cada parcela manual precisa da confirmação explícita da atendente");
+ assert.equal(await prisma.registroRecebimentoManualUnificado.count({where:{
+  reservaId:splitReservation.id
+ }}),0);
+ const splitReceipt=await registrarRecebimentoManualSomenteSandbox({...splitBulkCtx,dados:splitDeclaration});
+ assert.equal(splitReceipt.linhas.length,2);
+ assert.equal(splitReceipt.gerouPagamento,false,"Declaração não equivale a cobrança");
+ assert.equal((await registrarRecebimentoManualSomenteSandbox({...splitBulkCtx,dados:splitDeclaration})).reutilizada,true);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:splitBulkDraft.id}}}),0);
+ await criarVendasFilhasSomenteSandbox(splitBulkCtx);
+ const splitClose=await efetivarRecebimentosManuaisSomenteSandbox(splitBulkCtx);
+ assert.equal(splitClose.estoqueMovimentado,true);
+ const splitSales=await prisma.venda.findMany({where:{comandaId:splitBulkDraft.id}});
+ assert.equal(splitSales.length,1);
+ assert.equal(splitSales[0].status,"FINALIZADA");
+ const splitPayments=await prisma.pagamento.findMany({where:{vendaId:splitSales[0].id}});
+ assert.deepEqual(splitPayments.map(p=>[p.forma,Number(p.valor),p.status]).sort((a,b)=>a[0].localeCompare(b[0])),[
+  ["DINHEIRO",3,"APROVADO"],["PIX",2,"APROVADO"]
+ ]);
+ const splitCashMovement=await prisma.movimentacaoCaixa.findMany({where:{
+  referenciaTipo:"PAGAMENTO",referenciaId:{in:splitPayments.filter(p=>p.forma==="DINHEIRO").map(p=>p.id)},tipo:"VENDA"
+ }});
+ assert.equal(splitCashMovement.length,1,"Dinheiro deve entrar na trilha do caixa somente uma vez");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:bulkProduct.id}})).quantidade),1.334);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:bulkLot.id}})).quantidadeAtual),1.334);
+ assert.equal(Number((await prisma.movimentacaoEstoque.findFirst({where:{
+  origemTipo:"VENDA",origemId:splitSales[0].id,produtoId:bulkProduct.id,loteId:bulkLot.id
+ }})).quantidade),0.333);
+ assert.equal((await efetivarRecebimentosManuaisSomenteSandbox(splitBulkCtx)).estoqueMovimentado,false);
+ assert.equal(await prisma.pagamento.count({where:{vendaId:splitSales[0].id}}),2);
+
+ const splitReverse={...splitBulkCtx,dados:{
+  motivo:"Cancelamento integral da venda de 333 gramas, com devolução externa conferida",
+  confirmouDevolucaoExterna:true,referenciaExterna:"GRANEL_M543_CI_"+suffix
+ }};
+ const splitCancelled=await estornarFechamentoManualSomenteSandbox(splitReverse);
+ assert.equal(splitCancelled.reutilizada,false);
+ assert.equal((await estornarFechamentoManualSomenteSandbox(splitReverse)).reutilizada,true);
+ assert.equal((await prisma.venda.findUnique({where:{id:splitSales[0].id}})).status,"ESTORNADA");
+ assert.equal(await prisma.pagamento.count({where:{vendaId:splitSales[0].id,status:"ESTORNADO"}}),2);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:bulkProduct.id}})).quantidade),1.667);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:bulkLot.id}})).quantidadeAtual),1.667);
+ const splitRefunds=await prisma.movimentacaoEstoque.findMany({where:{
+  origemTipo:"ESTORNO_MANUAL_UNIFICADO",origemId:splitCancelled.id,produtoId:bulkProduct.id,
+  loteId:bulkLot.id,tipo:"CANCELAMENTO"
+ }});
+ assert.equal(splitRefunds.length,1);
+ assert.equal(Number(splitRefunds[0].quantidade),0.333);
+ assert.equal(await prisma.documentoFiscal.count(),beforeBulkDocs,
+  "Jornada manual não emite nem prepara documento fiscal");
 
  // M.5.37 — não reinterpretar 333 g como 0.333 g após existência de estoque,
  // lote e venda. Uma tentativa que também muda preço deve reverter por inteiro.
