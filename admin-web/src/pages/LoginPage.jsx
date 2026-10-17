@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import BrandMark from "../components/BrandMark.jsx";
+import StagingEnvironmentNotice from "../components/StagingEnvironmentNotice.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getApiErrorMessage } from "../lib/api.js";
 
@@ -54,6 +55,7 @@ export default function LoginPage() {
 
       <section className="auth-panel">
         <form className="login-card" onSubmit={handleSubmit}>
+          <StagingEnvironmentNotice />
           <div className="login-card__mobile-brand"><BrandMark /></div>
           <div className="login-card__heading">
             <span>Bem-vindo de volta</span>
