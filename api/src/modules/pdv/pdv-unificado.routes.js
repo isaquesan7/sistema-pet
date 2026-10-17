@@ -15,7 +15,7 @@ import {consultarDiagnosticoDevolucoesM524} from "./pdv-unificado-diagnostico-de
 import {consultarDossieDevolucoesM527} from "./pdv-unificado-dossie-devolucoes.service.js";
 import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
 import {recebimentoManualSchema} from "./pdv-unificado-recebimento-manual.contract.js";
-import {checkoutManualHabilitado,fecharVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
+import {checkoutManualHabilitado,fecharVendaManualUnificada,estornarVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
@@ -401,6 +401,36 @@ r.post("/rascunhos/:id/fechar-manual",async(req,res,next)=>{try{
  if(invalido.includes(error.message))return res.status(400).json({success:false,message:"Confirme cada recebimento manual com valores corretos."});
  if(/^(M3_|REGISTRO_MANUAL_DIVERGENTE|RESERVA_|PREPARACAO_|RASCUNHO_|PLANO_|CAIXA_|SOMA_|PRE_FECHAMENTO_|EMPRESA_FORA_)/.test(error.message))
   return res.status(409).json({success:false,message:"Os dados do fechamento mudaram ou estão inconsistentes. Revise a comanda e os caixas."});
+ erroRascunho(error,res,next);
+}});
+/** Estorno integral manual do checkout de gestão: confirmação humana de
+ * devolução fora do sistema, nunca refund automatizado ou emissão fiscal. */
+r.post("/rascunhos/:id/estornar-manual",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({
+  success:false,message:"Estorno manual unificado ainda não autorizado para esta organização."
+ });
+ const identificador=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+  .safeParse(req.params.id);
+ const parsed=z.object({
+  versao:z.number().int().positive(),motivo:z.string().trim().min(10).max(500),
+  referenciaExterna:z.string().trim().max(120).nullable().optional(),
+  confirmouDevolucaoExterna:z.literal(true)
+ }).strict().safeParse(req.body);
+ if(!identificador.success||!parsed.success)return res.status(400).json({
+  success:false,message:"Informe motivo (mínimo 10 caracteres) e confirme a devolução externa já realizada."
+ });
+ const result=await estornarVendaManualUnificada({
+  organizacao:req.organizacao,organizacaoId:req.organizacao.id,
+  usuarioId:req.usuario.id,empresaId:req.empresa.id,id:identificador.data,dados:parsed.data
+ });
+ return res.set("Cache-Control","no-store").status(result.reutilizada?200:201)
+  .json({success:true,dados:result});
+}catch(error){
+ if(["EMPRESA_SEM_ACESSO","EMPRESA_FORA_DO_PILOTO_MANUAL","CHECKOUT_MANUAL_DESATIVADO",
+  "M3C_SEM_PERMISSAO_ESTORNO","M3C_USUARIO_INATIVO"].includes(error.message))
+  return res.status(403).json({success:false,message:"Estorno negado: confira o acesso a todos os CNPJs."});
+ if(/^(M3C_|RASCUNHO_|RESERVA_|PREPARACAO_)/.test(error.message))
+  return res.status(409).json({success:false,message:"Estorno integral indisponível: confira a comanda, os caixas abertos e as pendências financeiras. Se houve conciliação ou fechamento de caixa, solicite revisão."});
  erroRascunho(error,res,next);
 }});
 export default r;

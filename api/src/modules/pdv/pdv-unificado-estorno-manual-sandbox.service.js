@@ -1,9 +1,10 @@
 /**
- * PointVet M.3C — estorno integral de recebimentos manuais, SOMENTE CI.
+ * PointVet M.3C — estorno integral de recebimentos manuais.
  * Confirmação de reembolso é declaração do funcionário, não transação PSP.
  * O fechamento do caixa legado exclui DINHEIRO ESTORNADO dos pagamentos;
  * não registrar ESTORNO financeiro novamente (duplicaria a devolução).
- * Nunca exportar para HTTP nem executar em produção.
+ * O wrapper de sandbox é exclusivamente CI; o núcleo transacional é reutilizado
+ * no checkout manual autenticado, com gates de organização/CNPJ no chamador.
  */
 import prisma from "../../config/prisma.js";
 import {exigirBancoIsolado} from "./pdv-unificado-venda-sandbox.service.js";
@@ -14,9 +15,9 @@ import {normalizarPedidoEstornoManual,fingerprintEstornoManual,validarReversaoPe
  from "./pdv-unificado-estorno-manual.contract.js";
 const fail=x=>{throw Error(x);};
 const milli=x=>Math.round(Number(x)*1000);
-const result=(a,reutilizada)=>({id:a.id,reservaId:a.reservaId,reutilizada,
+const result=(a,reutilizada,contextoExecucao)=>({id:a.id,reservaId:a.reservaId,reutilizada,
  status:"ESTORNO_REGISTRADO",snapshot:a.snapshot,houveRefundPorAPI:false,
- houveFiscal:false,houvePsp:false,apenasAmbienteIsolado:true});
+ houveFiscal:false,houvePsp:false,apenasAmbienteIsolado:contextoExecucao==="CI"});
 async function authorize(tx,usuarioId,organizacaoId,ops){
  const user=await tx.usuario.findUnique({where:{id:usuarioId},select:{status:true}});
  if(user?.status!=="ATIVO")fail("M3C_USUARIO_INATIVO");
@@ -28,7 +29,7 @@ async function authorize(tx,usuarioId,organizacaoId,ops){
   p=>p.permissao.codigo==="pdv.cancelar_venda")).map(v=>v.empresaId));
  if(ops.some(o=>!ok.has(o.empresaId)))fail("M3C_SEM_PERMISSAO_ESTORNO");
 }
-async function replay(tx,audit,comanda,reserva,ops,registro){
+async function replay(tx,audit,comanda,reserva,ops,registro,contextoExecucao){
  if(comanda.status!=="CANCELADA"||reserva.status!=="CANCELADA"||
     ops.some(o=>o.status!=="ESTORNADA"))fail("M3C_REPLAY_INCONSISTENTE");
  const sales=await tx.venda.findMany({where:{id:{in:ops.map(o=>o.vendaId)}}});
@@ -49,16 +50,31 @@ async function replay(tx,audit,comanda,reserva,ops,registro){
  if(audit.snapshot.movimentosEstoque!==reversed.length)
   fail("M3C_REPLAY_INCONSISTENTE");
  conferirCompensacoesEstoquePorLote(sold,reversed);
- return result(audit,true);
+ return result(audit,true,contextoExecucao);
 }
 export async function estornarFechamentoManualSomenteSandbox({
  organizacaoId,usuarioId,empresaId,id,versao,dados,simularFalhaAposEmpresaId=null
 }){
  exigirBancoIsolado();
- const pedido=normalizarPedidoEstornoManual(dados);
  return prisma.$transaction(async tx=>{
   if((await tx.$queryRawUnsafe("SELECT current_database() AS nome"))[0]?.nome!=="pointvet_unified_ci")
    fail("BANCO_NAO_ISOLADO");
+  return estornarFechamentoManualEmTransacao(tx,{
+   organizacaoId,usuarioId,empresaId,id,versao,dados,simularFalhaAposEmpresaId,
+   contextoExecucao:"CI"
+  });
+ },{isolationLevel:"Serializable",maxWait:10000,timeout:30000});
+}
+/** Núcleo M.3C compartilhado; só pode ser invocado dentro de uma transação
+ * SERIALIZABLE, depois do gate operacional da entrada autenticada. */
+export async function estornarFechamentoManualEmTransacao(tx,{
+ organizacaoId,usuarioId,empresaId,id,versao,dados,simularFalhaAposEmpresaId=null,
+ contextoExecucao
+}){
+ if(!["CI","GESTAO_MANUAL"].includes(contextoExecucao))fail("M3C_CONTEXTO_INVALIDO");
+ if(contextoExecucao!=="CI"&&simularFalhaAposEmpresaId!==null)
+  fail("M3C_SIMULACAO_INDISPONIVEL");
+ const pedido=normalizarPedidoEstornoManual(dados);
   // Static SQL with bound variables; never interpolate user-controlled IDs.
   await tx.$queryRawUnsafe('SELECT "id" FROM "comandas" WHERE "id"=$1 FOR UPDATE',id);
   const comanda=await tx.comanda.findFirst({where:{
@@ -86,7 +102,7 @@ export async function estornarFechamentoManualSomenteSandbox({
   });
   if(prior){
    if(prior.fingerprint!==fingerprint)fail("M3C_ESTORNO_DIVERGENTE");
-   return replay(tx,prior,comanda,reserva,ops,registro);
+   return replay(tx,prior,comanda,reserva,ops,registro,contextoExecucao);
   }
   // M.5.10: once a card pre-baixa was durably registered, the old
   // pending-only refund path cannot silently reverse it. Human financial
@@ -279,6 +295,5 @@ export async function estornarFechamentoManualSomenteSandbox({
   await tx.criacaoPreparacaoUnificada.updateMany({where:{
    reservaId:reserva.id,status:"PREPARADA"
   },data:{status:"INVALIDADA",invalidadaEm:now}});
-  return result(audit,false);
- },{isolationLevel:"Serializable",maxWait:10000,timeout:30000});
+  return result(audit,false,contextoExecucao);
 }

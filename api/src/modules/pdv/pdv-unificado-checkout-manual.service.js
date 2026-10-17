@@ -14,6 +14,7 @@ import {executarComRetrySerializableM540} from "./pdv-unificado-fechamento-manua
 import {registrarRecebimentoManualEmTransacao} from "./pdv-unificado-registro-manual-sandbox.service.js";
 import {criarVendasFilhasEmTransacao} from "./pdv-unificado-venda-sandbox.service.js";
 import {efetivarRecebimentosManuaisEmTransacao} from "./pdv-unificado-fechamento-manual-sandbox.service.js";
+import {estornarFechamentoManualEmTransacao} from "./pdv-unificado-estorno-manual-sandbox.service.js";
 import {checkoutManualHabilitado,empresaManualAutorizada} from "./pdv-unificado-checkout-manual.gate.js";
 export {checkoutManualHabilitado} from "./pdv-unificado-checkout-manual.gate.js";
 
@@ -70,5 +71,35 @@ export async function fecharVendaManualUnificada({
   return {...final,registroId,execucaoRealHabilitada:true,
    emissaoFiscal:false,recebimento:"DECLARADO_PELO_ATENDENTE",
    mensagem:"Venda de gestão registrada. O PointVet não emitiu documento fiscal nem processou pagamentos."};
+ },{isolationLevel:"Serializable",maxWait:10000,timeout:30000}));
+}
+
+/** Estorno TOTAL de gestão. A devolução externa é declarada pelo operador;
+ * PointVet não efetua refund bancário, fiscal ou TEF. O núcleo M.3C reverte
+ * vendas, pagamentos, caixa e movimentos de lote atomicamente. */
+export async function estornarVendaManualUnificada({
+ organizacao,organizacaoId,usuarioId,empresaId,id,dados
+}){
+ if(!checkoutManualHabilitado(organizacao,empresaId)||organizacao?.id!==organizacaoId)
+  throw Error("CHECKOUT_MANUAL_DESATIVADO");
+ return executarComRetrySerializableM540(()=>prisma.$transaction(async tx=>{
+  const configAtual=await tx.configuracaoOrganizacao.findUnique({
+   where:{organizacaoId},select:{pdvUnificadoHabilitado:true}
+  });
+  if(!checkoutManualHabilitado({id:organizacaoId,configuracao:configAtual},empresaId))
+   throw Error("CHECKOUT_MANUAL_DESATIVADO");
+  const reserva=await consultarReservaFechamento({
+   organizacaoId,usuarioId,empresaId,id,versao:dados.versao
+  },tx);
+  if(!reserva)throw Error("M3C_RESERVA_AUSENTE");
+  if(reserva.operacoes.some(op=>!empresaManualAutorizada(op.empresaId)))
+   throw Error("EMPRESA_FORA_DO_PILOTO_MANUAL");
+  const retorno=await estornarFechamentoManualEmTransacao(tx,{
+   organizacaoId,usuarioId,empresaId,id,versao:dados.versao,dados,
+   contextoExecucao:"GESTAO_MANUAL"
+  });
+  return {...retorno,execucaoRealHabilitada:true,
+   devolucao:"DECLARADA_PELO_ATENDENTE",
+   mensagem:"Estorno integral registrado. A devolução externa foi declarada; PointVet não transferiu valores nem emitiu documento fiscal."};
  },{isolationLevel:"Serializable",maxWait:10000,timeout:30000}));
 }

@@ -10,7 +10,7 @@ import {salvarRascunho,reservarOperacoesFechamento} from "../src/modules/pdv/pdv
 import {prepararExecucaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 
 const CI_URL="postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/pointvet_unified_ci";
-test("checkout manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollback",async t=>{
+test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollback",async t=>{
  if(process.env.GITHUB_ACTIONS!=="true"||process.env.NODE_ENV!=="test"||
     process.env.POINTVET_UNIFIED_SALES_SANDBOX!=="1"||process.env.DATABASE_URL!==CI_URL)
   throw Error("CHECKOUT_HTTP_SOMENTE_CI_DESCARTAVEL");
@@ -113,7 +113,8 @@ test("checkout manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollb
    {forma:"TRANSFERENCIA",valorCentavos:1000,confirmadoPeloAtendente:true}]}
  ]};
  const before={sales:await prisma.venda.count(),pay:await prisma.pagamento.count(),
-  fiscal:await prisma.documentoFiscal.count(),stock:await prisma.movimentacaoEstoque.count()};
+  fiscal:await prisma.documentoFiscal.count(),stock:await prisma.movimentacaoEstoque.count(),
+  reversals:await prisma.estornoFechamentoManualUnificado.count()};
  await request("POST",endpoint,401,body,"");
  await request("POST",endpoint,403,body);
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
@@ -174,4 +175,51 @@ test("checkout manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollb
  assert.equal(await prisma.venda.count(),before.sales+2);
  assert.equal(await prisma.pagamento.count(),before.pay+3);
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.667);
+ // Estorno integral autenticado: o mesmo gate, com permissão para cancelar
+ // em TODOS os CNPJs; um checkbox não realiza refund bancário.
+ const reverseUrl=`/api/pdv-unificado/rascunhos/${draft.id}/estornar-manual`;
+ const reversal={versao:1,motivo:"Devolução externa integral conferida pelo atendente",
+  referenciaExterna:"ACERTO-MANUAL-CI",confirmouDevolucaoExterna:true};
+ await request("POST",reverseUrl,401,reversal,"");
+ await request("POST",reverseUrl,403,reversal,limitedAuth);
+ await request("POST",reverseUrl,400,{...reversal,confirmouDevolucaoExterna:false});
+ await request("POST",reverseUrl,403,reversal);
+ // O operador está autorizado na loja, mas falta autorização na estética.
+ assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals);
+ await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
+ await request("POST",reverseUrl,403,reversal);
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store;
+ await request("POST",reverseUrl,403,reversal);
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store+","+service;
+ const reversed=await request("POST",reverseUrl,201,reversal);
+ assert.equal(reversed.dados.reutilizada,false);
+ assert.equal(reversed.dados.apenasAmbienteIsolado,false);
+ assert.equal(reversed.dados.houveRefundPorAPI,false);
+ assert.equal(reversed.dados.houveFiscal,false);
+ assert.equal(reversed.dados.snapshot.devolucaoExternaDeclarada,true);
+ assert.equal((await prisma.comanda.findUnique({where:{id:draft.id}})).status,"CANCELADA");
+ const opStatuses=await prisma.reservaOperacaoUnificada.findMany({where:{reserva:{comandaId:draft.id}}});
+ assert.equal(opStatuses.length,2);
+ assert.ok(opStatuses.every(op=>op.status==="ESTORNADA"));
+ const sales=await prisma.venda.findMany({where:{id:{in:committed.dados.vendas.map(v=>v.vendaId)}}});
+ assert.ok(sales.every(v=>v.status==="ESTORNADA"));
+ const payments=await prisma.pagamento.findMany({where:{vendaId:{in:sales.map(v=>v.id)}}});
+ assert.equal(payments.length,3);
+ assert.ok(payments.every(p=>p.status==="ESTORNADO"));
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),1);
+ assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:lot.id}})).quantidadeAtual),1);
+ const reverseMovements=await prisma.movimentacaoEstoque.findMany({where:{origemTipo:"ESTORNO_MANUAL_UNIFICADO",origemId:reversed.dados.id}});
+ assert.equal(reverseMovements.length,1);
+ assert.equal(Number(reverseMovements[0].quantidade),0.333);
+ assert.equal(reverseMovements[0].loteId,lot.id);
+ assert.equal(await prisma.documentoFiscal.count(),before.fiscal);
+ const reversedReplay=await request("POST",reverseUrl,200,reversal);
+ assert.equal(reversedReplay.dados.id,reversed.dados.id);
+ assert.equal(reversedReplay.dados.reutilizada,true);
+ await request("POST",reverseUrl,409,{...reversal,motivo:"Um motivo diferente de estorno integral"});
+ await request("POST",endpoint,409,body);
+ assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals+1);
+ assert.equal(await prisma.movimentacaoEstoque.count(),before.stock+2);
 });

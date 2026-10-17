@@ -91,8 +91,8 @@ export default function UnifiedPdvPreviewPage(){
  {reserveMutation.isError&&<p className="alert alert--error">{getApiErrorMessage(reserveMutation.error)}</p>}
  {cancelReservation.isError&&<p className="alert alert--error">{getApiErrorMessage(cancelReservation.error)}</p>}
  {closingPlan.data&&!reservation.data&&<div className="pv-unified-total"><h3>Reserva do fechamento (sem cobrança)</h3><p>Registra as operações planejadas e bloqueia a edição até a reserva ser cancelada. Nenhuma venda é criada. {localChanges?"Salve as alterações antes de reservar.":""}</p><button type="button" className="ghost-button" disabled={reserveMutation.isPending||localChanges} onClick={()=>reserveMutation.mutate()}>{reserveMutation.isPending?"Reservando...":"Reservar operações por empresa"}</button></div>}
- {reservation.data&&<div className="pv-unified-total"><h3>Reserva #{reservation.data.id.slice(0,8)}</h3><p>Status: {reservation.data.status==="RESERVADA"?"Reservada — edição bloqueada":"Cancelada — edição liberada"}. Sem pagamentos ou notas fiscais.</p>{reservation.data.operacoes.map(op=><div key={op.id}><span>{op.nome} · {op.cnpj}</span><strong>{formatCurrency(Number(op.valor))}</strong></div>)}{isReserved&&hasPermission("pdv.cancelar_venda")&&<><label>Motivo para cancelar a reserva<input className="form-control" value={motivoCancelar} onChange={e=>setMotivoCancelar(e.target.value)}/></label><button type="button" className="ghost-button" disabled={cancelReservation.isPending||motivoCancelar.trim().length<5} onClick={()=>cancelReservation.mutate()}>{cancelReservation.isPending?"Cancelando...":"Cancelar reserva e liberar edição"}</button></>}</div>}
- {isReserved&&<UnifiedAllocationConference draft={draft} reservation={reservation.data} dirty={localChanges} checkoutEnabled={manualCheckoutEnabled}/>}
+ {reservation.data&&<div className="pv-unified-total"><h3>Reserva #{reservation.data.id.slice(0,8)}</h3><p>Status: {reservation.data.status==="CANCELADA"?"Cancelada":reservation.data.operacoes.some(op=>op.status==="CONCLUIDA")?"Venda registrada — somente estorno integral":"Reservada — edição bloqueada"}. Nenhuma nota fiscal emitida pelo PDV Unificado.</p>{reservation.data.operacoes.map(op=><div key={op.id}><span>{op.nome} · {op.cnpj}</span><strong>{formatCurrency(Number(op.valor))}</strong></div>)}{isReserved&&!reservation.data.operacoes.some(op=>op.status==="CONCLUIDA")&&hasPermission("pdv.cancelar_venda")&&<><label>Motivo para cancelar a reserva<input className="form-control" value={motivoCancelar} onChange={e=>setMotivoCancelar(e.target.value)}/></label><button type="button" className="ghost-button" disabled={cancelReservation.isPending||motivoCancelar.trim().length<5} onClick={()=>cancelReservation.mutate()}>{cancelReservation.isPending?"Cancelando...":"Cancelar reserva e liberar edição"}</button></>}</div>}
+ {isReserved&&<UnifiedAllocationConference draft={draft} reservation={reservation.data} dirty={localChanges} checkoutEnabled={manualCheckoutEnabled} onEstorno={()=>setSavedNotice("Estorno integral registrado; estoque e lote recompostos. A devolução externa foi apenas declarada, não processada pelo PointVet.")}/>}
  {localChanges&&draft&&<p className="alert">A comanda tem alterações não salvas. O pré-fechamento abaixo só será atualizado após salvar uma nova versão.</p>}
  {closingReview.data&&!localChanges&&<div className="pv-unified-total"><h3>Pré-fechamento (somente conferência)</h3>{closingReview.data.empresas.map(e=><div key={e.empresaId}><span>{e.nome} · {e.cnpj}</span><strong>{formatCurrency(Number(e.total))}</strong></div>)}<div><strong>Total por empresas</strong><strong>{formatCurrency(Number(closingReview.data.total))}</strong></div>{closingReview.data.pendencias.length?<div><strong>Revise antes de seguir:</strong>{closingReview.data.pendencias.map((p,i)=><p key={`${p.itemId}-${p.codigo}-${i}`}>{lines.find(l=>l.rascunhoItemId===p.itemId)?.nome||"Item da comanda"}: {unifiedPrecloseMessages[p.codigo]||p.codigo}</p>)}</div>:<p>Itens conferidos. Fechamento e pagamento continuam desabilitados; a emissão fiscal é uma integração futura independente.</p>}</div>}{preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}{preview.data&&<div className="pv-unified-total"><h3>Resumo por empresa</h3>{preview.data.empresas.map(e=><div key={e.empresaId}><strong>{e.empresa}</strong><span>{formatCurrency(Number(e.total))}</span></div>)}<div><strong>Total consolidado</strong><strong>{formatCurrency(Number(preview.data.total))}</strong></div><p>Prévia validada. Nenhuma venda, estoque ou documento fiscal foi movimentado.</p></div>}</section>
   </>}
@@ -127,7 +127,7 @@ function UnifiedBulkScaleCheck({row}){
 
 
 /** Pure payment-allocation conference; absolutely no charges or finance writes. */
-function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled}){
+function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled,onEstorno}){
  const [forms,setForms]=useState({});
  const nextPaymentId=useRef(0);
  const sessions=useQuery({
@@ -201,7 +201,7 @@ function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled}){
    {preparation.data.operacoes.map(op=><div key={op.empresaId}><span>{op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}
   </div>}
   {preparation.data?.status==="PREPARADA"&&!dirty&&!diagnosis.data?.exigeRevisaoManual&&
-   <UnifiedManualReceiptPreview key={preparation.data.id} preparacao={preparation.data} versao={draft.versao} comandaId={draft.id} checkoutEnabled={checkoutEnabled}/>}
+   <UnifiedManualReceiptPreview key={preparation.data.id} preparacao={preparation.data} versao={draft.versao} comandaId={draft.id} checkoutEnabled={checkoutEnabled} onEstorno={onEstorno} operacoesFechadas={reservation.operacoes.filter(op=>op.status==="CONCLUIDA"&&op.vendaId)}/>}
   {conference.data&&<div className="pv-unified-total">
    <strong>{conference.data.preConferenciaAprovada?"Alocações consistentes — execução ainda desativada":"Alocações com pendências"}</strong>
    {conference.data.pendencias.map((e,i)=><p key={i}>{e.codigo} — empresa {e.empresaId}</p>)}
@@ -214,17 +214,33 @@ function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled}){
 /** A confirmação parte somente de linhas imutáveis do servidor; apenas o endpoint
  * autenticado/permitido pode registrar a venda ou consumir estoque.
  */
-function UnifiedManualReceiptPreview({preparacao,versao,comandaId,checkoutEnabled}){
+function UnifiedManualReceiptPreview({preparacao,versao,comandaId,checkoutEnabled,onEstorno,operacoesFechadas=[]}){
+ const {hasPermission}=useAuth();
  const [conferencias,setConferencias]=useState({});
  const [mostrarResumo,setMostrarResumo]=useState(false);
+ const [motivoEstorno,setMotivoEstorno]=useState("");
+ const [referenciaEstorno,setReferenciaEstorno]=useState("");
+ const [devolucaoConferida,setDevolucaoConferida]=useState(false);
  const resultado=previewManualReceipt(preparacao,versao,conferencias);
  const queryClient=useQueryClient();
  const fechar=useMutation({
   mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${comandaId}/fechar-manual`,resultado.dados)).data.dados,
   onSuccess:async()=>{await queryClient.invalidateQueries({queryKey:["unified-drafts"]});}
  });
+ const vendaRegistrada=fechar.isSuccess||operacoesFechadas.length===preparacao.operacoes.length;
+ const estornar=useMutation({
+  mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${comandaId}/estornar-manual`,{
+   versao,motivo:motivoEstorno.trim(),referenciaExterna:referenciaEstorno.trim()||null,
+   confirmouDevolucaoExterna:devolucaoConferida
+  })).data.dados,
+  onSuccess:async()=>{onEstorno();await Promise.all([
+   queryClient.invalidateQueries({queryKey:["unified-drafts"]}),
+   queryClient.invalidateQueries({queryKey:["unified-reservation"]}),
+   queryClient.invalidateQueries({queryKey:["unified-preparation"]})
+  ]);}
+ });
  function alterar(empresaId,indice,patch){
-  if(fechar.isSuccess)return;
+  if(vendaRegistrada)return;
   setConferencias(current=>({
    ...current,[empresaId]:{...current[empresaId],
     [indice]:{...current[empresaId]?.[indice],...patch}}
@@ -235,6 +251,7 @@ function UnifiedManualReceiptPreview({preparacao,versao,comandaId,checkoutEnable
   CARTAO_CREDITO:"Cartão de crédito",TRANSFERENCIA:"Transferência"};
  return <div className="pv-unified-total pv-unified-manual-receipt-preview">
   <h3>Declaração manual de recebimento</h3>
+  {!vendaRegistrada&&<>
   <p>Confira o recebimento <strong>fora do PointVet</strong> e marque cada forma individualmente. Os valores e caixas abaixo vêm da preparação salva no servidor e não podem ser alterados aqui. {checkoutEnabled?"Ao finalizar, serão registradas vendas e baixas de estoque, sem emissão fiscal pelo PointVet.":"A confirmação é somente prévia local: não grava declaração nem venda."}</p>
   {preparacao.operacoes.map(op=><div key={op.empresaId} className="pv-unified-manual-company">
    <strong>CNPJ {op.cnpj} · Total {formatCurrency(Number(op.total))}</strong>
@@ -275,17 +292,39 @@ function UnifiedManualReceiptPreview({preparacao,versao,comandaId,checkoutEnable
   {mostrarResumo&&resultado.pronto&&<p className="alert alert--success" role="status">
    Prévia local consistente: {resultado.dados.alocacoes.reduce((total,op)=>total+op.pagamentos.length,0)} forma(s) conferida(s). <strong>Nada foi enviado ou registrado por esta conferência.</strong>
   </p>}
+  </>}
   {checkoutEnabled&&<>
-   <p><strong>Antes de concluir:</strong> confirme que os valores foram efetivamente recebidos fora do sistema. A emissão fiscal, quando exigida, deverá ocorrer no processo externo aplicável.</p>
-   <button type="button" className="primary-button" disabled={!resultado.pronto||fechar.isPending||fechar.isSuccess} onClick={()=>fechar.mutate()}>
+   {!vendaRegistrada&&<><p><strong>Antes de concluir:</strong> confirme que os valores foram efetivamente recebidos fora do sistema. A emissão fiscal, quando exigida, deverá ocorrer no processo externo aplicável.</p>
+   <button type="button" className="primary-button" disabled={!resultado.pronto||fechar.isPending||vendaRegistrada} onClick={()=>fechar.mutate()}>
     {fechar.isPending?"Registrando venda...":"Confirmar recebimentos e registrar venda"}
-   </button>
+   </button></>}
    {fechar.isError&&<p className="alert alert--error" role="alert">{getApiErrorMessage(fechar.error)} Verifique a situação da comanda antes de tentar novamente.</p>}
-   {fechar.isSuccess&&<div className="alert alert--success" role="status">
+   {vendaRegistrada&&<div className="alert alert--success" role="status">
     <strong>Venda registrada com sucesso.</strong> Estoque e caixa atualizados por empresa. Sem emissão fiscal pelo PointVet.
-    {fechar.data.vendas.map(v=><p key={v.vendaId}>Empresa {v.empresaId} · Venda {v.vendaId}</p>)}
-    <p>Cancelamento individual bloqueado: uma eventual devolução deve seguir o estorno integral e auditado da comanda unificada, ainda pendente de liberação operacional.</p>
+    {(fechar.data?.vendas||operacoesFechadas.map(op=>({vendaId:op.vendaId,empresaId:op.empresaId}))).map(v=><p key={v.vendaId}>Empresa {v.empresaId} · Venda {v.vendaId}</p>)}
+    <p>Não é possível cancelar vendas-filhas isoladas. O cancelamento deve ser integral, com permissão em todos os CNPJs.</p>
    </div>}
+   {vendaRegistrada&&hasPermission("pdv.cancelar_venda")&&<section className="pv-unified-manual-company">
+    <h4>Estorno integral desta comanda</h4>
+    <p>Use somente após devolver ou acertar efetivamente os valores <strong>fora do PointVet</strong>. O sistema registra a declaração, estorna pagamentos e vendas e repõe o estoque por lote; não transfere dinheiro nem cancela documentos fiscais.</p>
+    {!estornar.isSuccess?<>
+     <label>Motivo obrigatório (10 a 500 caracteres)
+      <textarea className="form-control" rows={2} maxLength={500} disabled={estornar.isPending}
+       value={motivoEstorno} onChange={e=>setMotivoEstorno(e.target.value)}/>
+     </label>
+     <label>Referência da devolução externa (opcional)
+      <input className="form-control" maxLength={120} disabled={estornar.isPending}
+       value={referenciaEstorno} onChange={e=>setReferenciaEstorno(e.target.value)}/>
+     </label>
+     <label><input type="checkbox" disabled={estornar.isPending} checked={devolucaoConferida}
+      onChange={e=>setDevolucaoConferida(e.target.checked)}/>
+      Confirmo que a devolução ou o acerto externo dos valores de todos os CNPJs já foi realizado e conferido.
+     </label>
+     <button type="button" className="ghost-button" disabled={estornar.isPending||motivoEstorno.trim().length<10||!devolucaoConferida}
+      onClick={()=>estornar.mutate()}>{estornar.isPending?"Estornando...":"Registrar estorno integral"}</button>
+     {estornar.isError&&<p className="alert alert--error" role="alert">{getApiErrorMessage(estornar.error)} Nenhum estorno parcial foi confirmado. Solicite revisão se necessário.</p>}
+    </>:<p className="alert alert--success" role="status"><strong>Estorno integral registrado.</strong> Estoque recomposto conforme os movimentos originais. A devolução externa foi declarada, não realizada pelo PointVet. Auditoria #{estornar.data.id}.</p>}
+   </section>}
   </>}
   <small>Sem comunicação com balança, maquininha, PSP, banco ou provedor fiscal. A referência digitada {checkoutEnabled?"será armazenada como declaração do atendente, sem comprovar liquidação bancária.":"não é armazenada nem comprova pagamento."}</small>
  </div>;
