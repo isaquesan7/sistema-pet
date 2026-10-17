@@ -125,6 +125,50 @@ psql_ci "$RESTORE" --quiet --command="
 fingerprint "$RESTORE" "$scratch/restore-after-rollback.fp"
 cmp -s "$scratch/source.fp" "$scratch/restore-after-rollback.fp" ||
  die "restored fixture mismatch after transactional rollback"
+# Operational restore invariant: the entire set of M.3C/M.5.46 reversals must
+# remain consistent per original lot/gram, payment and participating company.
+# Run ONLY against the already-restored disposable database, never staging.
+business="$(psql_ci "$RESTORE" --tuples-only --no-align --command="
+ WITH original AS (
+  SELECT e.id AS estorno,m.\"produtoId\" AS produto,m.\"loteId\" AS lote,
+   sum(m.quantidade) AS peso
+  FROM estornos_fechamento_manual_unificado e
+  JOIN reservas_operacoes_unificadas op ON op.\"reservaId\"=e.\"reservaId\"
+  JOIN movimentacoes_estoque m ON m.\"origemTipo\"='VENDA'
+   AND m.\"origemId\"=op.\"vendaId\" AND m.tipo='VENDA'
+  GROUP BY e.id,m.\"produtoId\",m.\"loteId\"
+ ), reverted AS (
+  SELECT e.id AS estorno,m.\"produtoId\" AS produto,m.\"loteId\" AS lote,
+   sum(m.quantidade) AS peso
+  FROM estornos_fechamento_manual_unificado e
+  JOIN movimentacoes_estoque m ON m.\"origemTipo\"='ESTORNO_MANUAL_UNIFICADO'
+   AND m.\"origemId\"=e.id AND m.tipo='CANCELAMENTO'
+  GROUP BY e.id,m.\"produtoId\",m.\"loteId\"
+ ), mismatch AS (
+  SELECT 1 FROM original o FULL JOIN reverted r ON
+   o.estorno=r.estorno AND o.produto=r.produto AND o.lote IS NOT DISTINCT FROM r.lote
+  WHERE o.peso IS DISTINCT FROM r.peso
+ )
+ SELECT CASE WHEN
+  (SELECT count(*) FROM estornos_fechamento_manual_unificado)>0 AND
+  NOT EXISTS(SELECT 1 FROM mismatch) AND
+  NOT EXISTS(
+   SELECT 1 FROM estornos_fechamento_manual_unificado e
+   JOIN reservas_fechamento_unificado r ON r.id=e.\"reservaId\"
+   JOIN comandas c ON c.id=r.\"comandaId\"
+   WHERE r.status<>'CANCELADA' OR c.status<>'CANCELADA'
+    OR e.\"confirmouDevolucaoExterna\" IS NOT TRUE
+  ) AND
+  NOT EXISTS(
+   SELECT 1 FROM estornos_fechamento_manual_unificado e
+   JOIN reservas_operacoes_unificadas op ON op.\"reservaId\"=e.\"reservaId\"
+   LEFT JOIN vendas v ON v.id=op.\"vendaId\"
+   WHERE op.status<>'ESTORNADA' OR v.status IS DISTINCT FROM 'ESTORNADA'
+    OR EXISTS(SELECT 1 FROM pagamentos p WHERE p.\"vendaId\"=v.id AND p.status<>'ESTORNADO')
+  )
+ THEN 'READY' ELSE 'DIVERGENT' END;")"
+[[ "$business" == "READY" ]] || die "restored unified sales, refunds or stock lots are inconsistent"
 echo "POINTVET_M5_CI_RESTORE_SUCCESS: backup, new-db restore, ALL table records, indexes, constraints, sequences, Prisma migrations and transactional rollback verified"
+echo "POINTVET_M546_RESTORED_OPERATIONS_SUCCESS: full multi-company reversal, payments and exact grams per lot verified"
 echo "POINTVET_M5: backup bytes=$dump_bytes; verified tables=$(grep -c '^TABLE:' "$scratch/source.fp")"
 echo "POINTVET_M5: staging/production restore NOT performed; synthetic ephemeral data only"

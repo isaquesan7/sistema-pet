@@ -6,8 +6,6 @@ import assert from "node:assert/strict";
 import jwt from "jsonwebtoken";
 import app from "../src/app.js";
 import prisma from "../src/config/prisma.js";
-import {salvarRascunho,reservarOperacoesFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
-import {prepararExecucaoUnificada} from "../src/modules/pdv/pdv-unificado-preparacao.service.js";
 
 const CI_URL="postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/pointvet_unified_ci";
 test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollback",async t=>{
@@ -91,19 +89,37 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
   assert.equal(result.success,status===200||status===201);
   return result;
  }
- const args={organizacaoId:org,usuarioId:seller,empresaId:store,clienteId:client,
-  itens:[{empresaId:store,itemCatalogoId:itemId,quantidade:0.333},
-   {empresaId:service,itemCatalogoId:serviceId,quantidade:1}]};
- const draft=await salvarRascunho(args);
- assert.equal(draft.total,"15.00");
- const ctx={...args,id:draft.id,versao:1};
- await reservarOperacoesFechamento(ctx);
- await prepararExecucaoUnificada({...ctx,dados:{versao:1,alocacoes:[
+ // Toda a jornada do caixa usa agora rotas HTTP reais, desde o catálogo.
+ const catalog=(await request("GET","/api/pdv-unificado/catalogo?busca=Racao",200)).dados;
+ assert(catalog.some(item=>item.id===itemId));
+ const items=[{empresaId:store,itemCatalogoId:itemId,quantidade:0.333},
+  {empresaId:service,itemCatalogoId:serviceId,quantidade:1}];
+ const draft=(await request("POST","/api/pdv-unificado/rascunhos",201,
+  {clienteId:client,itens:items})).dados;
+ assert.equal(Number(draft.total),15);
+ const draftUrl=`/api/pdv-unificado/rascunhos/${draft.id}`;
+ const preclose=(await request("GET",`${draftUrl}/pre-fechamento?versao=1`,200)).dados;
+ assert.equal(preclose.pendencias.length,0);
+ const closingPlan=(await request("GET",`${draftUrl}/plano-fechamento?versao=1`,200)).dados;
+ assert.equal(closingPlan.operacoes.length,2);
+ const reserve=(await request("POST",`${draftUrl}/reservar`,201,{versao:1})).dados;
+ assert.equal(reserve.operacoes.length,2);
+ const sessions=(await request("GET",`${draftUrl}/caixas-disponiveis?versao=1`,200)).dados;
+ assert(sessions.some(s=>s.sessaoCaixaId===sessionStore.id));
+ assert(sessions.some(s=>s.sessaoCaixaId===sessionService.id));
+ const allocation={versao:1,alocacoes:[
   {empresaId:store,sessaoCaixaId:sessionStore.id,pagamentos:[
    {forma:"DINHEIRO",valorCentavos:300},{forma:"PIX",valorCentavos:200}]},
   {empresaId:service,sessaoCaixaId:sessionService.id,pagamentos:[
    {forma:"TRANSFERENCIA",valorCentavos:1000}]}
- ]}});
+ ]};
+ const conference=(await request("POST",`${draftUrl}/conferencia-alocacao`,200,allocation)).dados;
+ assert.equal(conference.preConferenciaAprovada,true);
+ const prepared=(await request("POST",`${draftUrl}/preparacao-execucao`,201,allocation)).dados;
+ assert.equal(prepared.operacoes.length,2);
+ const frozen=(await request("GET",`${draftUrl}/preparacao-execucao?versao=1`,200)).dados;
+ assert.equal(frozen.id,prepared.id);
+ assert.equal(frozen.status,"PREPARADA");
  const endpoint=`/api/pdv-unificado/rascunhos/${draft.id}/fechar-manual`;
  const body={versao:1,alocacoes:[
   {empresaId:store,sessaoCaixaId:sessionStore.id,pagamentos:[
@@ -129,6 +145,9 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await request("POST",endpoint,403,body);
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store+","+service;
  await request("POST",endpoint,403,body,limitedAuth);
+ const availability=(await request("GET","/api/pdv-unificado/disponibilidade",200)).dados;
+ assert.equal(availability.modoEfetivo,"UNIFICADO_MANUAL");
+ await request("POST",endpoint,403,body,limitedAuth);
  await request("POST",endpoint,400,{...body,alocacoes:[{...body.alocacoes[0],pagamentos:[
   {...body.alocacoes[0].pagamentos[0],confirmadoPeloAtendente:false},body.alocacoes[0].pagamentos[1]
  ]},body.alocacoes[1]]});
@@ -141,6 +160,11 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(await prisma.venda.count(),before.sales+2);
  assert.equal(await prisma.documentoFiscal.count(),before.fiscal);
  assert.equal(await prisma.movimentacaoEstoque.count(),before.stock+1);
+ const resumed=(await request("GET",`${draftUrl}/reserva?versao=1`,200)).dados;
+ assert(resumed.operacoes.every(op=>op.status==="CONCLUIDA"&&op.vendaId));
+ const resumedPreparation=(await request("GET",`${draftUrl}/preparacao-execucao?versao=1`,200)).dados;
+ assert.equal(resumedPreparation.fingerprint,prepared.fingerprint);
+ assert.equal(await prisma.pagamento.count(),before.pay+3,"Reabrir a venda não pode cobrar de novo");
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.667);
  assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:lot.id}})).quantidadeAtual),0.667);
  const ownSale=committed.dados.vendas.find(v=>v.empresaId===store);
@@ -156,14 +180,14 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(await prisma.pagamento.count(),before.pay+3);
  assert.equal(await prisma.documentoFiscal.count(),before.fiscal);
  // Uma segunda comanda maior que o saldo falha na baixa e desfaz registro e vendas.
- const shortageDraft=await salvarRascunho({...args,itens:[{
-  empresaId:store,itemCatalogoId:itemId,quantidade:0.900
- }]});
- const shortageCtx={...args,id:shortageDraft.id,versao:1};
- await reservarOperacoesFechamento(shortageCtx);
- await prepararExecucaoUnificada({...shortageCtx,dados:{versao:1,alocacoes:[{
+ const shortageDraft=(await request("POST","/api/pdv-unificado/rascunhos",201,{
+  clienteId:client,itens:[{empresaId:store,itemCatalogoId:itemId,quantidade:0.900}]
+ })).dados;
+ const shortageUrl=`/api/pdv-unificado/rascunhos/${shortageDraft.id}`;
+ await request("POST",`${shortageUrl}/reservar`,201,{versao:1});
+ await request("POST",`${shortageUrl}/preparacao-execucao`,201,{versao:1,alocacoes:[{
   empresaId:store,sessaoCaixaId:sessionStore.id,pagamentos:[{forma:"PIX",valorCentavos:1350}]
- }]}});
+ }]});
  const shortageReserve=await prisma.reservaFechamentoUnificado.findUnique({
   where:{comandaId_versaoRascunho:{comandaId:shortageDraft.id,versaoRascunho:1}}
  });
@@ -189,6 +213,8 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
  await request("POST",reverseUrl,403,reversal);
+ assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.modoEfetivo,"INDIVIDUAL");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.667);
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store;
  await request("POST",reverseUrl,403,reversal);

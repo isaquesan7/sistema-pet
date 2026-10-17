@@ -1,3 +1,11 @@
+# UPDATE M.5.47 — HOMOLOGAÇÃO OPERACIONAL SEM RETRABALHO (17/10/2026)
+
+**Quatro gates da versão de gestão:** [roteiro de execução M.5.47](POINTVET_M547_HOMOLOGACAO_OPERACIONAL_E_PILOTO.md). O E2E HTTP de checkout/estorno passa a exercitar também catálogo, criação de comanda, planejamento, reserva, conferência e preparação pelas **rotas Express autenticadas** (sem atalhos por serviços internos), reabertura, kill switch, R$5=333 g e devolução exata. O ensaio PostgreSQL 16 de pg_dump/pg_restore já existente também confere **após restaurar** estornos multi-CNPJ, pagamentos e compensação de estoque por produto/lote. Nenhum serviço físico/fiscal/PSP é adicionado. CI do novo patch deve ser verificado.
+
+**Gates externos NÃO executados:** provisionamento/validação de staging real, restore autorizado com RTO/RPO, treinamento/aceite de atendentes e autorização nominal do piloto ainda dependem de ambiente, origem de backup, pessoas e CNPJs indicados pelo proprietário. Não converter teste CI em alegação de produção pronta. PR #36 DRAFT, flags OFF; sem merge, deploy, restore real ou alterações na Pet King/Railway.
+
+---
+
 # UPDATE M.5.46 — ESTORNO INTEGRAL AUTENTICADO DO PDV DE GESTÃO (17/10/2026)
 
 O primeiro checkout manual M.5.45 agora tem a **contrapartida transacional de estorno integral**: `POST /api/pdv-unificado/rascunhos/:id/estornar-manual`, autenticado com `pdv.cancelar_venda` na empresa selecionada e revalidação da permissão em **todos os CNPJs** da comanda. Reutiliza o núcleo M.3C já ensaiado em CI, na transação `Serializable`: estorna vendas-filhas e pagamentos, registra auditoria, recompõe estoque/lote original grama a grama, invalida preparação e cancela comanda/reserva. Há idempotência por usuário, motivo e declaração; divergência causa conflito. Cartões conciliados, pré-baixa registrada, caixa encerrado ou documentos/títulos associados **bloqueiam o estorno automático e exigem revisão**.
