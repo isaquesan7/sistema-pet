@@ -6,7 +6,7 @@ import {ArrowLeft,Plus,Trash2,ShieldCheck} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
 import {formatCurrency} from "../lib/formatters.js";
 import {rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
-import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount} from "../lib/unifiedBulk.js";
+import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../lib/unifiedBulk.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import "../clients.css";
 export default function UnifiedPdvPreviewPage(){
@@ -78,6 +78,7 @@ export default function UnifiedPdvPreviewPage(){
       </label>
       <small>{bulkGrams(row)?.toLocaleString("pt-BR")} g · {formatCurrency(bulkTotalCents(row)/100)} (prévia, estoque em {stockUnitLabel(row.unidade)})</small>
       {row.erroEntradaGranel&&<small className="pv-unified-bulk-error" role="alert">{row.erroEntradaGranel}</small>}
+      <UnifiedBulkScaleCheck row={row}/>
      </div>:<label>Quantidade<input type="number" min="0.001" max="10000" step="0.001" className="form-control" value={row.quantidade} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(e.target.value)}));setLocalChanges(true);preview.reset();}}/></label>}
      <button className="icon-button" title="Remover esta linha" disabled={isReserved} onClick={()=>{setLines(ls=>removeUnifiedLine(ls,row.lineKey));setLocalChanges(true);preview.reset();}}><Trash2 size={18}/></button>
     </div>)}
@@ -94,6 +95,32 @@ export default function UnifiedPdvPreviewPage(){
  {closingReview.data&&!localChanges&&<div className="pv-unified-total"><h3>Pré-fechamento (somente conferência)</h3>{closingReview.data.empresas.map(e=><div key={e.empresaId}><span>{e.nome} · {e.cnpj}</span><strong>{formatCurrency(Number(e.total))}</strong></div>)}<div><strong>Total por empresas</strong><strong>{formatCurrency(Number(closingReview.data.total))}</strong></div>{closingReview.data.pendencias.length?<div><strong>Revise antes de seguir:</strong>{closingReview.data.pendencias.map((p,i)=><p key={`${p.itemId}-${p.codigo}-${i}`}>{lines.find(l=>l.rascunhoItemId===p.itemId)?.nome||"Item da comanda"}: {unifiedPrecloseMessages[p.codigo]||p.codigo}</p>)}</div>:<p>Itens conferidos. Fechamento e pagamento continuam desabilitados; a emissão fiscal é uma integração futura independente.</p>}</div>}{preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}{preview.data&&<div className="pv-unified-total"><h3>Resumo por empresa</h3>{preview.data.empresas.map(e=><div key={e.empresaId}><strong>{e.empresa}</strong><span>{formatCurrency(Number(e.total))}</span></div>)}<div><strong>Total consolidado</strong><strong>{formatCurrency(Number(preview.data.total))}</strong></div><p>Prévia validada. Nenhuma venda, estoque ou documento fiscal foi movimentado.</p></div>}</section>
   </>}
  </div>;
+}
+
+/** Dupla leitura digitada pelo atendente: sem integração, gravação ou autorização. */
+function UnifiedBulkScaleCheck({row}){
+ const [reading,setReading]=useState("");
+ const [labelAmount,setLabelAmount]=useState("");
+ const check=bulkScaleCheck(row,reading,labelAmount);
+ return <details className="pv-unified-scale-check">
+  <summary>Conferir balança e etiqueta (assistido)</summary>
+  <p>Digite o peso inteiro indicado na balança para comparar com a comanda. O valor da etiqueta é opcional. Esta conferência é local e não comprova uma pesagem física.</p>
+  <div className="pv-unified-scale-fields">
+   <label>Leitura da balança (g)<input className="form-control" type="text" inputMode="numeric" placeholder="Ex.: 333" value={reading} onChange={e=>setReading(e.target.value)}/></label>
+   <label>Valor na etiqueta (R$), se houver<input className="form-control" type="text" inputMode="decimal" placeholder="Ex.: 5,00" value={labelAmount} onChange={e=>setLabelAmount(e.target.value)}/></label>
+  </div>
+  <p>Comanda: <strong>{check.expectedGrams?.toLocaleString("pt-BR")??"—"} g</strong> · <strong>{Number.isSafeInteger(check.expectedCents)?formatCurrency(check.expectedCents/100):"—"}</strong></p>
+  {check.status==="PENDENTE"&&<p role="status">Aguardando leitura da balança, em gramas inteiros.</p>}
+  {check.status==="INVALIDO"&&<p className="pv-unified-bulk-error" role="alert">{check.erro}</p>}
+  {check.status==="CONFERIDO"&&<p className="pv-unified-scale-ok" role="status">Peso confere com a comanda{check.labelCents!==null?" e valor da etiqueta confere":""}. Verificação apenas informativa.</p>}
+  {check.status==="DIVERGENTE"&&<div className="pv-unified-bulk-error" role="alert">
+   <strong>Diferença encontrada — confira antes de atender.</strong>
+   {check.gramsDifference!==0&&<p>Leitura: {check.measuredGrams.toLocaleString("pt-BR")} g ({check.gramsDifference>0?"+":""}{check.gramsDifference} g vs. comanda). Pelo peso lido: {formatCurrency(check.measuredCents/100)}.</p>}
+   {check.labelDifferenceCents!==null&&check.labelDifferenceCents!==0&&<p>Etiqueta: {formatCurrency(check.labelCents/100)} ({check.labelDifferenceCents>0?"+":""}{check.labelDifferenceCents} centavo(s) vs. comanda).</p>}
+   <p>Reconfira a pesagem, o preço ou a quantidade antes de salvar a comanda.</p>
+  </div>}
+  <small>Não salva a leitura, não altera o peso da comanda, o estoque, o caixa ou documentos fiscais; nenhuma conexão com a balança.</small>
+ </details>;
 }
 
 

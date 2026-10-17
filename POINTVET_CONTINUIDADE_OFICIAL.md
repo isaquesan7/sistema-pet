@@ -664,3 +664,10 @@ Em cada continuação, antes de avançar: confirmar HEAD de PR #36 e PR #35, ver
 - **Orçamentos/Crédito PR #35** ≠ **integrados ao PDV**.
 
 > Se houver divergência entre este arquivo e o código/CI vivo, registrar a divergência aqui e tratar o código/CI como evidência; não seguir adiante às cegas.
+
+## 10. M.5.41 — prévia de conferência assistida da balança (17/10/2026)
+
+- **Novo painel local da comanda** para cada produto a granel (kg ou g): leitura do visor em **gramas inteiros**, valor opcional da etiqueta, comparação exata contra peso e centavos da comanda e aviso imediato de qualquer diferença de 1 g / R$ 0,01. Caso o peso da linha mude, a comparação é refeita; leituras não são salvas ou usadas para baixar estoque.
+- **Cenário central:** R$ 15,00/kg, digitar 333 g ou R$ 5,00; ambos implicam 333 g / R$ 5,00. Leituras incorretas, frações de grama e etiquetas inválidas não são aprovadas. Código puro e testes documentados em [POINTVET_M541_CONFERENCIA_ASSISTIDA_BALANCA.md](POINTVET_M541_CONFERENCIA_ASSISTIDA_BALANCA.md).
+- **Não alegar homologação:** a balança real não foi conectada/testada; painel é verificação humana opcional, não persistida, e não bloqueia gravação do rascunho. Teste assistido real com operador/etiquetas/estoque FEFO e cancelamento continua gate futuro, dependente de autorização. CI no SHA de publicação ainda deve ser conferido.
+- **Restrições mantidas:** PDV é primeiramente de gestão; checkout unificado segue fechado, motor fiscal fica fora do escopo até decisão do provedor. Sem PSP/TEF, merge, deploy, alterações em Railway ou produção Pet King. PR #36 permanece Draft; PR #35 e gates de publicação seguem pendentes.

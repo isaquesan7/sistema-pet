@@ -3,7 +3,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {addUnifiedCatalogItem,rehydrateUnifiedDraft} from "../../admin-web/src/lib/unifiedDraft.js";
-import {isBulkWeightProduct,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount} from "../../admin-web/src/lib/unifiedBulk.js";
+import {isBulkWeightProduct,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../../admin-web/src/lib/unifiedBulk.js";
 
 const ration={id:"ration",empresaId:"pet-king",nome:"Ração Adulto Granel",tipo:"PRODUTO",unidade:"QUILOGRAMA",precoVenda:15,empresa:{nomeFantasia:"Pet King"}};
 test("R$15/kg: venda por 333 g ou R$5 gera a mesma quantidade e cinco reais",()=>{
@@ -48,4 +48,55 @@ test("API autoritativa e checkout isolado não permitem bypass de precisão nem 
  assert.match(sandbox,/data:\{quantidade:\{decrement:total\}\}/);
  assert.match(sandbox,/exigirBancoIsolado\(\)/);
  assert.match(routes,/checkoutUnificadoDisponivel:false/);
+});
+
+test("M.5.41: leitura manual exata de 333 g e etiqueta R$ 5,00 conferem com R$ 15/kg",()=>{
+ const row={...addUnifiedCatalogItem([],ration,"nova:1")[0],quantidade:0.333};
+ assert.deepEqual(bulkScaleCheck(row,""),{status:"PENDENTE",expectedGrams:333,expectedCents:500});
+ assert.deepEqual(bulkScaleCheck(row,"333","5,00"),{
+  status:"CONFERIDO",expectedGrams:333,expectedCents:500,measuredGrams:333,measuredCents:500,
+  gramsDifference:0,labelCents:500,labelDifferenceCents:0
+ });
+ assert.equal(bulkScaleCheck(row,"333").status,"CONFERIDO");
+ assert.equal(row.quantidade,0.333,"conferência não altera peso na comanda");
+});
+
+test("M.5.41: diferença de 1 g bloqueia conferência, mesmo quando centavos arredondam igual",()=>{
+ const row={...ration,preco:15,quantidade:0.333};
+ const more=bulkScaleCheck(row,"334","5,00");
+ assert.equal(more.status,"DIVERGENTE");
+ assert.equal(more.gramsDifference,1);
+ assert.equal(more.measuredCents,501);
+ assert.equal(more.labelDifferenceCents,0);
+ const less=bulkScaleCheck(row,"332");
+ assert.equal(less.status,"DIVERGENTE");
+ assert.equal(less.gramsDifference,-1);
+ const oneGram={...row,quantidade:0.001,preco:10};
+ assert.equal(bulkScaleCheck(oneGram,"2").status,"DIVERGENTE");
+ assert.equal(bulkScaleCheck(oneGram,"1","0,01").status,"CONFERIDO");
+});
+
+test("M.5.41: valor de etiqueta divergente e leitura inválida não dão falso positivo",()=>{
+ const row={...ration,preco:15,quantidade:0.333};
+ assert.equal(bulkScaleCheck(row,"333","5,01").labelDifferenceCents,1);
+ assert.equal(bulkScaleCheck(row,"333","4,99").status,"DIVERGENTE");
+ for(const weight of ["0","333,3","333.33","-1","1e3","10000001","x"])
+  assert.equal(bulkScaleCheck(row,weight).status,"INVALIDO",weight);
+ for(const label of ["5,001","-5","1e3","x","9999999999999999"])
+  assert.equal(bulkScaleCheck(row,"333",label).status,"INVALIDO",label);
+ assert.equal(bulkScaleCheck({...row,erroEntradaGranel:"Peso inválido"},"333","5,00").status,"INVALIDO");
+ assert.equal(bulkScaleCheck({...row,quantidade:0},"333","5,00").status,"INVALIDO");
+ assert.equal(bulkScaleCheck({...row,tipo:"SERVICO"},"333").status,"INAPLICAVEL");
+});
+
+test("M.5.41: unidade GRAMA e troca de quantidade atualizam imediatamente a conferência",()=>{
+ const row={...ration,unidade:"GRAMA",preco:2,quantidade:4};
+ assert.equal(bulkScaleCheck(row,"4","8.00").status,"CONFERIDO");
+ const changed={...row,quantidade:5};
+ assert.equal(bulkScaleCheck(changed,"4","8.00").status,"DIVERGENTE");
+ assert.equal(bulkScaleCheck(changed,"5","10,00").status,"CONFERIDO");
+ const ui=readFileSync(new URL("../../admin-web/src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
+ assert.match(ui,/<UnifiedBulkScaleCheck row=\{row\}\s*\/>/);
+ assert.match(ui,/bulkScaleCheck\(row,reading,labelAmount\)/);
+ assert.match(ui,/Não salva a leitura/);
 });

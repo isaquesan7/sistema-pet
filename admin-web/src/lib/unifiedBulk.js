@@ -46,3 +46,35 @@ export function bulkFromAmount(raw,price,unit){
   return {erro:"Esse valor não corresponde exatamente a gramas inteiros nesse preço. Ajuste o valor ou informe o peso."};
  return {...result,valorCentavos:actualCents};
 }
+
+/** Conferência independente, apenas em memória, do visor da balança e etiqueta.
+ * Nunca substitui a quantidade da comanda nem registra uma pesagem física.
+ */
+export function bulkScaleCheck(item,rawMeasuredGrams,rawLabelAmount=""){
+ if(!isBulkWeightProduct(item))return {status:"INAPLICAVEL"};
+ const expectedGrams=bulkGrams(item),expectedCents=bulkTotalCents(item);
+ if(item.erroEntradaGranel||!Number.isSafeInteger(expectedGrams)||expectedGrams<1||!Number.isSafeInteger(expectedCents)||expectedCents<1)
+  return {status:"INVALIDO",erro:item.erroEntradaGranel||"Corrija o item da comanda antes de conferir a balança."};
+ const weight=String(rawMeasuredGrams??"").trim();
+ const label=String(rawLabelAmount??"").trim();
+ if(!weight)return {status:"PENDENTE",expectedGrams,expectedCents};
+ const parsed=bulkFromGrams(weight,item.unidade);
+ if(parsed.erro)return {status:"INVALIDO",erro:parsed.erro,expectedGrams,expectedCents};
+ let labelCents=null;
+ if(label){
+  const normalized=label.replace(",",".");
+  if(!/^\d+(?:\.\d{1,2})?$/.test(normalized))
+   return {status:"INVALIDO",erro:"Informe o valor da etiqueta em reais, com até duas casas decimais.",expectedGrams,expectedCents};
+  labelCents=Math.round(Number(normalized)*100);
+  if(!Number.isSafeInteger(labelCents))
+   return {status:"INVALIDO",erro:"O valor da etiqueta excede o limite permitido.",expectedGrams,expectedCents};
+ }
+ const measuredCents=bulkTotalCents({...item,quantidade:parsed.quantidade});
+ const gramsDifference=parsed.gramas-expectedGrams;
+ const labelDifferenceCents=labelCents===null?null:labelCents-expectedCents;
+ return {
+  status:gramsDifference===0&&(labelDifferenceCents===null||labelDifferenceCents===0)?"CONFERIDO":"DIVERGENTE",
+  expectedGrams,expectedCents,measuredGrams:parsed.gramas,measuredCents,
+  gramsDifference,labelCents,labelDifferenceCents
+ };
+}
