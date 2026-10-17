@@ -1,3 +1,19 @@
+# UPDATE M.5.51 — ISOLAMENTO DA TELA EM CONTEXTO MULTIEMPRESA (17/10/2026)
+
+O proprietário da Pet King confirmou a execução dos botões de **simular sem
+cobrar** e **salvar rascunho** depois do hotfix M.5.50, em homologação
+segregada. Esse aceite é **parcial**, não cobre o restante da jornada.
+Na [M.5.51](POINTVET_M551_ISOLAMENTO_CONTEXTO_PDV_HOMOLOGACAO.md), as consultas
+da UI passam a ter cache escopado por organização/empresa; a reabertura mantém
+o tutor salvo visível; uma nova busca limpa a seleção antiga e reserva impede
+troca de tutor. Testes locais e CI do HEAD final devem ser conferidos.
+**Próxima homologação humana:** reabrir rascunho, alternar CNPJs, revisar
+pré-fechamento, reservar e conferir pagamentos sem execução real. Checkout
+Unificado permanece OFF. Restore do R2 real exige autorização distinta com
+LGPD/RTO/RPO; não há merge, produção, emissão fiscal ou integração física.
+
+---
+
 # UPDATE M.5.47 — HOMOLOGAÇÃO OPERACIONAL SEM RETRABALHO (17/10/2026)
 
 **Quatro gates da versão de gestão:** [roteiro de execução M.5.47](POINTVET_M547_HOMOLOGACAO_OPERACIONAL_E_PILOTO.md). O E2E HTTP de checkout/estorno passa a exercitar também catálogo, criação de comanda, planejamento, reserva, conferência e preparação pelas **rotas Express autenticadas** (sem atalhos por serviços internos), reabertura, kill switch, R$5=333 g e devolução exata. O ensaio PostgreSQL 16 de pg_dump/pg_restore já existente também confere **após restaurar** estornos multi-CNPJ, pagamentos e compensação de estoque por produto/lote. Nenhum serviço físico/fiscal/PSP é adicionado. CI do novo patch deve ser verificado.
