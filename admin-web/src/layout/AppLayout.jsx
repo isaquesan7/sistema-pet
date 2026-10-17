@@ -30,6 +30,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import BrandMark from "../components/BrandMark.jsx";
+import StagingEnvironmentNotice from "../components/StagingEnvironmentNotice.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { companyTypeLabel } from "../lib/formatters.js";
 
@@ -209,6 +210,8 @@ export default function AppLayout() {
           </div>
 
         </header>
+
+        <StagingEnvironmentNotice />
 
         <main className="page-container">
           <Outlet />
