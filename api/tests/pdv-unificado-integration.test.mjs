@@ -2784,7 +2784,9 @@ test("cross-company saving respects prices, access, rollback and version",async(
  ];
  const doisResultados=await fecharEmDisputa(doisGramas.produto.id,duasVendas);
  assert.deepEqual(doisResultados.map(x=>x.status),["fulfilled","fulfilled"],
-  "Retentar serialização deve permitir consumir 2 g em duas vendas de 1 g");
+  "Retentar serialização deve permitir consumir 2 g em duas vendas de 1 g; falhas: "+
+   doisResultados.filter(x=>x.status==="rejected").map(x=>
+    `${x.reason?.code||"sem-codigo"}/${x.reason?.meta?.code||"sem-sqlstate"}: ${String(x.reason?.message).slice(0,160)}`));
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:doisGramas.produto.id}})).quantidade),0);
  assert.equal(Number((await prisma.loteProduto.findUnique({where:{id:doisGramas.lote.id}})).quantidadeAtual),0);
  assert.equal(await prisma.movimentacaoEstoque.count({where:{

@@ -6,16 +6,19 @@
  */
 import {createHash} from "node:crypto";
 const FORMAS=new Set(["DINHEIRO","PIX","CARTAO_DEBITO","CARTAO_CREDITO","TRANSFERENCIA"]);
-/** M.5.40: repetição limitada APENAS para abortos serializáveis do PostgreSQL. */
+/** M.5.40: repetição limitada APENAS para abortos de transação do PostgreSQL. */
 export async function executarComRetrySerializableM540(executar,{tentativas=3}={}){
  if(typeof executar!=="function"||!Number.isInteger(tentativas)||tentativas<1||tentativas>3)
   throw Error("M3_RETRY_INVALIDO");
  for(let tentativa=1;tentativa<=tentativas;tentativa++){
   try{return await executar();}
   catch(erro){
-   // P2034: Prisma rolled back the entire transaction (write conflict/deadlock).
+   // P2034: conflito/deadlock na transação Prisma. Consultas SQL de lock
+   // ($queryRaw) podem expor o mesmo aborto como P2010 + SQLSTATE 40001/40P01.
    // Never retry stock shortages, validation, authorizations or unknown failures.
-   if(erro?.code!=="P2034"||tentativa===tentativas)throw erro;
+   const transacaoAbortada=erro?.code==="P2034"||
+    (erro?.code==="P2010"&&["40001","40P01"].includes(erro?.meta?.code));
+   if(!transacaoAbortada||tentativa===tentativas)throw erro;
   }
  }
 }

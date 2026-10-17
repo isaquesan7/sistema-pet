@@ -19,6 +19,28 @@ test("somente P2034 retenta após rollback integral, com no máximo três tentat
  }),/conflito permanente/);
 });
 
+test("P2010 só retenta SQLSTATE exato de serialização/deadlock de consulta raw",async()=>{
+ for(const code of ["40001","40P01"]){
+  let chamadas=0;
+  assert.equal(await executarComRetrySerializableM540(async()=>{
+   chamadas++;
+   if(chamadas===1)throw Object.assign(Error("raw query aborted"),{
+    code:"P2010",meta:{code}
+   });
+   return "confirmada";
+  }),"confirmada");
+  assert.equal(chamadas,2);
+ }
+ for(const meta of [{code:"23505"},{code:"22001"},null]){
+  let chamadas=0;
+  await assert.rejects(()=>executarComRetrySerializableM540(async()=>{
+   chamadas++;
+   throw Object.assign(Error("sql failure"),{code:"P2010",meta});
+  }),/sql failure/);
+  assert.equal(chamadas,1);
+ }
+});
+
 test("estoque insuficiente, falha de permissão e erro desconhecido NÃO são retentados",async()=>{
  for(const error of [
   Error("M3_ESTOQUE_INSUFICIENTE"),
