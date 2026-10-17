@@ -2776,10 +2776,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // Com 2 g e duas vendas de 1 g, AMBAS precisam concluir; conflito P2034
  // só pode repetir uma transação que já foi integralmente revertida.
  const doisGramas=await produtoCorrida("RACAO_DUAS_VENDAS_",2);
- const duasVendas=await Promise.all([
-  prepararUmGrama(doisGramas.item.id,session1.id),
-  prepararUmGrama(doisGramas.item.id,corridaSession.id)
- ]);
+ // O preparo de reservas não faz parte da disputa: criar sequencialmente
+ // evita um conflito serializável independente da baixa que queremos testar.
+ const duasVendas=[
+  await prepararUmGrama(doisGramas.item.id,session1.id),
+  await prepararUmGrama(doisGramas.item.id,corridaSession.id)
+ ];
  const doisResultados=await fecharEmDisputa(doisGramas.produto.id,duasVendas);
  assert.deepEqual(doisResultados.map(x=>x.status),["fulfilled","fulfilled"],
   "Retentar serialização deve permitir consumir 2 g em duas vendas de 1 g");
@@ -2794,10 +2796,10 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // Com APENAS 1 g, uma única venda vence. A outra reavalia o novo saldo,
  // falha por falta de estoque e não persiste Pagamento ou movimento órfão.
  const ultimoGrama=await produtoCorrida("RACAO_ULTIMO_GRAMA_",1);
- const ultimasVendas=await Promise.all([
-  prepararUmGrama(ultimoGrama.item.id,session1.id),
-  prepararUmGrama(ultimoGrama.item.id,corridaSession.id)
- ]);
+ const ultimasVendas=[
+  await prepararUmGrama(ultimoGrama.item.id,session1.id),
+  await prepararUmGrama(ultimoGrama.item.id,corridaSession.id)
+ ];
  const pagamentosAntes=await prisma.pagamento.count();
  const docsAntes=await prisma.documentoFiscal.count();
  const ultimosResultados=await fecharEmDisputa(ultimoGrama.produto.id,ultimasVendas);

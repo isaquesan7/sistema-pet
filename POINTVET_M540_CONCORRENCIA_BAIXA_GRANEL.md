@@ -16,7 +16,7 @@ Duas comandas diferentes e dois caixas distintos podem tentar vender a mesma ra�
 ## Testes
 
 - Contrato puro `pointvet-m540-concorrencia-granel.contract.test.mjs`: duas abortagens `P2034` e sucesso na terceira tentativa; limite de tentativas; erros sem repetição; presença de transação `Serializable`, locks e atualizações condicionais no serviço.
-- Integração PostgreSQL CI (`pdv-unificado-integration.test.mjs`), com **duas comandas, caixas diferentes e mesmo SKU/lote** e uma terceira transação segurando o lock do saldo durante a largada:
+- Integração PostgreSQL CI (`pdv-unificado-integration.test.mjs`), com **duas comandas, caixas diferentes e mesmo SKU/lote**. Preparar **sequencialmente** as reservas independentes antes da corrida impede confundir conflitos do registro inicial com a baixa; uma terceira transação segura o lock do saldo durante a largada dos **fechamentos simultâneos**:
   - **2 g em lote FEFO / 2 vendas simultâneas de 1 g:** ambas devem finalizar, depois de esperar ou repetir uma transação abortada; saldo e lote terminam em **0 g**, com exatamente **2 movimentos**; os replays não baixam novamente.
   - **1 g em lote FEFO / 2 vendas simultâneas de 1 g:** apenas uma pode finalizar. A outra termina em `M3_ESTOQUE_INSUFICIENTE` após reconsultar o estoque; o único grama é deduzido uma vez, há só **1 pagamento** e **1 movimento** adicionais, sem documento fiscal.
   - Preço de fixture **R$ 10,00/kg**, de modo que **1 g = R$ 0,01** sem ambiguidade de arredondamento; balança continua em gramas inteiros.
