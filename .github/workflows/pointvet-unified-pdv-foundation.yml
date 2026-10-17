@@ -329,7 +329,6 @@ jobs:
           node --test api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs
           node --test api/tests/pdv-unificado-racao-granel.contract.test.mjs
           node --test api/tests/pointvet-m542-pagamentos-manuais-ui.contract.test.mjs
-          node --test api/tests/pointvet-m544-declaracao-manual-ui.contract.test.mjs
           node --test api/tests/pointvet-m537-unidade-granel.contract.test.mjs
           node --test api/tests/pointvet-m538-granel-concorrencia.contract.test.mjs
           node --test api/tests/pdv-unificado-psp-contract.test.mjs
@@ -406,6 +405,7 @@ jobs:
           npm ci
           npx prisma validate
           node --test tests/pdv-unificado-recebimento-manual.contract.test.mjs
+          node --test tests/pointvet-m544-declaracao-manual-ui.contract.test.mjs
       - name: Admin build
         working-directory: admin-web
         run: |
