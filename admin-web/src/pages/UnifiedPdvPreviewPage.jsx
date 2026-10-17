@@ -5,7 +5,7 @@ import {Link} from "react-router-dom";
 import {ArrowLeft,Plus,Trash2,ShieldCheck} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
 import {formatCurrency} from "../lib/formatters.js";
-import {rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
+import {buildUnifiedDraftPayload,rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
 import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../lib/unifiedBulk.js";
 import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewManualReceipt} from "../lib/unifiedManualAllocation.js";
 import {useAuth} from "../context/AuthContext.jsx";
@@ -29,7 +29,7 @@ export default function UnifiedPdvPreviewPage(){
  const catalog=useQuery({queryKey:["unified-catalog",search],enabled,queryFn:async()=>(await api.get("/pdv-unificado/catalogo",{params:{busca:search}})).data.dados||[]});
  const draftList=useQuery({queryKey:["unified-drafts",selectedOrganization?.id],enabled,queryFn:async()=>(await api.get("/pdv-unificado/rascunhos")).data.dados||[]});
  const save=useMutation({mutationFn:async()=>{
-   const dados={clienteId,itens:lines.map(x=>({empresaId:x.empresaId,itemCatalogoId:x.itemCatalogoId,quantidade:x.quantidade,petId:x.petId||null}))};
+   const dados=buildUnifiedDraftPayload(clientId,lines);
    const response=draft?await api.put(`/pdv-unificado/rascunhos/${draft.id}`,{...dados,versao:draft.versao}):await api.post("/pdv-unificado/rascunhos",dados);
    return response.data.dados;
  },onSuccess:async data=>{setLocalChanges(false);setDraft({id:data.id,versao:data.versao});setSavedNotice(`Rascunho #${data.numero} salvo. Sem venda ou cobrança.`);await queryClient.invalidateQueries({queryKey:["unified-drafts"]});}});
@@ -39,7 +39,7 @@ export default function UnifiedPdvPreviewPage(){
  const isReserved=reservation.data?.status==="RESERVADA";
  const reserveMutation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/reservar`,{versao:draft.versao})).data.dados,onSuccess:async()=>{setSavedNotice("Operações reservadas com segurança. Nenhuma cobrança foi realizada.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
  const cancelReservation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/cancelar-reserva`,{versao:draft.versao,motivo:motivoCancelar})).data.dados,onSuccess:async()=>{setSavedNotice("Reserva cancelada. Ajuste e salve uma nova versão da comanda.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
- const preview=useMutation({mutationFn:async()=>(await api.post("/pdv-unificado/simulacao",{clienteId,itens:lines.map(x=>({empresaId:x.empresaId,itemCatalogoId:x.itemCatalogoId,quantidade:x.quantidade,petId:x.petId||null}))})).data.dados});
+ const preview=useMutation({mutationFn:async()=>(await api.post("/pdv-unificado/simulacao",buildUnifiedDraftPayload(clientId,lines))).data.dados});
  function reopen(saved){
    setLocalChanges(false);setClientId(saved.cliente.id);setClientSearch(saved.cliente.nome);setDraft({id:saved.id,versao:saved.versaoRascunho});setSavedNotice("");
    setLines(rehydrateUnifiedDraft(saved));preview.reset();
