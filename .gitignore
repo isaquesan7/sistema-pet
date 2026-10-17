@@ -20,3 +20,9 @@
 .DS_Store
 Thumbs.db
 *.log
+
+# PointVet 17.1 — never commit database exports
+private-backups/
+*.dump
+*.dump.sha256
+*.dump.json
