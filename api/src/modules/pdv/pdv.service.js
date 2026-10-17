@@ -1,6 +1,7 @@
 import prisma from "../../config/prisma.js";
 import { criarRecebivelFiadoNoTx } from "../financeiro/financeiro.service.js";
 import { criarDocumentoAutomaticoVenda } from "../fiscal/fiscal.service.js";
+import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -41,6 +42,7 @@ async function validarPet(tx, organizacaoId, petId, clienteId) {
 
 async function prepararItens(tx, { empresaId, organizacaoId, clienteId, itens }) {
   const ids = [...new Set(itens.map((item) => item.itemCatalogoId))];
+  await travarUnidadesProdutos(tx, ids);
   const catalogo = await tx.itemCatalogo.findMany({
     where: {
       id: { in: ids },
@@ -471,6 +473,7 @@ export async function resumo(empresaId) {
     prisma.comanda.count({
       where: {
         status: { in: ["ABERTA", "PARCIALMENTE_FECHADA"] },
+        rascunhoUnificado: false,
         itens: { some: { empresaId, status: "ATIVO" } },
       },
     }),
@@ -585,6 +588,14 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
       },
     });
     if (!venda) throw new Error("VENDA_NAO_ENCONTRADA");
+    // Uma Venda filha de comanda unificada não pode ser estornada isoladamente:
+    // seria possível devolver estoque/caixa de um CNPJ e deixar o outro fechado.
+    if (venda.comandaId) {
+      const origem = await tx.comanda.findUnique({
+        where: { id: venda.comandaId }, select: { rascunhoUnificado: true },
+      });
+      if (origem?.rascunhoUnificado) throw new Error("VENDA_UNIFICADA_EXIGE_ESTORNO_INTEGRAL");
+    }
     if (venda.status !== "FINALIZADA") throw new Error("VENDA_NAO_CANCELAVEL");
     if (venda.documentosFiscais?.some((documento) => documento.status === "AUTORIZADO")) {
       throw new Error("VENDA_POSSUI_DOCUMENTO_FISCAL");
@@ -681,6 +692,7 @@ export async function listarComandas({ organizacaoId, busca, status }) {
   return prisma.comanda.findMany({
     where: {
       cliente: { organizacaoId },
+      rascunhoUnificado: false,
       ...(status ? { status } : {}),
       ...(busca ? {
         OR: [
@@ -718,7 +730,7 @@ export async function criarComanda({ organizacaoId, dados }) {
 
 export async function buscarComanda({ organizacaoId, id }) {
   const comanda = await prisma.comanda.findFirst({
-    where: { id, cliente: { organizacaoId } },
+    where: { id, cliente: { organizacaoId }, rascunhoUnificado: false },
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
@@ -745,6 +757,7 @@ export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId
       where: { id: comandaId, cliente: { organizacaoId } },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
+    if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     if (["FECHADA", "CANCELADA"].includes(comanda.status)) throw new Error("COMANDA_FECHADA");
 
     const [linha] = await prepararItens(tx, {
@@ -784,6 +797,8 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
       },
     });
     if (!item) throw new Error("ITEM_COMANDA_NAO_ENCONTRADO");
+    const origem = await tx.comanda.findUnique({where:{id:comandaId},select:{rascunhoUnificado:true}});
+    if (origem?.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     return tx.comandaItem.update({ where: { id: item.id }, data: { status: "CANCELADO" } });
   });
 }
@@ -803,6 +818,7 @@ export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId
       },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
+    if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     if (!comanda.itens.length) throw new Error("COMANDA_SEM_ITENS_EMPRESA");
 
     const preparados = comanda.itens.map((item) => ({

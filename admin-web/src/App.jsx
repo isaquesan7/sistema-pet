@@ -14,6 +14,7 @@ import EmployeesPage from "./pages/EmployeesPage.jsx";
 import TimeClockPage from "./pages/TimeClockPage.jsx";
 import PackagesPage from "./pages/PackagesPage.jsx";
 import PdvPage from "./pages/PdvPage.jsx";
+import UnifiedPdvPreviewPage from "./pages/UnifiedPdvPreviewPage.jsx";
 import StockPage from "./pages/StockPage.jsx";
 import ConsultorioPage from "./pages/ConsultorioPage.jsx";
 import BanhoTosaPage from "./pages/BanhoTosaPage.jsx";
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="pets" element={<PetsPage />} />
             <Route path="catalogo" element={<CatalogPage />} />
             <Route path="pdv" element={<PdvPage />} />
+            <Route path="pdv/unificado/simulacao" element={<UnifiedPdvPreviewPage />} />
             <Route path="estoque" element={<StockPage />} />
             <Route path="consultorio" element={<ConsultorioPage />} />
             <Route path="banho-e-tosa" element={<BanhoTosaPage />} />

@@ -9,12 +9,14 @@ import prisma from "./config/prisma.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 
 import clientesRoutes from "./modules/clientes/clientes.routes.js";
+import clientFinanceRoutes from "./modules/clientes/client-finance.routes.js";
 import petsRoutes from "./modules/pets/pets.routes.js";
 import organizacoesRoutes from "./modules/organizacoes/organizacoes.routes.js";
 import catalogoRoutes from "./modules/catalogo/catalogo.routes.js";
 import funcionariosRoutes from "./modules/funcionarios/funcionarios.routes.js";
 import pacotesRoutes from "./modules/pacotes/pacotes.routes.js";
 import pdvRoutes from "./modules/pdv/pdv.routes.js";
+import pdvUnificadoRoutes from "./modules/pdv/pdv-unificado.routes.js";
 import estoqueRoutes from "./modules/estoque/estoque.routes.js";
 import consultorioRoutes from "./modules/consultorio/consultorio.routes.js";
 import banhoTosaRoutes from "./modules/banho-tosa/banho-tosa.routes.js";
@@ -143,6 +145,8 @@ app.use(
   "/api/clientes",
   clientesRoutes
 );
+// M.4A: quotes and read-only credit; never a payment/checkout entry point.
+app.use("/api/clientes-financeiro", clientFinanceRoutes);
 
 // ======================================================
 // ROTA DOS PETS
@@ -162,6 +166,7 @@ app.use("/api/catalogo", catalogoRoutes);
 app.use("/api/funcionarios", funcionariosRoutes);
 app.use("/api/pacotes", pacotesRoutes);
 app.use("/api/pdv", pdvRoutes);
+app.use("/api/pdv-unificado", pdvUnificadoRoutes);
 app.use("/api/estoque", estoqueRoutes);
 app.use("/api/consultorio", consultorioRoutes);
 app.use("/api/banho-tosa", banhoTosaRoutes);

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import {Link} from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownCircle,
@@ -197,6 +198,7 @@ function PaymentEditor({ payments, total, onChange }) {
 export default function PdvPage() {
   const { selectedCompany, selectedOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const unifiedStatus=useQuery({queryKey:["unified-pdv-status",selectedOrganization?.id],queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados});
   const [tab, setTab] = useState("VENDA");
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
@@ -489,6 +491,7 @@ export default function PdvPage() {
         </div>
       </section>
 
+      {unifiedStatus.data?.preferenciaUnificado&&<section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><div><strong>PDV Unificado · Prévia da Fase 20.1</strong><p style={{fontSize:14,marginTop:6}}>Simule uma comanda de várias empresas sem movimentar estoque, pagamentos ou documentos fiscais.</p></div><Link className="ghost-button" to="/pdv/unificado/simulacao">Abrir simulação multiempresa</Link></div></section>}
       <section className="pdv-summary-grid">
         <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
         <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje</span><strong>{summary.vendasHoje || 0}</strong></div></div>
