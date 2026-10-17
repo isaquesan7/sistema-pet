@@ -151,6 +151,18 @@ export async function efetivarRecebimentosManuaisSomenteSandbox({
  return executarComRetrySerializableM540(()=>prisma.$transaction(async tx=>{
   const nome=await tx.$queryRaw`SELECT current_database() AS nome`;
   if(nome[0]?.nome!==BANCO_CI)falha("BANCO_NAO_ISOLADO");
+  return efetivarRecebimentosManuaisEmTransacao(tx,{
+   organizacaoId,usuarioId,empresaId,id,versao,simularFalhaAposEmpresaId
+  });
+ },{isolationLevel:"Serializable",maxWait:10000,timeout:30000}));
+}
+/** Núcleo reaproveitado pelo fechamento manual protegido, sem criar segunda
+ * rotina de estoque/pagamentos. A execução externa exige uma transação única.
+ */
+export async function efetivarRecebimentosManuaisEmTransacao(tx,{
+ organizacaoId,usuarioId,empresaId,id,versao,simularFalhaAposEmpresaId=null,
+ contextoExecucao="CI"
+}){
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
   const comanda=await tx.comanda.findFirst({where:{
    id,rascunhoUnificado:true,cliente:{organizacaoId}},
@@ -200,7 +212,7 @@ export async function efetivarRecebimentosManuaisSomenteSandbox({
      vendaId:op.vendaId,sessaoCaixaId:declarado.sessaoCaixaId,
      forma:declarado.forma,status:declarado.statusPagamento,
      valor:dinheiro(declarado.valorCentavos),parcelas:declarado.numeroParcelas,
-     observacoes:`M.3B CI — registro manual ${registro.id}; linha ${declarado.linhaId}`,
+     observacoes:`${contextoExecucao==="CI"?"M.3B CI":"POINTVET GESTAO MANUAL"} — registro manual ${registro.id}; linha ${declarado.linhaId}`,
      pagoEm:declarado.statusPagamento==="APROVADO"?agora:null
     }});
     const link=await tx.linhaRecebimentoManualUnificado.updateMany({
@@ -231,7 +243,9 @@ export async function efetivarRecebimentosManuaisSomenteSandbox({
    await baixarEstoqueEmpresa(tx,{op,usuarioId});
    const updated=await tx.venda.updateMany({where:{id:op.vendaId,status:"ABERTA",
     empresaId:op.empresaId},data:{status:"FINALIZADA",finalizadaEm:agora,
-    observacoes:"POINTVET M.3B SANDBOX — fiscal pendente, sem emissão"}});
+    observacoes:contextoExecucao==="CI"?
+     "POINTVET M.3B SANDBOX — fiscal pendente, sem emissão":
+     "POINTVET GESTAO MANUAL — sem emissao fiscal pelo sistema"}});
    if(updated.count!==1)falha("M3_VENDA_CONCORRENTE");
    const updatedOp=await tx.reservaOperacaoUnificada.updateMany({
     where:{id:op.operacaoId,reservaId:reserva.id,status:"VENDA_RASCUNHO",
@@ -253,6 +267,7 @@ export async function efetivarRecebimentosManuaisSomenteSandbox({
    parcelasAReceber:quantidadeParcelas,estoqueMovimentado:true,
    vendas:plano.operacoes.map(o=>({empresaId:o.empresaId,vendaId:o.vendaId,status:"CONCLUIDA"})),
    emissaoFiscal:false,execucaoRealHabilitada:false,creditoClienteUtilizado:false,
-   mensagem:"Somente CI: sem fiscal e sem integração do recebível com conciliação real."};
- },{isolationLevel:"Serializable",maxWait:10000,timeout:30000}));
+   mensagem:contextoExecucao==="CI"?
+    "Somente CI: sem fiscal e sem integração do recebível com conciliação real.":
+    "Venda de gestão registrada com recebimentos declarados; emissao fiscal externa."};
 }

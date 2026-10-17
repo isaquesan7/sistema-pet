@@ -42,6 +42,7 @@ function mapError(error, res, next) {
     CAIXA_JA_EXISTE: [409, "Já existe um caixa com este nome nesta empresa."],
     VENDA_NAO_ENCONTRADA: [404, "Venda não encontrada."],
     VENDA_NAO_CANCELAVEL: [409, "Esta venda não pode mais ser cancelada."],
+    VENDA_UNIFICADA_EXIGE_ESTORNO_INTEGRAL: [409, "Venda de comanda multiempresa: o cancelamento individual está bloqueado. Solicite o estorno integral e auditado do fechamento unificado."],
     VENDA_POSSUI_RECEBIMENTO_FIADO: [409, "Esta venda possui recebimento de fiado já registrado. Regularize o recebimento no Financeiro antes de cancelar."],
     VENDA_POSSUI_DOCUMENTO_FISCAL: [409, "Esta venda possui documento fiscal autorizado. Cancele o documento no módulo Fiscal antes de cancelar a venda."],
     COMANDA_NAO_ENCONTRADA: [404, "Comanda não encontrada."],

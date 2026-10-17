@@ -1,4 +1,4 @@
-/** Phase 20.1: read-only eligibility; no payment, sale or stock mutation. */
+/** PDV Unificado: prévias seguras e checkout manual explícito por organização/CNPJ. */
 import {Router} from "express";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
@@ -14,17 +14,22 @@ import {consultarHistoricoDevolucoesM523} from "./pdv-unificado-devolucoes-histo
 import {consultarDiagnosticoDevolucoesM524} from "./pdv-unificado-diagnostico-devolucoes.service.js";
 import {consultarDossieDevolucoesM527} from "./pdv-unificado-dossie-devolucoes.service.js";
 import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
+import {recebimentoManualSchema} from "./pdv-unificado-recebimento-manual.contract.js";
+import {checkoutManualHabilitado,fecharVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
  try{
   const access=await prisma.usuarioEmpresa.findMany({where:{usuarioId:req.usuario.id,ativo:true,empresa:{ativo:true,organizacaoId:req.organizacao.id}},select:{empresaId:true,empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}}}});
   const pdvHabilitado=Boolean(req.organizacao.configuracao?.pdvUnificadoHabilitado);
+  const checkoutHabilitado=checkoutManualHabilitado(req.organizacao,req.empresa.id);
   return res.json({success:true,dados:{
-   preferenciaUnificado:pdvHabilitado,checkoutUnificadoDisponivel:false,
-   modoEfetivo:"INDIVIDUAL",
+   preferenciaUnificado:pdvHabilitado,checkoutUnificadoDisponivel:checkoutHabilitado,
+   modoEfetivo:checkoutHabilitado?"UNIFICADO_MANUAL":"INDIVIDUAL",
    empresasAcessiveis:access.map(v=>v.empresa),
-   aviso:"O PDV individual permanece em uso até a homologação do fechamento multiempresa."
+   aviso:checkoutHabilitado?
+    "Fechamento manual restrito à organização autorizada, sem fiscal ou integração física.":
+    "O PDV individual permanece em uso até a homologação do fechamento multiempresa."
   }});
  }catch(error){next(error);}
 });
@@ -338,10 +343,7 @@ r.post("/rascunhos/:id/cancelar-reserva",exigirPermissao("pdv.cancelar_venda"),a
  const reserva=await cancelarReservaFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,...dados.data});
  return res.json({success:true,dados:reserva});
 }catch(e){erroRascunho(e,res,next);}});
-/**
- * Routes are intentionally named "conferencia"/"diagnostico".
- * There is no execute/charge/sell endpoint in the unified PDV.
- */
+/** Pré-conferência e diagnóstico permanecem sem efeitos financeiros. */
 r.post("/rascunhos/:id/conferencia-alocacao",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
  const parsed=conferenciaAlocacaoSchema.safeParse(req.body);
@@ -373,4 +375,32 @@ r.post("/rascunhos/:id/preparacao-execucao",async(req,res,next)=>{try{
  const result=await prepararExecucaoUnificada({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,dados:parsed.data});
  return res.status(result.reutilizada?200:201).json({success:true,dados:result});
 }catch(e){erroRascunho(e,res,next);}});
+/** Checkout MANUAL efetivo: desligado por padrão, sem provedor fiscal/hardware.
+ * Em uma transação, persiste declaração, vendas, pagamentos e estoque.
+ */
+r.post("/rascunhos/:id/fechar-manual",async(req,res,next)=>{try{
+ if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({
+  success:false,message:"Fechamento manual unificado ainda não autorizado para esta organização."
+ });
+ const identificador=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+  .safeParse(req.params.id);
+ const parsed=recebimentoManualSchema.safeParse(req.body);
+ if(!identificador.success||!parsed.success)return res.status(400).json({
+  success:false,message:"Confirmação manual ou comanda inválida."
+ });
+ const result=await fecharVendaManualUnificada({
+  organizacao:req.organizacao,organizacaoId:req.organizacao.id,
+  usuarioId:req.usuario.id,empresaId:req.empresa.id,id:identificador.data,dados:parsed.data
+ });
+ return res.set("Cache-Control","no-store").status(result.reutilizada?200:201)
+  .json({success:true,dados:result});
+}catch(error){
+ const acesso=["EMPRESA_SEM_ACESSO","EMPRESA_FORA_DO_PILOTO_MANUAL","CHECKOUT_MANUAL_DESATIVADO"];
+ const invalido=["RECEBIMENTO_NAO_CONFIRMADO","REGISTRO_MANUAL_INVALIDO"];
+ if(acesso.includes(error.message))return res.status(403).json({success:false,message:"Acesso ao fechamento negado."});
+ if(invalido.includes(error.message))return res.status(400).json({success:false,message:"Confirme cada recebimento manual com valores corretos."});
+ if(/^(M3_|REGISTRO_MANUAL_DIVERGENTE|RESERVA_|PREPARACAO_|RASCUNHO_|PLANO_|CAIXA_|SOMA_|PRE_FECHAMENTO_|EMPRESA_FORA_)/.test(error.message))
+  return res.status(409).json({success:false,message:"Os dados do fechamento mudaram ou estão inconsistentes. Revise a comanda e os caixas."});
+ erroRascunho(error,res,next);
+}});
 export default r;

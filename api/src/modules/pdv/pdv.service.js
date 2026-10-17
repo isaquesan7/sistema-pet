@@ -588,6 +588,14 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
       },
     });
     if (!venda) throw new Error("VENDA_NAO_ENCONTRADA");
+    // Uma Venda filha de comanda unificada não pode ser estornada isoladamente:
+    // seria possível devolver estoque/caixa de um CNPJ e deixar o outro fechado.
+    if (venda.comandaId) {
+      const origem = await tx.comanda.findUnique({
+        where: { id: venda.comandaId }, select: { rascunhoUnificado: true },
+      });
+      if (origem?.rascunhoUnificado) throw new Error("VENDA_UNIFICADA_EXIGE_ESTORNO_INTEGRAL");
+    }
     if (venda.status !== "FINALIZADA") throw new Error("VENDA_NAO_CANCELAVEL");
     if (venda.documentosFiscais?.some((documento) => documento.status === "AUTORIZADO")) {
       throw new Error("VENDA_POSSUI_DOCUMENTO_FISCAL");

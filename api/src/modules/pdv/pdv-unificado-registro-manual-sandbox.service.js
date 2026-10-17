@@ -38,8 +38,6 @@ function toResult(registro,reutilizada){
  };
 }
 async function guardarEscopo(tx,{organizacaoId,usuarioId,empresaId,id,versao}){
- const row=await tx.$queryRaw`SELECT current_database() AS nome`;
- if(row[0]?.nome!==BANCO_CI)throw Error("BANCO_NAO_ISOLADO");
  await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
  const comanda=await tx.comanda.findFirst({
   where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
@@ -67,8 +65,19 @@ export async function registrarRecebimentoManualSomenteSandbox({
  organizacaoId,usuarioId,empresaId,id,dados
 }){
  exigirBancoIsolado();
- const versao=dados?.versao;
  return prisma.$transaction(async tx=>{
+  const row=await tx.$queryRaw`SELECT current_database() AS nome`;
+  if(row[0]?.nome!==BANCO_CI)throw Error("BANCO_NAO_ISOLADO");
+  return registrarRecebimentoManualEmTransacao(tx,{organizacaoId,usuarioId,empresaId,id,dados});
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
+}
+/** Parte transacional reutilizável; controle de acesso/ativação no orquestrador.
+ * Não exportar por HTTP diretamente.
+ */
+export async function registrarRecebimentoManualEmTransacao(tx,{
+ organizacaoId,usuarioId,empresaId,id,dados
+}){
+  const versao=dados?.versao;
   const {reserva,preparacao}=await guardarEscopo(tx,{organizacaoId,usuarioId,empresaId,id,versao});
   const conferido=conferirRecebimentosManuais({
    dados,snapshot:preparacao.snapshot,organizacaoId,reservaId:reserva.id
@@ -127,7 +136,6 @@ export async function registrarRecebimentoManualSomenteSandbox({
    where:{id:registro.id},include:{linhas:{include:{operacao:{select:{empresaId:true}}}}}
   });
   return toResult(persisted,false);
- },{isolationLevel:"Serializable",maxWait:5000,timeout:15000});
 }
 /** Read requires access to all represented companies; never leaks cross-tenant data. */
 export async function consultarRecebimentoManualSomenteSandbox({

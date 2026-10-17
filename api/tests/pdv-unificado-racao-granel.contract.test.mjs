@@ -47,7 +47,8 @@ test("API autoritativa e checkout isolado não permitem bypass de precisão nem 
  assert.match(api,/TOTAL_GRANEL_ZERADO/);
  assert.match(sandbox,/data:\{quantidade:\{decrement:total\}\}/);
  assert.match(sandbox,/exigirBancoIsolado\(\)/);
- assert.match(routes,/checkoutUnificadoDisponivel:false/);
+ assert.match(routes,/checkoutUnificadoDisponivel:checkoutHabilitado/);
+ assert.match(routes,/if\(!checkoutManualHabilitado\(req\.organizacao,req\.empresa\.id\)\)/);
 });
 
 test("M.5.41: leitura manual exata de 333 g e etiqueta R$ 5,00 conferem com R$ 15/kg",()=>{

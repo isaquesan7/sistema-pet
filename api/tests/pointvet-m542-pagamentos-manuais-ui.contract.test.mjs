@@ -67,7 +67,7 @@ test("M.5.42: valores inválidos, formas proibidas, pagamentos vazios ou em exce
  assert.equal(previewManualAllocation([],caixas).pronto,false);
 });
 
-test("M.5.42: UI envia somente forma/centavos à pré-conferência, sem chamar fechamento real",()=>{
+test("M.5.42: UI pré-confere apenas formas e centavos, separado do fechamento protegido",()=>{
  const ui=readFileSync(new URL("../../admin-web/src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
  const routes=readFileSync(new URL("../src/modules/pdv/pdv-unificado.routes.js",import.meta.url),"utf8");
  assert.match(ui,/previewManualAllocation\(reservation\.operacoes,sessions\.data\|\|\[\],forms\)/);
@@ -75,6 +75,6 @@ test("M.5.42: UI envia somente forma/centavos à pré-conferência, sem chamar f
  assert.match(ui,/Remover forma/);
  assert.match(ui,/conferencia-alocacao/);
  assert.match(ui,/disabled=\{dirty\|\|!localCheck\.pronto\|\|sessions\.isLoading/);
- assert.match(routes,/checkoutUnificadoDisponivel:false/);
- assert.doesNotMatch(routes,/r\.post\("\/rascunhos\/:id\/fechar/);
+ assert.match(routes,/checkoutUnificadoDisponivel:checkoutHabilitado/);
+ assert.match(routes,/if\(!checkoutManualHabilitado\(req\.organizacao,req\.empresa\.id\)\)/);
 });

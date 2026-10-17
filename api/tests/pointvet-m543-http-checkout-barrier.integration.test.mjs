@@ -111,7 +111,8 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
   ["POST","/api/pdv-unificado/rascunhos"],
   ["POST","/api/pdv-unificado/rascunhos/dummy/reservar"],
   ["POST","/api/pdv-unificado/rascunhos/dummy/cancelar-reserva"],
-  ["POST","/api/pdv-unificado/rascunhos/dummy/preparacao-execucao"]
+  ["POST","/api/pdv-unificado/rascunhos/dummy/preparacao-execucao"],
+  ["POST","/api/pdv-unificado/rascunhos/dummy/fechar-manual"]
  ];
  for(const [method,path] of protectedRoutes){
   await request(method,path,401);
@@ -124,6 +125,8 @@ test("M.5.4.3 real Express denies unapproved HTTP checkout and cross-tenant acce
  assert.equal(avail.dados.checkoutUnificadoDisponivel,false);
  assert.equal(avail.dados.modoEfetivo,"INDIVIDUAL");
  assert.deepEqual(avail.dados.empresasAcessiveis.map(e=>e.id),[companyA]);
+ await request("POST","/api/pdv-unificado/rascunhos/dummy/fechar-manual",403,
+  {token,company:companyA,body:{}});
  // M.5.7 — Financeiro module AND company-specific finance permission
  // required for the read-only receivables panel. No write route is allowed.
  const cardList="/api/pdv-unificado/recebiveis-cartao/comandas";

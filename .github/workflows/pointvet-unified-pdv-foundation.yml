@@ -45,6 +45,10 @@ on:
       - "api/tests/pointvet-m53-rollback.contract.test.mjs"
       - "api/tests/pointvet-m53-local-smoke.integration.test.mjs"
       - "api/tests/pointvet-m543-http-checkout-barrier.integration.test.mjs"
+      - "api/tests/pointvet-manual-checkout-http.integration.test.mjs"
+      - "api/tests/pointvet-manual-checkout-gate.contract.test.mjs"
+      - "api/src/modules/pdv/pdv-unificado-checkout-manual.service.js"
+      - "api/src/modules/pdv/pdv-unificado-checkout-manual.gate.js"
       - "api/src/modules/plataforma/pointvet-m544-staging-smoke.contract.js"
       - "api/scripts/pointvet-staging-readonly-smoke.mjs"
       - "api/tests/pointvet-m544-staging-smoke.contract.test.mjs"
@@ -406,6 +410,7 @@ jobs:
           npx prisma validate
           node --test tests/pdv-unificado-recebimento-manual.contract.test.mjs
           node --test tests/pointvet-m544-declaracao-manual-ui.contract.test.mjs
+          node --test tests/pointvet-manual-checkout-gate.contract.test.mjs
       - name: Admin build
         working-directory: admin-web
         run: |
@@ -482,6 +487,15 @@ jobs:
           NODE_ENV: test
           POINTVET_UNIFIED_SALES_SANDBOX: "1"
         run: node --import tsx --test tests/pointvet-m543-http-checkout-barrier.integration.test.mjs
+      - name: Verify opt-in manual HTTP checkout atomicity, tenant ACL, grams and replay in CI
+        working-directory: api
+        env:
+          NODE_ENV: test
+          POINTVET_UNIFIED_SALES_SANDBOX: "1"
+          POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED: "0"
+          POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS: ""
+          POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS: ""
+        run: node --import tsx --test tests/pointvet-manual-checkout-http.integration.test.mjs
       - name: M.5.1 exercise actual synthetic CI backup / full database restore / rollback
         working-directory: api
         env:

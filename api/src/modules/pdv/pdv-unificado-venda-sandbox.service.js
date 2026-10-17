@@ -47,7 +47,18 @@ export async function criarVendasFilhasSomenteSandbox({
  return prisma.$transaction(async tx=>{
   const actual=await tx.$queryRaw`SELECT current_database() AS nome`;
   if(actual[0]?.nome!==DATABASE_ISOLATED)throw Error("BANCO_NAO_ISOLADO");
-
+  return criarVendasFilhasEmTransacao(tx,{
+   organizacaoId,usuarioId,empresaId,id,versao,simularFalhaAposEmpresaId
+  });
+ },{isolationLevel:"Serializable",maxWait:5000,timeout:18000});
+}
+/** Núcleo comum: chamar exclusivamente dentro de transação autorizada.
+ * A rota HTTP nunca deve importar este módulo; use o orquestrador protegido.
+ */
+export async function criarVendasFilhasEmTransacao(tx,{
+ organizacaoId,usuarioId,empresaId,id,versao,simularFalhaAposEmpresaId=null,
+ contextoExecucao="CI"
+}){
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
   const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
    select:{id:true,clienteId:true,versaoRascunho:true,status:true}});
@@ -96,7 +107,9 @@ export async function criarVendasFilhasSomenteSandbox({
    const venda=await tx.venda.create({data:{
     empresaId:op.empresaId,comandaId:id,clienteId:draft.clienteId,
     usuarioId,status:"ABERTA",subtotal:op.total,valorTotal:op.total,
-    observacoes:"POINTVET SANDBOX 20.2.4A — SEM PAGAMENTO OU FISCAL"
+    observacoes:contextoExecucao==="CI"?
+     "POINTVET SANDBOX 20.2.4A — SEM PAGAMENTO OU FISCAL":
+     "POINTVET GESTAO MANUAL — documento fiscal externo, sem emissao pelo sistema"
    }});
    await tx.vendaItem.createMany({data:op.itens.map(line=>({
     vendaId:venda.id,comandaItemId:line.comandaItemId,
@@ -114,5 +127,4 @@ export async function criarVendasFilhasSomenteSandbox({
   }
   const completed=await tx.reservaOperacaoUnificada.findMany({where:{reservaId:reservation.id},orderBy:{empresaId:"asc"}});
   return resposta(completed);
- },{isolationLevel:"Serializable",maxWait:5000,timeout:18000});
 }

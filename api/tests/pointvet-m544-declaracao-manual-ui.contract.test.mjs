@@ -88,7 +88,7 @@ test("M.5.44: só crédito parcela; referência opcional e limites respeitados",
  assert.equal(previewManualReceipt(preparo,4,invalid).pronto,true);
 });
 
-test("M.5.44: só interface local após preparação autorizada, sem rota de fechamento",()=>{
+test("M.5.44: prévia local reaproveitada no fechamento autorizado e transacional",()=>{
  const ui=readFileSync(new URL("../../admin-web/src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
  const prepService=readFileSync(new URL("../src/modules/pdv/pdv-unificado-preparacao.service.js",import.meta.url),"utf8");
  const routes=readFileSync(new URL("../src/modules/pdv/pdv-unificado.routes.js",import.meta.url),"utf8");
@@ -97,6 +97,8 @@ test("M.5.44: só interface local após preparação autorizada, sem rota de fec
  assert.match(ui,/preparation\.data\?\.status==="PREPARADA"/);
  assert.match(ui,/Verificar declaração \(sem registrar\)/);
  assert.match(ui,/confirmadoPeloAtendente:e\.target\.checked/);
- assert.match(routes,/checkoutUnificadoDisponivel:false/);
- assert.doesNotMatch(routes,/\/registro-recebimento-manual|\/fechar-manual|\/finalizar-venda/);
+ assert.match(routes,/checkoutUnificadoDisponivel:checkoutHabilitado/);
+ assert.match(routes,/r\.post\("\/rascunhos\/:id\/fechar-manual"/);
+ assert.match(routes,/if\(!checkoutManualHabilitado\(req\.organizacao,req\.empresa\.id\)\)/);
+ assert.match(ui,/fechar\.mutate\(\)/);
 });

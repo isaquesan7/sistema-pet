@@ -11,9 +11,14 @@ test("opt-in is organization-scoped and disabled by default",()=>{
  assert.match(config,/pdvUnificadoHabilitado: z\.boolean\(\)\.optional\(\)/);
  assert.match(settings,/Preferir PDV Unificado Multiempresa/);
 });
-test("no unified checkout enabled yet; only accessible organizations",()=>{
- assert.match(routes,/checkoutUnificadoDisponivel:false/);
- assert.match(routes,/modoEfetivo:"INDIVIDUAL"/);
+test("unified manual checkout requires independent organization and CNPJ opt-ins",()=>{
+ const checkout=get("../src/modules/pdv/pdv-unificado-checkout-manual.gate.js");
+ assert.match(routes,/checkoutUnificadoDisponivel:checkoutHabilitado/);
+ assert.match(routes,/checkoutManualHabilitado\(req\.organizacao,req\.empresa\.id\)/);
+ assert.match(checkout,/POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED/);
+ assert.match(checkout,/POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS/);
+ assert.match(checkout,/POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS/);
+ assert.match(checkout,/pdvUnificadoHabilitado/);
  assert.match(routes,/usuarioId:req\.usuario\.id,ativo:true/);
  assert.match(routes,/organizacaoId:req\.organizacao\.id/);
  assert.match(routes,/r\.post\("\/simulacao"/);
