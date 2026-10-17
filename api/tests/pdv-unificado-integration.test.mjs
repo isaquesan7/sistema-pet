@@ -159,6 +159,12 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(preparacao.status,"PREPARADA");
  assert.equal(preparacao.execucaoDisponivel,false);
  assert.equal(preparacao.operacoes.length,2);
+ assert.equal(preparacao.versao,1);
+ assert.deepEqual(preparacao.operacoes.map(op=>({empresaId:op.empresaId,
+  sessaoCaixaId:op.sessaoCaixaId,pagamentos:op.pagamentos})).sort((a,b)=>a.empresaId.localeCompare(b.empresaId)),
+  proper.alocacoes.map(op=>({empresaId:op.empresaId,sessaoCaixaId:op.sessaoCaixaId,
+   pagamentos:op.pagamentos})).sort((a,b)=>a.empresaId.localeCompare(b.empresaId)),
+  "GET da preparação deve expor apenas caixas, formas e centavos realmente congelados por empresa");
  assert.equal(await prisma.criacaoPreparacaoUnificada.count({where:{reservaId:initialReservation.id}}),1);
  const replayPrep=await prepararExecucaoUnificada(prepArgs);
  assert.equal(replayPrep.id,preparacao.id);

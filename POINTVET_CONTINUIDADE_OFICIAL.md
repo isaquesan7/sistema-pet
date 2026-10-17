@@ -1,3 +1,9 @@
+# UPDATE M.5.44 — CHECKLIST LOCAL DE RECEBIMENTOS MANUAIS (17/10/2026)
+
+A [M.5.44](POINTVET_M544_PREVIA_CONFIRMACAO_RECEBIMENTO_MANUAL.md) adiciona à tela de prévia, **após a preparação imutável**, um checklist de confirmação **local** por forma de pagamento: dinheiro/Pix/débito/crédito/transferência, referência opcional, parcelas 1–24 somente para crédito e validação de cada checkbox. Caixas, formas e centavos exibidos provêm da **consulta autenticada do snapshot preparado**, não do formulário mutável; testes validam o formato no contrato M.2 e no PostgreSQL descartável. **Nada é enviado, registrado, cobrado ou executado ao marcar**. Checkout real, equipamentos físicos, integração fiscal e deploy continuam desabilitados; PR #36 Draft, sem merge, Railway ou Pet King. CI do novo HEAD precisa ser verificado.
+
+---
+
 # UPDATE M.5.43 — JORNADA GRANEL, PAGAMENTO MISTO E ESTORNO (17/10/2026)
 
 **Continuidade do PDV de gestão manual:** a M.5.43 integra, no E2E PostgreSQL descartável, o caminho real do código de **R$ 5,00 digitados → 333 g de ração a R$ 15,00/kg → R$ 3,00 dinheiro + R$ 2,00 Pix declarados → venda, caixa e baixa de 0,333 kg no lote → cancelamento integral e reposição de 0,333 kg**. O teste nega diferença de 1 centavo mesmo no servidor, requer confirmação de cada recebimento, garante replay sem dupla baixa e não cria documento fiscal. [Critérios M.5.43](POINTVET_M543_JORNADA_GRANEL_PAGAMENTO_MANUAL.md). **CI remoto do novo HEAD deve ser validado antes de considerar o incremento aprovado.** O teste não habilita checkout HTTP/produção nem emite nota; integrações físicas e motor fiscal seguem fora da versão de gestão. PR #36 permanece Draft, sem merge, deploy ou alterações na Pet King/Railway.

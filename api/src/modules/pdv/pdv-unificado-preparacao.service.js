@@ -138,7 +138,11 @@ function normalizarAlocacoes(alocacoes){
 function apresentarPreparacao(prep,reutilizada=false){
  return {id:prep.id,reservaId:prep.reservaId,status:prep.status,
   fingerprint:prep.fingerprint,criadoEm:prep.createdAt,reutilizada,
-  total:prep.snapshot.total,operacoes:prep.snapshot.operacoes.map(({empresaId,cnpj,total})=>({empresaId,cnpj,total})),
+  total:prep.snapshot.total,versao:prep.snapshot.versaoRascunho,
+  operacoes:prep.snapshot.operacoes.map(({empresaId,cnpj,total,sessaoCaixaId,pagamentos})=>({
+   empresaId,cnpj,total,sessaoCaixaId,
+   pagamentos:pagamentos.map(({forma,valorCentavos})=>({forma,valorCentavos}))
+  })),
   execucaoDisponivel:false,pagamentosGerados:false,vendasGeradas:false,
   mensagem:"Snapshot registrado. Nenhuma venda, pagamento, baixa de estoque ou nota fiscal foi criada."};
 }

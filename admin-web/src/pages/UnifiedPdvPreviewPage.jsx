@@ -7,7 +7,7 @@ import api,{getApiErrorMessage} from "../lib/api.js";
 import {formatCurrency} from "../lib/formatters.js";
 import {rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
 import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../lib/unifiedBulk.js";
-import {manualPaymentForms,defaultManualPayment,previewManualAllocation} from "../lib/unifiedManualAllocation.js";
+import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewManualReceipt} from "../lib/unifiedManualAllocation.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import "../clients.css";
 export default function UnifiedPdvPreviewPage(){
@@ -199,6 +199,8 @@ function UnifiedAllocationConference({draft,reservation,dirty}){
    <p>Snapshot auditável de {preparation.data.operacoes.length} operação(ões). Nenhum pagamento ou venda executado.</p>
    {preparation.data.operacoes.map(op=><div key={op.empresaId}><span>{op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}
   </div>}
+  {preparation.data?.status==="PREPARADA"&&!dirty&&!diagnosis.data?.exigeRevisaoManual&&
+   <UnifiedManualReceiptPreview key={preparation.data.id} preparacao={preparation.data} versao={draft.versao}/>}
   {conference.data&&<div className="pv-unified-total">
    <strong>{conference.data.preConferenciaAprovada?"Alocações consistentes — execução ainda desativada":"Alocações com pendências"}</strong>
    {conference.data.pendencias.map((e,i)=><p key={i}>{e.codigo} — empresa {e.empresaId}</p>)}
@@ -206,4 +208,64 @@ function UnifiedAllocationConference({draft,reservation,dirty}){
   </div>}
   {diagnosis.data?.exigeRevisaoManual&&<p className="alert alert--error">Diagnóstico de recuperação identificou divergência de estado. Não efetue cobranças; encaminhe para revisão.</p>}
  </section>;
+}
+
+/** M.5.44: checklist efêmero por linha, sempre baseado na preparação imutável. */
+function UnifiedManualReceiptPreview({preparacao,versao}){
+ const [conferencias,setConferencias]=useState({});
+ const [mostrarResumo,setMostrarResumo]=useState(false);
+ const resultado=previewManualReceipt(preparacao,versao,conferencias);
+ function alterar(empresaId,indice,patch){
+  setConferencias(current=>({
+   ...current,[empresaId]:{...current[empresaId],
+    [indice]:{...current[empresaId]?.[indice],...patch}}
+  }));
+  setMostrarResumo(false);
+ }
+ const nomes={DINHEIRO:"Dinheiro",PIX:"Pix",CARTAO_DEBITO:"Cartão de débito",
+  CARTAO_CREDITO:"Cartão de crédito",TRANSFERENCIA:"Transferência"};
+ return <div className="pv-unified-total pv-unified-manual-receipt-preview">
+  <h3>Declaração manual de recebimento — simulação</h3>
+  <p>Confira o recebimento <strong>fora do PointVet</strong> e marque cada forma individualmente. Os valores e caixas abaixo vêm da preparação salva no servidor e não podem ser alterados aqui. A confirmação nesta tela é <strong>somente uma prévia local</strong>: não grava declaração nem venda.</p>
+  {preparacao.operacoes.map(op=><div key={op.empresaId} className="pv-unified-manual-company">
+   <strong>CNPJ {op.cnpj} · Total {formatCurrency(Number(op.total))}</strong>
+   <small>Caixa da preparação: {op.sessaoCaixaId}</small>
+   {op.pagamentos.map((pagamento,indice)=>{
+    const atual=conferencias[op.empresaId]?.[indice]||{};
+    return <div key={`${op.empresaId}:${indice}`} className="pv-unified-manual-payment">
+     <div><strong>{nomes[pagamento.forma]||pagamento.forma}</strong><span>{formatCurrency(pagamento.valorCentavos/100)}</span></div>
+     {pagamento.forma==="CARTAO_CREDITO"&&<label>Parcelas declaradas (1 a 24)
+      <input className="form-control" type="text" inputMode="numeric" maxLength={2} value={atual.parcelas??"1"}
+       onChange={e=>alterar(op.empresaId,indice,{parcelas:e.target.value})}/>
+     </label>}
+     <label>Referência externa (opcional, até 120 caracteres)
+      <input className="form-control" type="text" maxLength={120} placeholder="Anotação do atendente" value={atual.referencia??""}
+       onChange={e=>alterar(op.empresaId,indice,{referencia:e.target.value})}/>
+     </label>
+     <label><input type="checkbox" checked={atual.confirmadoPeloAtendente===true}
+      onChange={e=>alterar(op.empresaId,indice,{confirmadoPeloAtendente:e.target.checked})}/>
+      Conferi manualmente este recebimento externo (simulação, sem registro)
+     </label>
+    </div>;
+   })}
+  </div>)}
+  {resultado.pendencias.length>0&&<div className="alert" role="status">
+   <strong>Prévia ainda incompleta:</strong>
+   {resultado.pendencias.map((p,i)=><p key={`${p.empresaId}-${p.indice}-${p.codigo}-${i}`}>
+    {p.empresaId||"Preparação"}{p.indice?` · forma ${p.indice}`:""}: {({
+     PREPARACAO_INDISPONIVEL:"Preparação ou versão indisponível",OPERACAO_INVALIDA:"Empresa ou caixa inválido",
+     PREPARACAO_INVALIDA:"Pagamento salvo inválido",SOMA_DIVERGENTE:"Total divergente",
+     RECEBIMENTO_NAO_CONFIRMADO:"Falta conferência do atendente",REFERENCIA_INVALIDA:"Referência inválida",
+     PARCELAS_INVALIDAS:"Confira as parcelas do cartão"
+    })[p.codigo]||p.codigo}
+   </p>)}
+  </div>}
+  <button className="ghost-button" type="button" disabled={!resultado.pronto} onClick={()=>setMostrarResumo(true)}>
+   Verificar declaração (sem registrar)
+  </button>
+  {mostrarResumo&&resultado.pronto&&<p className="alert alert--success" role="status">
+   Prévia local consistente: {resultado.dados.alocacoes.reduce((total,op)=>total+op.pagamentos.length,0)} forma(s) conferida(s) na preparação salva. <strong>Nada foi enviado ou registrado.</strong> A efetivação no caixa/estoque ainda não está disponível.
+  </p>}
+  <small>Sem comunicação com balança, maquininha, PSP, banco ou provedor fiscal. A referência digitada não é armazenada nem comprova pagamento.</small>
+ </div>;
 }
