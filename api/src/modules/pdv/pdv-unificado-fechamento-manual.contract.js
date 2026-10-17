@@ -16,8 +16,13 @@ export async function executarComRetrySerializableM540(executar,{tentativas=3}={
    // P2034: conflito/deadlock na transação Prisma. Consultas SQL de lock
    // ($queryRaw) podem expor o mesmo aborto como P2010 + SQLSTATE 40001/40P01.
    // Never retry stock shortages, validation, authorizations or unknown failures.
-   const transacaoAbortada=erro?.code==="P2034"||
-    (erro?.code==="P2010"&&["40001","40P01"].includes(erro?.meta?.code));
+   const rawSqlState=erro?.meta?.code??erro?.meta?.driverAdapterError?.cause?.originalCode;
+   // Prisma 7/driver pg pode omitir SQLSTATE em meta, mas conserva
+   // "Raw query failed. Code: `40001`." na mensagem emitida pelo driver.
+   const rawSerializavel=erro?.code==="P2010"&&(
+    ["40001","40P01"].includes(rawSqlState)||
+    /Raw query failed\. Code: `(40001|40P01)`\./.test(String(erro.message)));
+   const transacaoAbortada=erro?.code==="P2034"||rawSerializavel;
    if(!transacaoAbortada||tentativa===tentativas)throw erro;
   }
  }

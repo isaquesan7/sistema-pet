@@ -30,6 +30,15 @@ test("P2010 só retenta SQLSTATE exato de serialização/deadlock de consulta ra
    return "confirmada";
   }),"confirmada");
   assert.equal(chamadas,2);
+  let rawChamadas=0;
+  assert.equal(await executarComRetrySerializableM540(async()=>{
+   rawChamadas++;
+   if(rawChamadas===1)throw Object.assign(Error(
+    `Invalid prisma.$queryRaw() invocation:\nRaw query failed. Code: \`${code}\`. Message: aborted`
+   ),{code:"P2010",meta:{}});
+   return "confirmada";
+  }),"confirmada","Prisma 7 pode devolver o SQLSTATE apenas na mensagem");
+  assert.equal(rawChamadas,2);
  }
  for(const meta of [{code:"23505"},{code:"22001"},null]){
   let chamadas=0;
@@ -39,6 +48,12 @@ test("P2010 só retenta SQLSTATE exato de serialização/deadlock de consulta ra
   }),/sql failure/);
   assert.equal(chamadas,1);
  }
+ let falsoPositivo=0;
+ await assert.rejects(()=>executarComRetrySerializableM540(async()=>{
+  falsoPositivo++;
+  throw Object.assign(Error("texto arbitrário 40001 sem envelope Prisma"),{code:"P2010"});
+ }),/texto arbitrário/);
+ assert.equal(falsoPositivo,1);
 });
 
 test("estoque insuficiente, falha de permissão e erro desconhecido NÃO são retentados",async()=>{
