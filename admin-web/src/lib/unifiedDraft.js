@@ -21,6 +21,14 @@ export function unifiedScopedQueryKey(resource, organizationId, companyId, ...pa
  return [resource, organizationId ?? null, companyId ?? null, ...parts];
 }
 
+/** The unified workspace spans companies, but never organizations or missing PDV access. */
+export function keepUnifiedPdvRouteOnCompanyChange(pathname, organizationId, nextCompany) {
+ return pathname === "/pdv/unificado/simulacao"
+  && Boolean(organizationId)
+  && nextCompany?.organizacaoId === organizationId
+  && nextCompany?.permissoes?.includes("pdv.acessar") === true;
+}
+
 /** Keep the persisted tutor visible while a filtered client search reloads. */
 export function visibleUnifiedClients(clients, selectedClient) {
  const results = Array.isArray(clients) ? clients : [];
