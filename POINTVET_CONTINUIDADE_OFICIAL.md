@@ -1,3 +1,18 @@
+# UPDATE M.5.63 — PERMISSÕES VIVAS POR CNPJ E PERFIS NO STAGING (20/10/2026)
+
+**Objetivo:** corrigir o risco da M.5.62 de mostrar no painel dados de permissões do login em cache, que podem divergir das permissões atuais conferidas na API depois de mudanças de cargos. **Sem ação financeira, fiscal ou mudança de permissões.**
+
+**Implementado na PR #36 (branch `feat/pointvet-20-1-unified-pdv-foundation`):**
+- `GET /api/pdv-unificado/disponibilidade` mantém os campos/contratos existentes e acrescenta `contextoAcesso` (IDs de organização e empresa selecionada), `perfilAcesso` (papel da organização e superAdmin reais) e `permissoesEmpresas` (por CNPJ, `pdv.acessar` e `pdv.cancelar_venda` atuais). Query restringida ao **usuário autenticado**, empresas/vínculos ativos da **organização selecionada**; permissões consultadas de `cargo.permissoes` no PostgreSQL, como no middleware de autenticação. Resposta `Cache-Control: no-store`. Retorno adicional **somente para leitura**, não concede acesso.
+- Painel Admin de homologação (exclusivo `VITE_POINTVET_ENVIRONMENT=staging`) mostra exclusivamente permissões da API, nunca do cache da sessão; valida IDs de organização + CNPJ antes de exibir; na falta de resposta, erro ou atualização pendente, **falha fechada**, sem aparentar aceite. Botão **“Atualizar permissões da API”** faz somente novo GET; evidencia papel MEMBER/ADMINISTRADOR e superAdmin.
+- Testes de UI cobrem sessão obsoleta, tenant distinto, contexto de CNPJ divergente e fail-closed. HTTP com PostgreSQL **CI descartável** cobre dois CNPJs, outro tenant deliberadamente vinculado ao mesmo usuário sem vazamento, perfil MEMBER, atendente/supervisor, alteração de permissões de cargo refletida sem novo login e isolamento entre permissões de empresas. A suite existente continua com venda de 333 g, replay, rollback, estoque e estorno integral sintéticos, sem banco/maquininha/fiscal externos.
+
+**Publicação e aceite humano:** ainda **NÃO publicados** os novos arquivos Admin/API no Railway. Enquanto o painel Railway informar “Deploys have been paused temporarily”, não forçar deploy nem mover a origem comercial. Serviço Pet King DEV existente permanece separado do código em branch. Após normalização: deploy **apenas do staging** com commit SHA M.5.63 confirmado, conferir GET da API e UI em dois CNPJs e obter aceite humano de contas **MEMBRO** distintas (atendente e supervisor); registrar evidências sem dados pessoais. PR #36 continua **DRAFT**. Gate 2 parcial; RTO/RPO comercial, canário e motor fiscal continuam fora deste patch.
+
+**CI e commit:** código de validação em `d262849b7a041faced0226b2fa3cf639c654f8a0`; [GitHub Actions #39476228234](https://github.com/isaquesan7/sistema-pet/actions/runs/39476228234): `validate SUCCESS` (inclui build Admin/testes UI/Prisma) e `isolated-postgres SUCCESS` (inclui suíte HTTP M.5.63 + checkout/estorno sintético, 333 g, isolamento de CNPJs e restore CI). Esta é aprovação de **código/CI**, não de publicação Railway ou aceite humano.
+
+---
+
 # UPDATE M.5.62 — PAINEL VISUAL DE PERMISSÕES POR CNPJ (20/10/2026)
 
 **Código e CI aprovados; aceite humano PENDENTE.** Incluído no Admin um painel estritamente de **leitura**, que só renderiza com `VITE_POINTVET_ENVIRONMENT=staging`, mostrando o usuário da sessão, empresas/CNPJs da organização, permissões de `pdv.acessar` e `pdv.cancelar_venda` separadas por empresa, e disponibilidade de checkout/estorno reportada pela API **apenas para o CNPJ selecionado**. Não concede cargo, não faz login em nome de terceiro, não executa checkout/estorno ou movimentos e deixa claro que autorização efetiva depende de nova verificação pelo servidor. Conta `superAdmin` é sinalizada como inadequada para aceite independente de operador/supervisor.
