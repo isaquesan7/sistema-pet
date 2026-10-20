@@ -1,0 +1,84 @@
+/* PointVet PDV tradicional — bancada de atendimento (M.5.67).
+   Regras visuais isoladas: não alteram validações, dados, caixa nem pagamentos. */
+.pdv-page{--pdv-ink:#243149;--pdv-muted:#64748b;--pdv-accent:#6053be;max-width:1580px;margin-inline:auto;min-width:0;gap:17px}
+.pdv-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;min-width:0;padding:27px clamp(22px,3vw,34px);border-radius:20px;background:radial-gradient(circle at 92% -30%,rgba(177,173,255,.28),transparent 38%),linear-gradient(115deg,#25324f,#44488d 68%,#5458a1);color:#fff;box-shadow:0 13px 32px rgba(32,39,83,.13)}
+.pdv-hero__copy{min-width:0;flex:1}.pdv-hero__eyebrow{display:inline-flex;align-items:center;gap:11px;color:#d1d1ff;font-size:11px;font-weight:850;letter-spacing:.15em}.pdv-hero__eyebrow span{color:#9694e9}
+.pdv-hero h1{margin:10px 0 7px;color:#fff;font-size:clamp(26px,3vw,35px);letter-spacing:-.03em;line-height:1.13}
+.pdv-hero p{max-width:630px;margin:0;color:#e0e5ff;font-size:13px;line-height:1.6}
+.pdv-hero__chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}.pdv-hero__chips span{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.09);font-size:11px;font-weight:750}
+.pdv-page .pdv-session-badge{display:flex;flex:0 1 240px;align-items:center;min-width:195px;gap:12px;padding:17px;border:1px solid #ffd7da;border-radius:14px;background:#fff5f6;color:#b64053}
+.pdv-page .pdv-session-badge--open{background:#edfcf6;border-color:#c4efdb;color:#167653}
+.pdv-page .pdv-session-badge>svg{flex:none}.pdv-page .pdv-session-badge>div{min-width:0;display:grid;gap:4px}
+.pdv-page .pdv-session-badge span{font-size:10px;letter-spacing:.1em}.pdv-page .pdv-session-badge strong{font-size:16px;line-height:1.3;color:#29445a;overflow-wrap:anywhere}
+.pdv-page .pdv-session-badge small{font-size:11px;line-height:1.4;color:#586a7c}
+.pdv-unified-shortcut{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 21px;border:1px solid #dfdcf8;border-radius:15px;background:linear-gradient(110deg,#faf9ff,#f2f0ff)}
+.pdv-unified-shortcut>div{min-width:0}.pdv-unified-shortcut span{display:block;color:#6557b8;font-size:10px;font-weight:850;letter-spacing:.1em}
+.pdv-unified-shortcut h2{margin:3px 0 3px;color:#2f315e;font-size:17px;letter-spacing:-.02em}.pdv-unified-shortcut p{margin:0;color:#626b83;font-size:12px;line-height:1.5}
+.pdv-unified-shortcut .ghost-button{display:inline-flex;flex:none;align-items:center;justify-content:center;gap:7px;min-height:40px;padding-inline:13px;border:1px solid #ccc5f2;background:#fff;color:#5b4caf;font-size:13px;font-weight:800}
+.pdv-page .pdv-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.pdv-page .pdv-summary-card{min-height:91px;padding:17px;gap:13px;border:1px solid #e5eaf2;border-radius:15px;box-shadow:0 3px 14px rgba(34,46,81,.035)}
+.pdv-page .pdv-summary-card>svg{width:42px;height:42px;padding:10px}.pdv-page .pdv-summary-card>div{min-width:0;gap:6px}
+.pdv-page .pdv-summary-card span{font-size:11px;color:#66758d;font-weight:750;letter-spacing:.03em}
+.pdv-page .pdv-summary-card strong{font-size:clamp(18px,1.7vw,22px);color:#2a3852;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pdv-page .pdv-tabs{display:flex;max-width:100%;gap:6px;padding:6px;width:max-content;overflow-x:auto;scrollbar-width:thin;border:1px solid #e4e7f0;border-radius:13px;box-shadow:0 2px 10px rgba(35,47,76,.02)}
+.pdv-page .pdv-tabs button{flex:none;min-height:42px;gap:8px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:780;color:#52637d;white-space:nowrap;cursor:pointer}
+.pdv-page .pdv-tabs button:hover{background:#f2f2fb}.pdv-page .pdv-tabs button.active{background:#eeebff;color:#5045a4}
+.pdv-page .pdv-tabs button:focus-visible,.pdv-page .pdv-product-card:focus-visible,.pdv-page .pdv-quantity button:focus-visible{outline:3px solid #9486e5;outline-offset:2px}
+.pdv-page .pdv-sale-layout{display:grid;grid-template-columns:minmax(0,1.07fr) minmax(0,.93fr);align-items:start;gap:18px}
+.pdv-page .pdv-catalog-panel,.pdv-page .pdv-cart-panel{min-width:0;min-height:0;padding:20px;border:1px solid #e5e9f1;border-radius:17px;box-shadow:0 5px 20px rgba(30,43,74,.04)}
+.pdv-page .pdv-cart-panel{display:grid;align-content:start;gap:15px}
+.pdv-page .pdv-catalog-panel .panel__heading,.pdv-page .pdv-cart-panel .panel__heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 14px}
+.pdv-page .pdv-catalog-panel .panel__heading>div,.pdv-page .pdv-cart-panel .panel__heading>div{min-width:0}
+.pdv-page .pdv-catalog-panel .panel__heading span,.pdv-page .pdv-cart-panel .panel__heading span{display:block;color:#6b5ebc;font-size:11px;font-weight:800;letter-spacing:.035em}
+.pdv-page .pdv-catalog-panel .panel__heading h2,.pdv-page .pdv-cart-panel .panel__heading h2{margin:4px 0;color:#27344d;font-size:21px;line-height:1.25;letter-spacing:-.025em}
+.pdv-page .pdv-catalog-panel .panel__heading p,.pdv-page .pdv-cart-panel .panel__heading p{margin:0;color:#6d7a90;font-size:12px;line-height:1.5}
+.pdv-page .pdv-catalog-panel .panel__heading>svg{flex:none;color:#6257b3}
+.pdv-cart-count{display:inline-flex!important;flex:none;align-items:center;gap:7px;padding:8px 11px;border-radius:999px;background:#f2efff;color:#5a4ab4!important;font-size:12px!important;font-weight:800!important;letter-spacing:0!important}
+.pdv-page .pdv-search{min-height:44px;margin:0 0 14px;border-radius:11px}.pdv-page .pdv-search input{font-size:14px;min-width:0}
+.pdv-page .pdv-product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-height:560px;overflow:auto;padding-right:4px;scrollbar-width:thin}
+.pdv-page .pdv-product-card{min-width:0;min-height:155px;gap:7px;padding:15px;border:1px solid #e3e8f0;border-radius:13px;background:#fff;box-shadow:none;text-align:left;overflow-wrap:anywhere}
+.pdv-page .pdv-product-card:hover{border-color:#c7c0ef;background:#fcfbff;box-shadow:0 7px 17px rgba(65,56,143,.08)}
+.pdv-page .pdv-product-card .badge{font-size:11px}.pdv-page .pdv-product-card strong{font-size:14px;line-height:1.4;color:#2d3a54}
+.pdv-page .pdv-product-card small{font-size:12px;color:#68778d}.pdv-page .pdv-product-card b{font-size:17px;color:#5b4eaf}
+.pdv-page .pdv-product-card em{font-size:11px;line-height:1.4;color:#66758a}
+.pdv-page .pdv-grid-empty{min-height:160px;padding:22px;font-size:13px;color:#66758a}
+.pdv-page .pdv-cart-panel .form-field{min-width:0}.pdv-page .pdv-cart-panel .form-control{min-height:41px;font-size:13px;border-radius:9px}
+.pdv-page .pdv-cart-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding-right:2px;scrollbar-width:thin}
+.pdv-page .pdv-cart-line{display:grid;grid-template-columns:minmax(0,1fr) minmax(98px,118px) minmax(68px,auto) 35px;gap:9px;align-items:center;padding:13px;border:1px solid #e3e8f0;border-radius:12px}
+.pdv-page .pdv-cart-line__main{grid-column:1/-1;display:grid;gap:5px}.pdv-page .pdv-cart-line__main strong{font-size:14px;line-height:1.4;color:#2a3851}
+.pdv-page .pdv-cart-line__main span{font-size:12px;color:#68768b}.pdv-page .pdv-line-pet{max-width:300px;height:38px!important;font-size:13px!important}
+.pdv-page .pdv-quantity{grid-column:1;grid-row:2;display:grid;grid-template-columns:36px minmax(54px,1fr) 36px;min-width:135px;max-width:175px;height:38px;border-radius:9px}
+.pdv-page .pdv-quantity button{font-size:14px;background:#f4f4fb;color:#5c548a}.pdv-page .pdv-quantity input{font-size:13px;color:#2f3e5a;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-line-discount{grid-column:2;grid-row:2;gap:4px}.pdv-page .pdv-line-discount span{font-size:11px;color:#68768b}
+.pdv-page .pdv-line-discount input{width:100%;height:38px;font-size:13px}.pdv-page .pdv-line-total{grid-column:3;grid-row:2;text-align:right;font-size:14px;color:#302a78;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-cart-line>.table-action{grid-column:4;grid-row:2;width:35px;height:38px;color:#b83e4a;background:#fff4f5;border-radius:8px}
+.pdv-empty-cart{display:grid;justify-items:center;gap:7px;padding:26px 16px;border:1px dashed #cbd4e5;border-radius:13px;background:#fafbff;text-align:center}
+.pdv-empty-cart svg{color:#7468c5}.pdv-empty-cart strong{font-size:14px;color:#2d3b56}.pdv-empty-cart p{margin:0;color:#69778e;font-size:12px;line-height:1.5}
+.pdv-page .pdv-totals{gap:8px;padding:14px 0;border-color:#e3e8f1}
+.pdv-page .pdv-totals>div{min-height:30px;font-size:13px;color:#53617a}.pdv-page .pdv-totals input{min-height:37px;width:118px;padding:7px 9px;font-size:13px}
+.pdv-page .pdv-totals strong{color:#2b3a53;font-size:14px;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-total-final{padding:12px 14px;margin-top:7px;border:1px solid #ded8f7;border-radius:11px;background:#f5f2ff;font-size:14px!important;font-weight:800;color:#4a3fa4!important}
+.pdv-page .pdv-total-final strong{font-size:27px;color:#413498;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-payments{gap:10px}.pdv-page .pdv-payments__heading{gap:12px;align-items:start;flex-wrap:wrap}
+.pdv-page .pdv-payments__heading strong{font-size:16px;color:#2e3b54}.pdv-page .pdv-payments__heading span{font-size:12px;line-height:1.45;color:#6a768a}
+.pdv-page .pdv-payments__heading .ghost-button{min-height:39px;gap:6px;align-items:center;font-size:12px;font-weight:750}
+.pdv-payment-labels,.pdv-page .pdv-payment-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(96px,118px) minmax(92px,135px) 34px;gap:8px;align-items:center}
+.pdv-payment-labels span{font-size:11px;font-weight:750;color:#6f7a8e;line-height:1.3}
+.pdv-page .pdv-payment-row .form-control{width:100%;min-width:0;min-height:39px;font-size:13px;border-radius:9px}
+.pdv-page .pdv-payment-row .table-action{width:34px;height:38px;color:#b4424d}
+.pdv-page .pdv-payment-balance{min-height:43px;gap:10px;padding:10px 13px;font-size:12px;line-height:1.4}
+.pdv-page .pdv-payment-balance strong{font-size:13px}.pdv-page .pdv-fill-payment{font-size:12px;min-height:39px;padding:8px 12px}
+.pdv-page .pdv-cart-panel>.primary-button{min-height:48px;justify-content:center;font-size:15px;line-height:1.3;font-weight:850}
+.pdv-page .pdv-cash-layout{gap:17px}.pdv-page .pdv-cash-status .panel__heading h2{font-size:19px}
+.pdv-page .pdv-cash-metrics span,.pdv-page .pdv-cash-row span,.pdv-page .pdv-command-close>div:first-child,.pdv-page .pdv-sale-detail__summary span,.pdv-page .pdv-command-companies span,.pdv-page .pdv-command-companies small{font-size:12px}
+.pdv-page .pdv-cash-metrics strong,.pdv-page .pdv-cash-row strong,.pdv-page .pdv-sale-detail__summary strong{font-size:14px}
+.pdv-page .pdv-command-companies strong{font-size:18px}.pdv-page .pdv-command-close>div:first-child b{font-size:19px}.pdv-page .pdv-sale-payment-tags span{font-size:12px}
+.pdv-page .pdv-receive-package{min-height:38px;font-size:12px}
+.pdv-page .pdv-package-receive-summary span{font-size:12px}
+.pdv-page .pdv-tabs button:focus-visible,.pdv-page .pdv-cart-panel input:focus-visible,.pdv-page .pdv-cart-panel select:focus-visible{outline:2px solid #8275d5;outline-offset:2px}
+@media(max-width:1250px){.pdv-page .pdv-sale-layout{grid-template-columns:1fr}.pdv-page .pdv-product-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-height:360px}}
+@media(max-width:900px){.pdv-page .pdv-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pdv-page .pdv-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pdv-page .pdv-sale-layout,.pdv-page .pdv-cash-layout{grid-template-columns:1fr}}
+@media(max-width:700px){.pdv-hero{flex-direction:column;align-items:stretch;padding:24px 19px}.pdv-page .pdv-session-badge{flex:0 1 auto}.pdv-unified-shortcut{flex-direction:column;align-items:stretch}.pdv-unified-shortcut .ghost-button{align-self:start}.pdv-page .pdv-tabs{width:100%}.pdv-page .pdv-tabs button{font-size:12px}.pdv-page .pdv-payment-row>:nth-child(3){display:block}.pdv-page .pdv-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pdv-page .pdv-catalog-panel,.pdv-page .pdv-cart-panel{padding:15px}}
+@media(max-width:560px){.pdv-page .pdv-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pdv-page .pdv-product-grid{grid-template-columns:1fr}.pdv-page .pdv-product-card{min-height:125px}.pdv-page .pdv-cart-line{grid-template-columns:minmax(0,1fr) 36px}.pdv-page .pdv-cart-line__main{grid-column:1/-1}.pdv-page .pdv-quantity{grid-column:1;grid-row:auto}.pdv-page .pdv-line-discount{grid-column:1;grid-row:auto}.pdv-page .pdv-line-total{grid-column:1;grid-row:auto;text-align:left}.pdv-page .pdv-cart-line>.table-action{grid-column:2;grid-row:2}.pdv-payment-labels{display:none}.pdv-page .pdv-payment-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.pdv-page .pdv-payment-row>:nth-child(3){grid-column:1;grid-row:2}.pdv-page .pdv-payment-row>.table-action{grid-column:2;grid-row:2;justify-self:end}.pdv-page .pdv-payment-balance{flex-wrap:wrap}.pdv-page .pdv-payments__heading{display:grid}}
+@media(max-width:390px){.pdv-page .pdv-summary-grid{grid-template-columns:1fr}.pdv-page .pdv-total-final{flex-wrap:wrap}.pdv-page .pdv-total-final strong{font-size:24px}}
+@media(prefers-reduced-motion:reduce){.pdv-page .pdv-product-card{transition:none;transform:none!important}}
