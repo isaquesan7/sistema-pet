@@ -95,6 +95,32 @@ export async function listarRascunhos({organizacaoId,usuarioId,empresaId,somente
  return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(({itemCatalogo,...i})=>({...i,quantidade:Number(i.quantidade),valorUnitario:Number(i.valorUnitario),valorTotal:Number(i.valorTotal),empresaNome:allowed.get(i.empresaId).nomeFantasia,tipo:itemCatalogo?.tipo,unidade:itemCatalogo?.produto?.unidade||null,exigePet:Boolean(itemCatalogo?.servico?.exigePet)}))}));
 }
 
+/** Histórico pós-estorno somente de leitura, disponível mesmo com checkout OFF.
+ * A presença de um registro de estorno real é obrigatória: cancelar apenas uma
+ * reserva nunca deve se passar por uma venda estornada. Retorna só empresas às
+ * quais o operador já possui acesso, sem motivos/referências de terceiros.
+ */
+export async function listarEstornosUnificados({organizacaoId,usuarioId,empresaId}){
+ const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
+ const allowed=new Set(acessiveis.map(empresa=>empresa.id));
+ const registros=await prisma.estornoFechamentoManualUnificado.findMany({
+  where:{reserva:{comanda:{rascunhoUnificado:true,status:"CANCELADA",cliente:{organizacaoId}}}},
+  select:{id:true,createdAt:true,reserva:{select:{valorTotal:true,
+   comanda:{select:{id:true,numero:true,status:true,cliente:{select:{id:true,nome:true}}}},
+   operacoes:{select:{empresaId:true,valorTotal:true,empresa:{select:{nomeFantasia:true}}}}}}},
+  orderBy:{createdAt:"desc"},take:100
+ });
+ return registros.filter(registro=>registro.reserva.operacoes.length>0&&
+  registro.reserva.operacoes.every(op=>allowed.has(op.empresaId))).slice(0,50).map(registro=>({
+   id:registro.id,criadoEm:registro.createdAt,
+   comanda:{id:registro.reserva.comanda.id,numero:registro.reserva.comanda.numero,
+    status:registro.reserva.comanda.status,cliente:registro.reserva.comanda.cliente},
+   total:Number(registro.reserva.valorTotal),
+   empresas:registro.reserva.operacoes.map(op=>({id:op.empresaId,nome:op.empresa.nomeFantasia,
+    total:Number(op.valorTotal)}))
+  }));
+}
+
 /** Pre-close verification only. Never mutates invoices, stock, credit or payments.
  * All seller allocations are evaluated from persisted draft rows, not client totals.
  */
