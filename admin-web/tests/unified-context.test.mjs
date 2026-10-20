@@ -25,6 +25,9 @@ test("company switch preserves unified workspace only inside the same authorized
  const allowed={id:"b",organizacaoId:"org-a",permissoes:["pdv.acessar"]};
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",allowed),true);
  assert.equal(keepUnifiedPdvRouteOnCompanyChange("/pdv","org-a",allowed),false);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange("/pdv","org-a",allowed,true),true);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange("/pdv","org-b",allowed,true),false);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange("/pdv","org-a",{...allowed,permissoes:[]},true),false);
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-b",allowed),false);
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",{...allowed,permissoes:[]}),false);
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",null),false);
