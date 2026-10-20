@@ -9,9 +9,12 @@ const itemSchema=z.object({empresaId:z.string().min(1),itemCatalogoId:z.string()
 export const previewSchema=z.object({clienteId:z.string().min(1),itens:z.array(itemSchema).min(1).max(100)}).strict();
 const cents=v=>Math.round(Number(v)*100);
 const serialize=amount=>(amount/100).toFixed(2);
-async function empresasAutorizadas({organizacaoId,usuarioId,empresaId},db=prisma){
+async function empresasAutorizadas({organizacaoId,usuarioId},db=prisma){
  const vinculos=await db.usuarioEmpresa.findMany({where:{usuarioId,ativo:true,empresa:{organizacaoId,ativo:true}},include:{empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},cargo:{include:{permissoes:{include:{permissao:true}}}}}});
- return vinculos.filter(v=>v.cargo?.ativo&&v.cargo?.permissoes?.some(p=>p.permissao.codigo==="pdv.acessar") || v.empresaId===empresaId).map(v=>v.empresa);
+ // M.5.65: revalidar cada CNPJ no momento da operação, incluindo o
+ // selecionado. O middleware valida no início da requisição, mas uma revogação
+ // posterior não pode ser contornada por essa escolha de empresa.
+ return vinculos.filter(v=>v.cargo?.ativo&&v.cargo.permissoes.some(p=>p.permissao.codigo==="pdv.acessar")).map(v=>v.empresa);
 }
 export async function buscarCatalogo({organizacaoId,usuarioId,empresaId,busca=""}){
  const companies=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
