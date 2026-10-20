@@ -66,7 +66,12 @@ export default function SettingsPage() {
       {activeTab === "especies" && <SpeciesSettings canManage={canManageAux} />}
       {activeTab === "racas" && <BreedsSettings canManage={canManageAux} />}
       {activeTab === "categorias" && <CategoriesSettings canManage={canManageCatalog} />}
-      {activeTab === "modulos" && <><ModulesSettings canManage={canManageOrg} organizationId={selectedOrganization?.id} onModulesChanged={updateOrganizationModules} /><UnifiedPdvPreference canManage={canManageOrg} organization={organizationQuery.data}/></>}
+      {activeTab === "modulos" && <><ModulesSettings canManage={canManageOrg} organizationId={selectedOrganization?.id} onModulesChanged={updateOrganizationModules} /><UnifiedPdvPreference canManage={canManageOrg} organization={organizationQuery.data} onUpdated={(config)=>{
+        updateOrganizationConfig(selectedOrganization.id,config);
+        queryClient.invalidateQueries({queryKey:["organization"]});
+        queryClient.invalidateQueries({queryKey:["unified-pdv-status"]});
+        queryClient.invalidateQueries({queryKey:["unified-eligibility"]});
+      }}/></>}
     </div>
   );
 }
@@ -221,19 +226,19 @@ function SettingsRow({ title, meta, onEdit }) {
 
 function MiniEmpty({ text }) { return <div className="mini-empty">{text}</div>; }
 
-/** Organization preference only. The legacy PDV remains active while 20.x is under development. */
-function UnifiedPdvPreference({canManage,organization}){
+/** A mesma tela /pdv alterna entre catálogo individual e inteligente, sem mudar gates financeiros. */
+function UnifiedPdvPreference({canManage,organization,onUpdated}){
  const qc=useQueryClient();
  const [error,setError]=useState("");
  const mutation=useMutation({
-  mutationFn:async enabled=>(await api.patch("/organizacao/configuracao",{pdvUnificadoHabilitado:enabled})).data,
-  onSuccess:()=>{setError("");qc.invalidateQueries({queryKey:["organization"]});},
+  mutationFn:async enabled=>(await api.patch("/organizacao/configuracao",{pdvUnificadoHabilitado:enabled})).data.configuracao,
+  onSuccess:config=>{setError("");onUpdated?.(config);qc.invalidateQueries({queryKey:["organization"]});},
   onError:e=>setError(getApiErrorMessage(e))
  });
  const preferred=Boolean(organization?.configuracao?.pdvUnificadoHabilitado);
- return <section className="panel settings-section"><div className="panel__heading"><div><span>Fase 20.1 · PDV</span><h2>Preferência de PDV por organização</h2><p>Escolha antecipadamente o modo desejado. Durante a homologação, todos os recebimentos permanecem no PDV tradicional.</p></div></div>
+ return <section className="panel settings-section"><div className="panel__heading"><div><span>PDV · Organização</span><h2>Modo de operação do PDV</h2><p>Uma única página para as vendas. Escolha quais empresas podem aparecer no catálogo; permissões, caixa e faturamento continuam separados.</p></div></div>
  {error&&<div className="alert alert--error" role="alert">{error}</div>}
- <label className="module-toggle"><div><strong>Preferir PDV Unificado Multiempresa</strong><span>Opcional: pode permanecer desativado para organizações que preferem apenas PDVs individuais.</span></div><input type="checkbox" checked={preferred} disabled={!canManage||mutation.isPending||!organization} onChange={e=>mutation.mutate(e.target.checked)} aria-label="Preferir PDV Unificado Multiempresa"/></label>
- <p style={{fontSize:14,lineHeight:1.6,marginTop:12}}>O modo unificado ainda não processa vendas. A preferência não altera caixa, estoque, notas fiscais nem o modo de fechamento atual.</p>
+ <label className="module-toggle"><div><strong>PDV Unificado Inteligente</strong><span>Reúne produtos e serviços dos CNPJs autorizados em uma comanda, com totais por empresa e fechamento protegido.</span></div><input type="checkbox" checked={preferred} disabled={!canManage||mutation.isPending||!organization} onChange={e=>mutation.mutate(e.target.checked)} aria-label="PDV Unificado Inteligente"/></label>
+ <p style={{fontSize:14,lineHeight:1.6,marginTop:12}}><strong>{preferred?"Selecionado: PDV Inteligente":"Selecionado: PDV por empresa"}.</strong> O catálogo muda na mesma página <strong>PDV</strong>. Esta preferência não libera pagamentos: o fechamento multiempresa depende de autorização independente na API, de caixas válidos e dos controles de segurança. Sem autorização, vendas individuais continuam disponíveis temporariamente.</p>
  </section>;
 }
