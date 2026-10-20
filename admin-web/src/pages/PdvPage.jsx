@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import {Link} from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownCircle,
@@ -26,6 +25,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
+import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
 import "../pdv.css";
 
 const paymentLabels = {
@@ -204,7 +204,17 @@ function PaymentEditor({ payments, total, onChange }) {
 export default function PdvPage() {
   const { selectedCompany, selectedOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const unifiedStatus=useQuery({queryKey:["unified-pdv-status",selectedOrganization?.id],queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados});
+  // A API define o modo efetivo da organização; nunca confiar somente no cache do login.
+  const unifiedStatus=useQuery({
+    queryKey:["unified-pdv-status",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(selectedOrganization?.id&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados,
+    retry:false,
+  });
+  const intelligentPreference=unifiedStatus.data?.preferenciaUnificado===true;
+  const intelligentCheckoutEnabled=unifiedStatus.data?.checkoutUnificadoDisponivel===true;
+  const [individualFallback,setIndividualFallback]=useState(false);
+  const showIntelligentSale=intelligentPreference&&!(individualFallback&&!intelligentCheckoutEnabled);
   const [tab, setTab] = useState("VENDA");
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
@@ -234,6 +244,11 @@ export default function PdvPage() {
   const [saleDetailId, setSaleDetailId] = useState(null);
   const [cancelSale, setCancelSale] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  // Não carregar o carrinho de uma empresa para outra ao trocar o seletor global.
+  useEffect(()=>{
+    setCart([]);setClientId("");setSaleDiscount(0);setSaleAddition(0);
+    setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
+  },[selectedOrganization?.id,selectedCompany?.id]);
 
   const canDiscount = hasPermission("pdv.aplicar_desconto");
   const canCancel = hasPermission("pdv.cancelar_venda");
@@ -489,17 +504,17 @@ export default function PdvPage() {
         <div className="pdv-hero__copy">
           <span className="pdv-hero__eyebrow">POINTVET <span aria-hidden="true">/</span> ATENDIMENTO</span>
           <h1>PDV e Comandas</h1>
-          <p>Venda rápida, comandas e caixa do CNPJ selecionado. Recebimentos registrados manualmente, sem vínculo bancário.</p>
-          <div className="pdv-hero__chips"><span>{selectedCompany?.nomeFantasia || "Empresa selecionada"}</span><span>Financeiro separado por CNPJ</span></div>
+          <p>{intelligentPreference?"Um único atendimento para produtos e serviços das empresas autorizadas. Vendas e caixas separados por CNPJ.":"Venda, comandas e caixa da empresa selecionada. Recebimentos manuais, sem conexão bancária."}</p>
+          <div className="pdv-hero__chips"><span>{selectedCompany?.nomeFantasia || "Empresa selecionada"}</span><span>{intelligentPreference?"PDV Inteligente":"PDV por empresa"}</span><span>Financeiro por CNPJ</span></div>
         </div>
         <div className={`pdv-session-badge ${openSession ? "pdv-session-badge--open" : ""}`} role="status">
           <Store size={21} />
           <div><span>CAIXA DO CNPJ</span><strong>{openSession ? openSession.caixa?.nome || "Caixa aberto" : "Caixa fechado"}</strong><small>{openSession ? "Pronto para registrar vendas" : "Abra o caixa para finalizar vendas"}</small></div>
         </div>
       </header>
-      {unifiedStatus.data?.preferenciaUnificado&&<section className="pdv-unified-shortcut">
-        <div><span>ATENDIMENTO MULTIEMPRESA</span><h2>Venda em mais de um CNPJ?</h2><p>Use a comanda unificada quando precisar incluir itens de empresas diferentes. Os totais e recebimentos permanecem separados por CNPJ.</p></div>
-        <Link className="ghost-button" to="/pdv/unificado/simulacao">Abrir PDV Unificado <Plus size={15}/></Link>
+      {intelligentPreference&&!intelligentCheckoutEnabled&&<section className="pdv-unified-shortcut" aria-label="Situação do fechamento inteligente">
+        <div><span>LIBERAÇÃO OPERACIONAL</span><h2>Fechamento multiempresa ainda restrito</h2><p>O catálogo inteligente e a comanda integrada estão disponíveis. Enquanto o checkout por CNPJ não for autorizado na API, você pode registrar uma venda individual pelo fluxo anterior, nesta mesma tela.</p></div>
+        <button className="ghost-button" type="button" onClick={()=>setIndividualFallback(value=>!value)}>{individualFallback?"Voltar à comanda inteligente":"Venda individual temporária"} <Plus size={15}/></button>
       </section>}
       <section className="pdv-summary-grid">
         <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
@@ -514,7 +529,13 @@ export default function PdvPage() {
         ))}
       </nav>
 
-      {tab === "VENDA" ? (
+      {tab === "VENDA" ? unifiedStatus.isPending ? (
+        <section className="panel loading-state">Conferindo o modo de PDV da organização...</section>
+      ) : unifiedStatus.isError ? (
+        <section className="panel"><InlineNotice tone="error">Não foi possível consultar a configuração de PDV. Por segurança, o fechamento fica indisponível até atualizar.</InlineNotice><button className="ghost-button" type="button" onClick={()=>unifiedStatus.refetch()}>Tentar novamente</button></section>
+      ) : showIntelligentSale ? (
+        <UnifiedPdvPreviewPage embedded />
+      ) : (
         <section className="pdv-sale-layout" aria-label="Registrar venda rápida">
           <div className="panel pdv-catalog-panel">
             <div className="panel__heading"><div><span>01 / Escolha os itens</span><h2>Catálogo do CNPJ</h2><p>Adicione os produtos e serviços do caixa selecionado.</p></div><Boxes size={20} /></div>
