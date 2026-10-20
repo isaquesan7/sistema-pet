@@ -155,6 +155,9 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  const committed=await request("POST",endpoint,201,body);
  assert.equal(committed.dados.vendas.length,2);
  assert.equal(committed.dados.pagamentosCriados,3);
+ const completedDrafts=(await request("GET","/api/pdv-unificado/rascunhos-concluidos",200)).dados;
+ assert.equal(completedDrafts.find(comanda=>comanda.id===draft.id)?.status,"FECHADA",
+  "Uma venda concluída deve continuar acessível para o estorno integral pela interface");
  assert.equal(committed.dados.emissaoFiscal,false);
  assert.equal(await prisma.pagamento.count(),before.pay+3);
  assert.equal(await prisma.venda.count(),before.sales+2);
@@ -213,6 +216,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
  await request("POST",reverseUrl,403,reversal);
+ await request("GET","/api/pdv-unificado/rascunhos-concluidos",403);
  assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.modoEfetivo,"INDIVIDUAL");
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.667);
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
@@ -226,6 +230,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(reversed.dados.houveFiscal,false);
  assert.equal(reversed.dados.snapshot.devolucaoExternaDeclarada,true);
  assert.equal((await prisma.comanda.findUnique({where:{id:draft.id}})).status,"CANCELADA");
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-concluidos",200)).dados.some(comanda=>comanda.id===draft.id),false);
  const opStatuses=await prisma.reservaOperacaoUnificada.findMany({where:{reserva:{comandaId:draft.id}}});
  assert.equal(opStatuses.length,2);
  assert.ok(opStatuses.every(op=>op.status==="ESTORNADA"));
