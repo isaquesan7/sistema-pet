@@ -1,3 +1,13 @@
+# UPDATE M.5.55 — HISTÓRICO DE ESTORNOS INTEGRAIS (20/10/2026)
+
+**Estado atual, substitui a pendência visual citada no histórico M.5.54 abaixo:** o estorno integral da venda sintética multiempresa da comanda **#3, R$ 15,00**, **FOI concluído e validado pela interface** no dia 20/10/2026, e o estoque voltou de **0,667 kg para 1,000 kg**. O relato de “ainda não estornado” no antigo parágrafo M.5.54 é apenas o registro da primeira tentativa, já superado. Ver adendo final de [M.5.54](POINTVET_M554_REABERTURA_ESTORNO_VISUAL.md).
+
+**M.5.55 entregue na branch sem merge:** novo `GET /api/pdv-unificado/rascunhos-estornados` com isolamento organização/empresa e permissão `pdv.cancelar_venda`, consulta read-only disponível também com checkout manual OFF; painel exibe lista de estornos integrais, comanda, tutor, empresas, valores, data e ID de auditoria. Commit de código `9c6599ea4cc0d543c3304e928cfb7e582a27475c`, [CI #39437943344](https://github.com/isaquesan7/sistema-pet/actions/runs/39437943344) **validate + isolated-postgres SUCCESS**. Deploy Railway staging API `1e14cd60-8f2c-4b2a-9f81-e21352db2954` e admin `041d2e58-44b7-4d88-851f-1529fb84f21b`, ambos **SUCCESS**, ambiente **4/4 online**. Flags checkout/allowlists mantidas OFF, apenas referências de código alteradas. **Inspeção visual autenticada pós-deploy ainda pendente**, pois o navegador bloqueou leitura após proteção de credenciais; há cobertura HTTP automatizada e ambiente saudável, mas não afirmar aceite visual. Plano e limitações: [M.5.55](POINTVET_M555_HISTORICO_ESTORNO_OPERACIONAL.md).
+
+**Fronteiras preservadas:** PR #36 **DRAFT**, sem merge/main, sem implantação na Pet King comercial, sem emissão fiscal, PSP, banco ou movimentação financeira real. Próximo passo é aceite visual na homologação já autenticada, depois decisão formal de publicação.
+
+---
+
 # UPDATE M.5.54 — VENDA REGISTRADA E REABERTURA DE ESTORNO, FLAG OFF (20/10/2026)
 
 **Ação REAL em staging fictício segregado:** venda unificada da comanda #3 em dois CNPJs, R$ 15,00 (333 g de ração = R$ 5,00 + banho = R$ 10,00), três pagamentos EXTERNOS apenas declarados. A UI confirmou duas vendas e baixa exata de **1,000 kg para 0,667 kg**. Nenhum dinheiro/PSP/banco ou documento fiscal foi transacionado. O teste descobriu que comandas `FECHADA` desapareciam dos rascunhos e não podiam ser retomadas para estorno pela tela.
