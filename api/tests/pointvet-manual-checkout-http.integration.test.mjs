@@ -18,6 +18,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  const suffix=Date.now().toString(36)+process.pid.toString(36);
  const org="chk-org-"+suffix,store="chk-store-"+suffix,service="chk-service-"+suffix;
  const seller="chk-user-"+suffix,limited="chk-limited-"+suffix,client="chk-client-"+suffix;
+ const attendant="chk-attendant-"+suffix,supervisor="chk-supervisor-"+suffix;
  const productId="chk-prod-"+suffix,itemId="chk-item-"+suffix,serviceId="chk-svc-"+suffix;
  const old={secret:process.env.JWT_ACCESS_SECRET,enabled:process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED,
   allowed:process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS,
@@ -54,20 +55,29 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  ]});
  await prisma.usuario.createMany({data:[
   {id:seller,nome:"Caixa autorizado CI",email:seller+"@ci.invalid",senhaHash:"inutil"},
-  {id:limited,nome:"Caixa limitado CI",email:limited+"@ci.invalid",senhaHash:"inutil"}
+  {id:limited,nome:"Caixa limitado CI",email:limited+"@ci.invalid",senhaHash:"inutil"},
+  {id:attendant,nome:"Atendente multi-CNPJ CI",email:attendant+"@ci.invalid",senhaHash:"inutil"},
+  {id:supervisor,nome:"Supervisor multi-CNPJ CI",email:supervisor+"@ci.invalid",senhaHash:"inutil"}
  ]});
  await prisma.usuarioOrganizacao.createMany({data:[
   {usuarioId:seller,organizacaoId:org,papel:"ADMINISTRADOR"},
-  {usuarioId:limited,organizacaoId:org,papel:"MEMBRO"}
+  {usuarioId:limited,organizacaoId:org,papel:"MEMBRO"},
+  {usuarioId:attendant,organizacaoId:org,papel:"MEMBRO"},
+  {usuarioId:supervisor,organizacaoId:org,papel:"MEMBRO"}
  ]});
  const permission=await prisma.permissao.upsert({where:{codigo:"pdv.acessar"},update:{},create:{codigo:"pdv.acessar",nome:"Acessar PDV"}});
  const cancelPermission=await prisma.permissao.upsert({where:{codigo:"pdv.cancelar_venda"},update:{},create:{codigo:"pdv.cancelar_venda",nome:"Cancelar venda"}});
  const roleStore=await prisma.cargo.create({data:{empresaId:store,nome:"Caixa CI",permissoes:{create:[{permissaoId:permission.id},{permissaoId:cancelPermission.id}]}}});
  const roleService=await prisma.cargo.create({data:{empresaId:service,nome:"Caixa Estetica CI",permissoes:{create:[{permissaoId:permission.id}]}}});
+ const roleAttendantStore=await prisma.cargo.create({data:{empresaId:store,nome:"Atendente sem estorno CI",permissoes:{create:[{permissaoId:permission.id}]}}});
  await prisma.usuarioEmpresa.createMany({data:[
   {usuarioId:seller,empresaId:store,cargoId:roleStore.id},
   {usuarioId:seller,empresaId:service,cargoId:roleService.id},
-  {usuarioId:limited,empresaId:store,cargoId:roleStore.id}
+  {usuarioId:limited,empresaId:store,cargoId:roleStore.id},
+  {usuarioId:attendant,empresaId:store,cargoId:roleAttendantStore.id},
+  {usuarioId:attendant,empresaId:service,cargoId:roleService.id},
+  {usuarioId:supervisor,empresaId:store,cargoId:roleStore.id},
+  {usuarioId:supervisor,empresaId:service,cargoId:roleService.id}
  ]});
  await prisma.cliente.create({data:{id:client,organizacaoId:org,nome:"Tutor CI"}});
  await prisma.itemCatalogo.createMany({data:[
@@ -83,14 +93,16 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  const sessionService=await prisma.sessaoCaixa.create({data:{caixaId:cashService.id,usuarioAberturaId:seller}});
  const auth=jwt.sign({sub:seller},process.env.JWT_ACCESS_SECRET,{expiresIn:"10m"});
  const limitedAuth=jwt.sign({sub:limited},process.env.JWT_ACCESS_SECRET,{expiresIn:"10m"});
+ const attendantAuth=jwt.sign({sub:attendant},process.env.JWT_ACCESS_SECRET,{expiresIn:"10m"});
+ const supervisorAuth=jwt.sign({sub:supervisor},process.env.JWT_ACCESS_SECRET,{expiresIn:"10m"});
  const server=await new Promise((resolve,reject)=>{
   const s=app.listen(0,"127.0.0.1",()=>resolve(s));s.once("error",reject);
  });
  t.after(()=>new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve())));
  const base=`http://127.0.0.1:${server.address().port}`;
- async function request(method,path,status,body=null,token=auth){
+ async function request(method,path,status,body=null,token=auth,selectedCompany=store){
   const response=await fetch(base+path,{method,redirect:"manual",signal:AbortSignal.timeout(12000),
-   headers:{authorization:"Bearer "+token,"x-empresa-id":store,accept:"application/json",
+   headers:{authorization:"Bearer "+token,"x-empresa-id":selectedCompany,accept:"application/json",
     ...(method==="POST"?{"content-type":"application/json"}:{})},
    ...(method==="POST"?{body:JSON.stringify(body)}:{})});
   const result=await response.json();
@@ -101,6 +113,12 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  // Toda a jornada do caixa usa agora rotas HTTP reais, desde o catálogo.
  const catalog=(await request("GET","/api/pdv-unificado/catalogo?busca=Racao",200)).dados;
  assert(catalog.some(item=>item.id===itemId));
+ // M.5.61: perfis MEMBER efetivos em duas empresas, sem papel admin.
+ assert.equal((await request("GET","/api/pdv-unificado/catalogo",200,null,attendantAuth)).dados.some(x=>x.id===serviceId),true);
+ await request("GET","/api/pdv-unificado/disponibilidade",200,null,attendantAuth,service);
+ await request("GET","/api/pdv-unificado/disponibilidade",200,null,supervisorAuth,service);
+ await request("GET","/api/pdv-unificado/disponibilidade",403,null,limitedAuth,service);
+ await request("GET","/api/pdv-unificado/rascunhos-concluidos",403,null,attendantAuth);
  const items=[{empresaId:store,itemCatalogoId:itemId,quantidade:0.333},
   {empresaId:service,itemCatalogoId:serviceId,quantidade:1}];
  const draft=(await request("POST","/api/pdv-unificado/rascunhos",201,
@@ -113,6 +131,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(preclose.pendencias.length,0);
  const closingPlan=(await request("GET",`${draftUrl}/plano-fechamento?versao=1`,200)).dados;
  assert.equal(closingPlan.operacoes.length,2);
+ assert.equal((await request("GET",`${draftUrl}/plano-fechamento?versao=1`,200,null,attendantAuth)).dados.operacoes.length,2);
  const reserve=(await request("POST",`${draftUrl}/reservar`,201,{versao:1})).dados;
  assert.equal(reserve.operacoes.length,2);
  const sessions=(await request("GET",`${draftUrl}/caixas-disponiveis?versao=1`,200)).dados;
@@ -154,18 +173,23 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store;
  assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.checkoutUnificadoDisponivel,true);
  await request("POST",endpoint,403,body);
+ await request("POST",endpoint,403,body,attendantAuth); // Segundo CNPJ ainda fora da allowlist.
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store+","+service;
  await request("POST",endpoint,403,body,limitedAuth);
  const availability=(await request("GET","/api/pdv-unificado/disponibilidade",200)).dados;
  assert.equal(availability.modoEfetivo,"UNIFICADO_MANUAL");
+ assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200,null,attendantAuth)).dados.checkoutUnificadoDisponivel,true);
  await request("POST",endpoint,403,body,limitedAuth);
  await request("POST",endpoint,400,{...body,alocacoes:[{...body.alocacoes[0],pagamentos:[
   {...body.alocacoes[0].pagamentos[0],confirmadoPeloAtendente:false},body.alocacoes[0].pagamentos[1]
  ]},body.alocacoes[1]]});
  assert.equal(await prisma.venda.count(),before.sales);
- const committed=await request("POST",endpoint,201,body);
+ const committed=await request("POST",endpoint,201,body,attendantAuth);
  assert.equal(committed.dados.vendas.length,2);
  assert.equal(committed.dados.pagamentosCriados,3);
+ assert.ok((await prisma.venda.findMany({where:{id:{in:committed.dados.vendas.map(v=>v.vendaId)}}})).every(v=>v.usuarioId===attendant),
+  "Atendente MEMBRO deve constar nas duas vendas como operador");
+ await request("GET","/api/pdv-unificado/rascunhos-concluidos",403,null,attendantAuth);
  const completedDrafts=(await request("GET","/api/pdv-unificado/rascunhos-concluidos",200)).dados;
  assert.equal(completedDrafts.find(comanda=>comanda.id===draft.id)?.status,"FECHADA",
   "Uma venda concluída deve continuar acessível para o estorno integral pela interface");
@@ -222,11 +246,14 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
   referenciaExterna:"ACERTO-MANUAL-CI",confirmouDevolucaoExterna:true};
  await request("POST",reverseUrl,401,reversal,"");
  await request("POST",reverseUrl,403,reversal,limitedAuth);
+ await request("POST",reverseUrl,403,reversal,attendantAuth);
+ await request("POST",reverseUrl,403,reversal,supervisorAuth);
  await request("POST",reverseUrl,400,{...reversal,confirmouDevolucaoExterna:false});
  await request("POST",reverseUrl,403,reversal);
  // O operador está autorizado na loja, mas falta autorização na estética.
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals);
  await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
+ // Só o supervisor tem pdv.cancelar_venda também na Loja; atendente continua restrito.
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
  await request("POST",reverseUrl,403,reversal);
  await request("GET","/api/pdv-unificado/rascunhos-concluidos",403);
@@ -244,7 +271,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.checkoutUnificadoDisponivel,false);
  await request("POST",endpoint,403,body); // Contingência não reabre venda.
  await request("POST",reverseUrl,403,reversal,limitedAuth);
- const reversed=await request("POST",reverseUrl,201,reversal);
+ const reversed=await request("POST",reverseUrl,201,reversal,supervisorAuth);
  assert.equal(reversed.dados.reutilizada,false);
  assert.equal(reversed.dados.apenasAmbienteIsolado,false);
  assert.equal(reversed.dados.houveRefundPorAPI,false);
@@ -276,10 +303,10 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(Number(reverseMovements[0].quantidade),0.333);
  assert.equal(reverseMovements[0].loteId,lot.id);
  assert.equal(await prisma.documentoFiscal.count(),before.fiscal);
- const reversedReplay=await request("POST",reverseUrl,200,reversal);
+ const reversedReplay=await request("POST",reverseUrl,200,reversal,supervisorAuth);
  assert.equal(reversedReplay.dados.id,reversed.dados.id);
  assert.equal(reversedReplay.dados.reutilizada,true);
- await request("POST",reverseUrl,409,{...reversal,motivo:"Um motivo diferente de estorno integral"});
+ await request("POST",reverseUrl,409,{...reversal,motivo:"Um motivo diferente de estorno integral"},supervisorAuth);
  await request("POST",endpoint,403,body);
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals+1);
  assert.equal(await prisma.movimentacaoEstoque.count(),before.stock+2);
