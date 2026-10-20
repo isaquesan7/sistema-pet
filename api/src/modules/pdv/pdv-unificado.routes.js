@@ -15,7 +15,7 @@ import {consultarDiagnosticoDevolucoesM524} from "./pdv-unificado-diagnostico-de
 import {consultarDossieDevolucoesM527} from "./pdv-unificado-dossie-devolucoes.service.js";
 import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
 import {recebimentoManualSchema} from "./pdv-unificado-recebimento-manual.contract.js";
-import {checkoutManualHabilitado,fecharVendaManualUnificada,estornarVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
+import {checkoutManualHabilitado,estornoManualHabilitado,fecharVendaManualUnificada,estornarVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
@@ -23,8 +23,10 @@ r.get("/disponibilidade",async(req,res,next)=>{
   const access=await prisma.usuarioEmpresa.findMany({where:{usuarioId:req.usuario.id,ativo:true,empresa:{ativo:true,organizacaoId:req.organizacao.id}},select:{empresaId:true,empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}}}});
   const pdvHabilitado=Boolean(req.organizacao.configuracao?.pdvUnificadoHabilitado);
   const checkoutHabilitado=checkoutManualHabilitado(req.organizacao,req.empresa.id);
+  const estornoHabilitado=estornoManualHabilitado(req.organizacao,req.empresa.id);
   return res.json({success:true,dados:{
    preferenciaUnificado:pdvHabilitado,checkoutUnificadoDisponivel:checkoutHabilitado,
+   estornoUnificadoDisponivel:estornoHabilitado,
    modoEfetivo:checkoutHabilitado?"UNIFICADO_MANUAL":"INDIVIDUAL",
    empresasAcessiveis:access.map(v=>v.empresa),
    aviso:checkoutHabilitado?
@@ -295,10 +297,10 @@ r.get("/rascunhos",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
  return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id})});
 }catch(e){next(e);}});
-// Recuperação de vendas concluídas para estorno integral pela UI. Nunca expor
-// a funcionários sem permissão de cancelamento ou quando o gate manual está OFF.
+// Recuperação de vendas concluídas para estorno integral pela UI. Não depende
+// do checkout se a contingência de estorno foi expressamente autorizada.
 r.get("/rascunhos-concluidos",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
- if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({success:false,message:"Checkout manual desativado."});
+ if(!estornoManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({success:false,message:"Estorno manual desativado."});
  return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,somenteConcluidas:true})});
 }catch(e){next(e);}});
 // Histórico de estornos já executados: leitura fiscalmente neutra, inclusive
@@ -418,7 +420,7 @@ r.post("/rascunhos/:id/fechar-manual",async(req,res,next)=>{try{
 /** Estorno integral manual do checkout de gestão: confirmação humana de
  * devolução fora do sistema, nunca refund automatizado ou emissão fiscal. */
 r.post("/rascunhos/:id/estornar-manual",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
- if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({
+ if(!estornoManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({
   success:false,message:"Estorno manual unificado ainda não autorizado para esta organização."
  });
  const identificador=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
@@ -438,7 +440,7 @@ r.post("/rascunhos/:id/estornar-manual",exigirPermissao("pdv.cancelar_venda"),as
  return res.set("Cache-Control","no-store").status(result.reutilizada?200:201)
   .json({success:true,dados:result});
 }catch(error){
- if(["EMPRESA_SEM_ACESSO","EMPRESA_FORA_DO_PILOTO_MANUAL","CHECKOUT_MANUAL_DESATIVADO",
+ if(["EMPRESA_SEM_ACESSO","EMPRESA_FORA_DO_PILOTO_MANUAL","CHECKOUT_MANUAL_DESATIVADO","ESTORNO_MANUAL_DESATIVADO",
   "M3C_SEM_PERMISSAO_ESTORNO","M3C_USUARIO_INATIVO"].includes(error.message))
   return res.status(403).json({success:false,message:"Estorno negado: confira o acesso a todos os CNPJs."});
  if(/^(M3C_|RASCUNHO_|RESERVA_|PREPARACAO_)/.test(error.message))
