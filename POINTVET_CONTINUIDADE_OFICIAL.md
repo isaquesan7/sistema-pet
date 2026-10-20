@@ -1,3 +1,13 @@
+# UPDATE M.5.52 — TROCA DE CNPJ E CONFERÊNCIA OPERACIONAL NO STAGING (20/10/2026)
+
+A vistoria autenticada descobriu um defeito não coberto pelo teste de cache M.5.51: o seletor global redirecionava para `/` ao trocar CNPJ e descartava o workspace Unificado. **Corrigido** para preservar a rota `/pdv/unificado/simulacao` somente entre CNPJs autorizados da mesma organização; demais páginas, empresas não autorizadas e mudanças de organização continuam redirecionando. Commits `b1dbfff`, `10493db` e HEAD funcional `b768d694c95e9ba332a0209b82b7a676147d0af4`; [CI #39424381896](https://github.com/isaquesan7/sistema-pet/actions/runs/39424381896) **validate + isolated-postgres SUCCESS**.
+
+**Deploy controlado:** apenas `pointvet-admin-staging` do projeto Railway `Pet King PDV Homologacao/staging`, deployment `9bd2e2c5-8bf2-4a1d-b667-284cd409049f` **SUCCESS**. 4/4 serviços de staging online. Teste autenticado com conta fictícia: alternância Banho e Tosa ↔ Loja preservou tutor e itens do rascunho #3; versão 2 salva com 333 g = R$ 5,00 + banho R$ 10,00; reserva multiempresa, conferência R$ 3 dinheiro + R$ 2 Pix no caixa da Loja e R$ 10 transferência no caixa de Banho, preparação de duas operações **aprovadas**. Checkout continuou OFF e não houve venda, cobrança, pagamento, baixa de estoque nem fiscal. Conferências fictícias de recebimento externo não foram marcadas. Rascunho #3 permanece reservado no staging.
+
+**Evidência e próximo passo exato:** [M.5.52 — relatório visual](POINTVET_M552_TROCA_CNPJ_HOMOLOGACAO_VISUAL.md). A vistoria técnica não substitui aceite formal do proprietário/supervisor. Próxima decisão: autorização expressa de curta janela para **fechamento/estorno por UI somente no staging** com fixtures e flags temporariamente ON, rever permissões, ledger, estoque FEFO, replay e devolvê-las a OFF; **não ativar por conta própria**. Restore de arquivo R2 REAL requer aprovação separada (origem/destino descartável, LGPD, RTO/RPO e rollback). Processo fiscal/contábil externo aplicável precede piloto comercial; motor fiscal/PSP/TEF/hardware ficam fora desta primeira entrega manual. PR #36 DRAFT, `main`, Railway produção, bancos e dados reais intactos.
+
+---
+
 # UPDATE M.5.51 — DEPLOY APENAS DO PAINEL EM HOMOLOGAÇÃO (20/10/2026)
 
 - **Base de código:** PR #36 Draft, commit funcional/documental `9db4378030d7c1b12f86144ac1bacb123c370b27`. GitHub Actions `39028345586` concluiu com sucesso; testes locais `node --test admin-web/tests/unified-context.test.mjs admin-web/tests/unified-client-payload.test.mjs`: 2 suítes aprovadas.
