@@ -9,7 +9,9 @@ const settings=get("../../admin-web/src/pages/SettingsPage.jsx");
 test("opt-in is organization-scoped and disabled by default",()=>{
  assert.match(schema,/pdvUnificadoHabilitado Boolean @default\(false\)/);
  assert.match(config,/pdvUnificadoHabilitado: z\.boolean\(\)\.optional\(\)/);
- assert.match(settings,/Preferir PDV Unificado Multiempresa/);
+ assert.match(settings,/PDV Unificado Inteligente/);
+ assert.match(settings,/pdvUnificadoHabilitado:enabled/);
+ assert.match(settings,/fechamento multiempresa depende de autorização independente/);
 });
 test("unified manual checkout requires independent organization and CNPJ opt-ins",()=>{
  const checkout=get("../src/modules/pdv/pdv-unificado-checkout-manual.gate.js");
