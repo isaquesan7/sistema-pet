@@ -341,4 +341,40 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.estornoUnificadoDisponivel,false);
  await request("GET","/api/pdv-unificado/rascunhos-concluidos",403);
  await request("POST",reverseUrl,403,reversal);
+ // M.5.64 — revogação real: o mesmo JWT não pode conservar privilégios de
+ // cargo desativado ou vínculo removido em um dos CNPJs.
+ const roleEndpoint="/api/pdv-unificado/disponibilidade";
+ await prisma.cargo.update({where:{id:roleAttendantStore.id},data:{ativo:false}});
+ await request("GET",roleEndpoint,403,null,attendantAuth,store);
+ const offRole=(await request("GET",roleEndpoint,200,null,attendantAuth,service)).dados;
+ assert.equal(offRole.permissoesEmpresas.find(v=>v.id===store)?.pdvAcessar,false);
+ assert.equal(offRole.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,false);
+ assert.equal(offRole.permissoesEmpresas.find(v=>v.id===service)?.pdvAcessar,true);
+ await prisma.cargo.update({where:{id:roleAttendantStore.id},data:{ativo:true}});
+ assert.equal((await request("GET",roleEndpoint,200,null,attendantAuth,store)).dados
+  .permissoesEmpresas.find(v=>v.id===store)?.pdvAcessar,true);
+ await prisma.usuarioEmpresa.update({
+  where:{usuarioId_empresaId:{usuarioId:attendant,empresaId:service}},data:{ativo:false}
+ });
+ await request("GET",roleEndpoint,403,null,attendantAuth,service);
+ const withoutService=(await request("GET",roleEndpoint,200,null,attendantAuth,store)).dados;
+ assert.deepEqual(withoutService.permissoesEmpresas.map(v=>v.id),[store],
+  "Um vínculo inativo desaparece da listagem mesmo quando o JWT permanece válido");
+ await prisma.usuarioEmpresa.update({
+  where:{usuarioId_empresaId:{usuarioId:attendant,empresaId:service}},data:{ativo:true}
+ });
+ assert.equal((await request("GET",roleEndpoint,200,null,attendantAuth,service)).dados
+  .permissoesEmpresas.length,2);
+ // Remover uma permissão também afeta imediatamente supervisor e atendente,
+ // mas não retira pdv.acessar nem concede privilégios no outro CNPJ.
+ await prisma.cargoPermissao.delete({
+  where:{cargoId_permissaoId:{cargoId:roleService.id,permissaoId:cancelPermission.id}}
+ });
+ const afterRemove=(await request("GET",roleEndpoint,200,null,supervisorAuth,service)).dados;
+ assert.equal(afterRemove.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,false);
+ assert.equal(afterRemove.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,true);
+ assert.equal(afterRemove.permissoesEmpresas.find(v=>v.id===service)?.pdvAcessar,true);
+ await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
+ assert.equal((await request("GET",roleEndpoint,200,null,supervisorAuth,service)).dados
+  .permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,true);
 });
