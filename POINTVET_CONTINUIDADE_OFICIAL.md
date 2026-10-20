@@ -1,3 +1,15 @@
+# UPDATE M.5.56 — CONTINGÊNCIA DE ESTORNO SEPARADA DO CHECKOUT (20/10/2026)
+
+**Aceite da M.5.55:** a proprietária confirmou em conversa às 11h29 BRT que a tela do **Histórico de estornos integrais APARECEU** na homologação. A ressalva anterior sobre o navegador automatizado ficou superada para **visibilidade da seção**, sem significar autorização de canário/pagamento. Adendo em [M.5.55](POINTVET_M555_HISTORICO_ESTORNO_OPERACIONAL.md).
+
+**Novo avanço defensivo M.5.56**: separar os gates do checkout manual e do **estorno integral de contingência**. Com a venda bloqueada, a autorização de estorno agora pode ser concedida **separadamente** pelas três variáveis `POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED`, `_ORG_IDS` e `_COMPANY_IDS` (em todas, padrão OFF / listas vazias), exigindo todos os CNPJs da mesma política, permissão de cancelamento e confirmação humana de devolução fora do sistema. A flag de estorno **NÃO** autoriza `POST .../fechar-manual`, que permanece HTTP 403 quando checkout OFF. A nova disponibilidade `estornoUnificadoDisponivel` permite recuperar a venda fechada na UI com botão restrito de estorno, mesmo se a tela estiver em Simulação. Sem reembolso bancário, fiscal, PSP, TEF ou migration. Código `82c6138e3569999ec4e4ad6a71d1a7101ca20735`; [CI #39441021591](https://github.com/isaquesan7/sistema-pet/actions/runs/39441021591) **validate + isolated-postgres SUCCESS**, incluindo HTTP completo de dois CNPJs, 333 g, rollback e idempotência.
+
+**Staging segregado:** apenas `pointvet-api-staging` (`4fcf2a65-fa1d-40e1-b976-965c99cf39bd`) e `pointvet-admin-staging` (`6bdce3d2-0124-4a4d-a5a8-c5085bbcf54c`) atualizados para o mesmo SHA de código; **SUCCESS 4/4 online**. Novas variáveis de contingência não configuradas no Railway, por isso gate **OFF**; checkout manual preexistente mantém OFF / allowlists vazias, sem vendas/estornos novos no staging. PR #36 **DRAFT**, main e produção comercial inalterados. [Detalhamento M.5.56](POINTVET_M556_CONTINGENCIA_ESTORNO_SEPARADA.md).
+
+**Próximo gate para publicação:** plano M.5.47 de recuperação/rollback operacional autorizado, aceite com atendente + supervisor, rotinas fiscais/contábeis externas e aprovação nominal do canário. Nem M.5.55 nem CI/autorização antiga dispensam os gates restantes. Não ativar os controles sem decisão específica.
+
+---
+
 # UPDATE M.5.55 — HISTÓRICO DE ESTORNOS INTEGRAIS (20/10/2026)
 
 **Estado atual, substitui a pendência visual citada no histórico M.5.54 abaixo:** o estorno integral da venda sintética multiempresa da comanda **#3, R$ 15,00**, **FOI concluído e validado pela interface** no dia 20/10/2026, e o estoque voltou de **0,667 kg para 1,000 kg**. O relato de “ainda não estornado” no antigo parágrafo M.5.54 é apenas o registro da primeira tentativa, já superado. Ver adendo final de [M.5.54](POINTVET_M554_REABERTURA_ESTORNO_VISUAL.md).
