@@ -15,8 +15,8 @@ import {registrarRecebimentoManualEmTransacao} from "./pdv-unificado-registro-ma
 import {criarVendasFilhasEmTransacao} from "./pdv-unificado-venda-sandbox.service.js";
 import {efetivarRecebimentosManuaisEmTransacao} from "./pdv-unificado-fechamento-manual-sandbox.service.js";
 import {estornarFechamentoManualEmTransacao} from "./pdv-unificado-estorno-manual-sandbox.service.js";
-import {checkoutManualHabilitado,empresaManualAutorizada} from "./pdv-unificado-checkout-manual.gate.js";
-export {checkoutManualHabilitado} from "./pdv-unificado-checkout-manual.gate.js";
+import {checkoutManualHabilitado,empresaManualAutorizada,estornoContingenciaHabilitado,empresaEstornoContingenciaAutorizada,estornoManualHabilitado} from "./pdv-unificado-checkout-manual.gate.js";
+export {checkoutManualHabilitado,estornoManualHabilitado} from "./pdv-unificado-checkout-manual.gate.js";
 
 export async function fecharVendaManualUnificada({
  organizacao,organizacaoId,usuarioId,empresaId,id,dados
@@ -80,19 +80,26 @@ export async function fecharVendaManualUnificada({
 export async function estornarVendaManualUnificada({
  organizacao,organizacaoId,usuarioId,empresaId,id,dados
 }){
- if(!checkoutManualHabilitado(organizacao,empresaId)||organizacao?.id!==organizacaoId)
-  throw Error("CHECKOUT_MANUAL_DESATIVADO");
+ if(!estornoManualHabilitado(organizacao,empresaId)||organizacao?.id!==organizacaoId)
+  throw Error("ESTORNO_MANUAL_DESATIVADO");
  return executarComRetrySerializableM540(()=>prisma.$transaction(async tx=>{
   const configAtual=await tx.configuracaoOrganizacao.findUnique({
    where:{organizacaoId},select:{pdvUnificadoHabilitado:true}
   });
-  if(!checkoutManualHabilitado({id:organizacaoId,configuracao:configAtual},empresaId))
-   throw Error("CHECKOUT_MANUAL_DESATIVADO");
+  const configOrganizacao={id:organizacaoId,configuracao:configAtual};
+  if(!estornoManualHabilitado(configOrganizacao,empresaId))
+   throw Error("ESTORNO_MANUAL_DESATIVADO");
   const reserva=await consultarReservaFechamento({
    organizacaoId,usuarioId,empresaId,id,versao:dados.versao
   },tx);
   if(!reserva)throw Error("M3C_RESERVA_AUSENTE");
-  if(reserva.operacoes.some(op=>!empresaManualAutorizada(op.empresaId)))
+  // Toda a comanda precisa estar coberta por UMA política completa, sem
+  // combinar empresas de allowlists de checkout e contingência.
+  const checkoutAutorizado=checkoutManualHabilitado(configOrganizacao,empresaId)&&
+   reserva.operacoes.every(op=>empresaManualAutorizada(op.empresaId));
+  const contingenciaAutorizada=estornoContingenciaHabilitado(configOrganizacao,empresaId)&&
+   reserva.operacoes.every(op=>empresaEstornoContingenciaAutorizada(op.empresaId));
+  if(!checkoutAutorizado&&!contingenciaAutorizada)
    throw Error("EMPRESA_FORA_DO_PILOTO_MANUAL");
   const retorno=await estornarFechamentoManualEmTransacao(tx,{
    organizacaoId,usuarioId,empresaId,id,versao:dados.versao,dados,
