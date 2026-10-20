@@ -248,6 +248,8 @@ export default function PdvPage() {
   useEffect(()=>{
     setCart([]);setClientId("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
+    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);
+    setCashModal(null);setCommandModal(false);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
   const canDiscount = hasPermission("pdv.aplicar_desconto");
