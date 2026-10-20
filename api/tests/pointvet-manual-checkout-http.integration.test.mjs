@@ -96,6 +96,8 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
   {empresaId:service,itemCatalogoId:serviceId,quantidade:1}];
  const draft=(await request("POST","/api/pdv-unificado/rascunhos",201,
   {clienteId:client,itens:items})).dados;
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados.length,0,
+  "Histórico de estornos não depende da liberação do checkout manual");
  assert.equal(Number(draft.total),15);
  const draftUrl=`/api/pdv-unificado/rascunhos/${draft.id}`;
  const preclose=(await request("GET",`${draftUrl}/pre-fechamento?versao=1`,200)).dados;
@@ -158,6 +160,8 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  const completedDrafts=(await request("GET","/api/pdv-unificado/rascunhos-concluidos",200)).dados;
  assert.equal(completedDrafts.find(comanda=>comanda.id===draft.id)?.status,"FECHADA",
   "Uma venda concluída deve continuar acessível para o estorno integral pela interface");
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados.length,0,
+  "Venda FECHADA nunca pode aparecer como já estornada");
  assert.equal(committed.dados.emissaoFiscal,false);
  assert.equal(await prisma.pagamento.count(),before.pay+3);
  assert.equal(await prisma.venda.count(),before.sales+2);
@@ -231,6 +235,15 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(reversed.dados.snapshot.devolucaoExternaDeclarada,true);
  assert.equal((await prisma.comanda.findUnique({where:{id:draft.id}})).status,"CANCELADA");
  assert.equal((await request("GET","/api/pdv-unificado/rascunhos-concluidos",200)).dados.some(comanda=>comanda.id===draft.id),false);
+ const history=(await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados;
+ assert.equal(history.length,1);
+ assert.equal(history[0].id,reversed.dados.id);
+ assert.equal(history[0].comanda.numero,(await prisma.comanda.findUnique({where:{id:draft.id}})).numero);
+ assert.equal(history[0].comanda.status,"CANCELADA");
+ assert.equal(history[0].total,15);
+ assert.deepEqual(history[0].empresas.map(empresa=>empresa.total).sort((a,b)=>a-b),[5,10]);
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200,null,limitedAuth)).dados.length,0,
+  "Um usuário sem acesso ao segundo CNPJ não pode ler o estorno multiempresa");
  const opStatuses=await prisma.reservaOperacaoUnificada.findMany({where:{reserva:{comandaId:draft.id}}});
  assert.equal(opStatuses.length,2);
  assert.ok(opStatuses.every(op=>op.status==="ESTORNADA"));
@@ -253,4 +266,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await request("POST",endpoint,409,body);
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals+1);
  assert.equal(await prisma.movimentacaoEstoque.count(),before.stock+2);
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados[0].id,reversed.dados.id,
+  "A auditoria read-only deve continuar disponível com kill switch OFF");
 });
