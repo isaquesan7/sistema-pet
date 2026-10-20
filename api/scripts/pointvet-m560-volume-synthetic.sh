@@ -108,6 +108,11 @@ VALUES('M560_READY',50000,50000,150000,150000,150000);
 COMMIT;
 SQL
 
+# Fresh bulk inserts need real planner statistics before multi-table
+# integrity checks; otherwise PostgreSQL can choose pathological joins.
+psql -X -q -v ON_ERROR_STOP=1 -d "$PGDATABASE" -c \
+ 'ANALYZE clientes; ANALYZE pets; ANALYZE vendas; ANALYZE venda_itens; ANALYZE pagamentos;'
+
 verified=$(sql "SELECT CASE WHEN
  (SELECT count(*) FROM clientes WHERE id LIKE 'm560-client-%')=50000 AND
  (SELECT count(*) FROM pets WHERE id LIKE 'm560-pet-%')=50000 AND
