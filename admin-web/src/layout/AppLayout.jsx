@@ -1,6 +1,6 @@
 import { POINTVET_VERSION } from "../lib/version.js";
 import { useMemo, useState, useEffect } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Bath,
@@ -33,6 +33,7 @@ import BrandMark from "../components/BrandMark.jsx";
 import StagingEnvironmentNotice from "../components/StagingEnvironmentNotice.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { companyTypeLabel } from "../lib/formatters.js";
+import { keepUnifiedPdvRouteOnCompanyChange } from "../lib/unifiedDraft.js";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -64,6 +65,7 @@ export default function AppLayout() {
   useEffect(()=>{const id=setInterval(()=>setClock(new Date()),30000);return()=>clearInterval(id);},[]);
   useEffect(()=>{localStorage.setItem("pointvet:sidebar-collapsed",String(collapsed));},[collapsed]);
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     user,
     selectedCompany,
@@ -92,8 +94,12 @@ export default function AppLayout() {
   const companies = user?.empresas || [];
 
   function handleCompanyChange(event) {
-    selectCompany(event.target.value);
-    navigate("/");
+    const nextCompany = companies.find((company) => company.id === event.target.value);
+    if (!nextCompany || nextCompany.id === selectedCompany?.id) return;
+    const keepWorkspace = keepUnifiedPdvRouteOnCompanyChange(location.pathname, selectedOrganization?.id, nextCompany);
+    selectCompany(nextCompany.id);
+    // Preserve a multi-CNPJ draft within its organization; other screens reset context.
+    if (!keepWorkspace) navigate("/");
   }
 
   async function handleLogout() {
