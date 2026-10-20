@@ -11,11 +11,11 @@ import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewM
 import {useAuth} from "../context/AuthContext.jsx";
 import UnifiedRoleAcceptancePanel from "../components/UnifiedRoleAcceptancePanel.jsx";
 import "../clients.css";
-export default function UnifiedPdvPreviewPage(){
+export default function UnifiedPdvPreviewPage({embedded=false}){
  const {selectedOrganization}=useAuth();
- return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"}/>;
+ return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"} embedded={embedded}/>;
 }
-function UnifiedPdvWorkspace(){
+function UnifiedPdvWorkspace({embedded}){
  const {selectedOrganization,selectedCompany,hasPermission}=useAuth();
  const scopedKey=(name,...details)=>unifiedScopedQueryKey(name,selectedOrganization?.id,selectedCompany?.id,...details);
  const [motivoCancelar,setMotivoCancelar]=useState("Revisão da comanda");
@@ -71,13 +71,13 @@ function UnifiedPdvWorkspace(){
   setDraft(null);setClientId("");setSelectedClient(null);setClientSearch("");setLines([]);
   setLocalChanges(false);setSavedNotice("");preview.reset();save.reset();
  }
- return <div className="page-stack pv-unified-preview">
-  <Link className="ghost-button pv-back" to="/pdv"><ArrowLeft size={18}/> Voltar ao PDV</Link>
-  <header className="pv-unified-hero">
+ return <div className={embedded?"pv-unified-preview pv-unified-embedded":"page-stack pv-unified-preview"}>
+  {!embedded&&<Link className="ghost-button pv-back" to="/pdv"><ArrowLeft size={18}/> Voltar ao PDV</Link>}
+  <header className={`pv-unified-hero ${embedded?"pv-unified-hero--embedded":""}`}>
    <div className="pv-unified-hero-copy">
     <span className="pv-unified-eyebrow">POINTVET <span aria-hidden="true">/</span> FRENTE DE CAIXA</span>
-    <h1>PDV Unificado</h1>
-    <p>Uma única comanda para o atendimento. Produtos e serviços são separados por empresa no fechamento.</p>
+    {embedded?<h2>Atendimento inteligente</h2>:<h1>PDV Unificado</h1>}
+    <p>Uma comanda para produtos e serviços dos CNPJs autorizados, com caixas e faturamento separados.</p>
     <div className="pv-unified-hero-tags">
      <span>{manualCheckoutEnabled?"Registro manual habilitado":"Simulação sem cobrança"}</span>
      <span>Financeiro por CNPJ</span>
