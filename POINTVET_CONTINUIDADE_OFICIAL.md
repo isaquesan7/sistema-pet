@@ -1,3 +1,13 @@
+# UPDATE M.5.58 — ENSAIO REAL DE PG_DUMP/PG_RESTORE COM DADOS SINTÉTICOS EM RAILWAY (20/10/2026)
+
+**Exercício operacional executado e concluído:** autorização concedida para usar apenas dados fictícios. Foi criado um projeto Railway **separado**, `PointVet-DR-Sintetico-M558` (`11a9be9f-7635-4e74-96f9-0c48d77242c9`), com PostgreSQL 18.6 e executor `postgres:18-alpine`, sem credenciais ou conexões à Pet King. O job `0ea02b49-a454-487e-93c5-841bd9c8d20b` produziu `POINTVET_DRILL_SUCCESS`: **pg_dump custom 9.414 bytes + pg_restore**, checksum SHA-256 validado, comparação de quatro tabelas fictícias, índices, contagem de constraints, sequências, duas empresas, duas vendas e estorno integral de **333 g**, repondo o estoque lógico para **1.000 g**. Não há dados de clientes reais. [Evidência M.5.58](POINTVET_M558_RESTORE_SINTETICO_RAILWAY_ISOLADO.md); script reproduzível [`pointvet-railway-synthetic-drill.sh`](api/scripts/pointvet-railway-synthetic-drill.sh).
+
+**Recursos descartados após o teste:** executor, Postgres e volume sintético; releitura Railway do projeto temporário confirmou **0 serviços e 0 pendências**. Homologação da Pet King segue **4/4 saudável** e produção comercial **8/8 saudável**, sem alterações. A estrutura vazia do projeto temporário permanece.
+
+**Gate 2 ainda PARCIAL:** teste de Railway usou **esquema fictício pequeno**, não restaurou esquema/dump completo PointVet; seus tempos foram inferiores à resolução de segundos, **não** RTO/RPO significativo. Ainda requer prova controlada do esquema completo em dados sintéticos e volume realista, checksum, migrations e integridade, além de autorização de fonte/alvo. Gates de operador/supervisor, fiscal/contábil e canário permanecem. PR #36 **DRAFT**, checkout e contingência OFF.
+
+---
+
 # UPDATE M.5.57 — ENSAIO DE ROLLBACK DA APLICAÇÃO EM STAGING (20/10/2026)
 
 **Gate 2 parcial — retorno de release comprovado:** no Railway **Pet King PDV Homologacao / staging** realizou-se retorno real e temporário do par API+Admin de **M.5.56** (`82c6138e3569999ec4e4ad6a71d1a7101ca20735`) para **M.5.55** (`9c6599ea4cc0d543c3304e928cfb7e582a27475c`) por redeploy de builds anteriores existentes: API `c460ccdc-c248-47c8-bebc-685979e8ce5d` **SUCCESS**, Admin `33aa868b-ab65-4993-83e3-18f3bf3eb6ab` **SUCCESS**, staging **4/4 online**. Logo depois, os dois serviços retornaram à **M.5.56**: API `f876d2ea-dfe8-4308-bd3b-5876707d2d5b` e Admin `35f99077-7cfd-445d-ae76-cf70c333c74f`, ambos **SUCCESS**, staging **4/4 online**, sem patch pendente e com Portal/Postgres intactos. Produção comercial observada **8/8 saudável**, sem implantação/modificação. Nenhuma flag ou CNPJ foi alterado; checkout manual segue com os valores previamente confirmados OFF e gate de contingência segue **ausente/OFF**.
