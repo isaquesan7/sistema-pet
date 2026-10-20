@@ -19,3 +19,11 @@ test("uma comanda concluída pode ser reaberta para estorno sem recriar cobranç
  assert.match(page,/operacoesFechadas=\{reservation\.operacoes\}/);
  assert.match(page,/queryKey:\["unified-completed"\]/);
 });
+
+test("histórico integral estornado é somente leitura e independe do checkout manual",()=>{
+ assert.match(page,/queryKey:scopedKey\("unified-reversals"\),enabled:enabled&&hasPermission\("pdv\.cancelar_venda"\)/);
+ assert.match(page,/api\.get\("\/pdv-unificado\/rascunhos-estornados"\)/);
+ assert.match(page,/Histórico de estornos integrais/);
+ assert.match(page,/\(reversalHistory\.data\|\|\[\]\)\.map\(registro=><div/);
+ assert.match(page,/queryKey:\["unified-reversals"\]/);
+});
