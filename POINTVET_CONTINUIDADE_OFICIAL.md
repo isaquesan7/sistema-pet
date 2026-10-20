@@ -1,3 +1,11 @@
+# UPDATE M.5.57 — ENSAIO DE ROLLBACK DA APLICAÇÃO EM STAGING (20/10/2026)
+
+**Gate 2 parcial — retorno de release comprovado:** no Railway **Pet King PDV Homologacao / staging** realizou-se retorno real e temporário do par API+Admin de **M.5.56** (`82c6138e3569999ec4e4ad6a71d1a7101ca20735`) para **M.5.55** (`9c6599ea4cc0d543c3304e928cfb7e582a27475c`) por redeploy de builds anteriores existentes: API `c460ccdc-c248-47c8-bebc-685979e8ce5d` **SUCCESS**, Admin `33aa868b-ab65-4993-83e3-18f3bf3eb6ab` **SUCCESS**, staging **4/4 online**. Logo depois, os dois serviços retornaram à **M.5.56**: API `f876d2ea-dfe8-4308-bd3b-5876707d2d5b` e Admin `35f99077-7cfd-445d-ae76-cf70c333c74f`, ambos **SUCCESS**, staging **4/4 online**, sem patch pendente e com Portal/Postgres intactos. Produção comercial observada **8/8 saudável**, sem implantação/modificação. Nenhuma flag ou CNPJ foi alterado; checkout manual segue com os valores previamente confirmados OFF e gate de contingência segue **ausente/OFF**.
+
+**Limite do aceite:** o rollback e a restauração de **código** estão validados, mas **não houve pg_restore de backup real nem aferição de RTO/RPO de dados**; o predeploy da API mantém `npm run db:deploy`, sem migrations novas entre os dois códigos. Ainda faltam backup autorizado com origem/alvo definido, aceite operacional (atendente/supervisor), regras fiscais/contábeis e aprovação nominal do piloto. PR #36 segue **DRAFT**, checkout OFF. [Evidências técnicas e IDs M.5.57](POINTVET_M557_ENSAIO_ROLLBACK_APLICACAO_STAGING.md).
+
+---
+
 # UPDATE M.5.56 — CONTINGÊNCIA DE ESTORNO SEPARADA DO CHECKOUT (20/10/2026)
 
 **Aceite da M.5.55:** a proprietária confirmou em conversa às 11h29 BRT que a tela do **Histórico de estornos integrais APARECEU** na homologação. A ressalva anterior sobre o navegador automatizado ficou superada para **visibilidade da seção**, sem significar autorização de canário/pagamento. Adendo em [M.5.55](POINTVET_M555_HISTORICO_ESTORNO_OPERACIONAL.md).
