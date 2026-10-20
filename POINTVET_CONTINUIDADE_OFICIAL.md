@@ -1,3 +1,13 @@
+# UPDATE M.5.54 — VENDA REGISTRADA E REABERTURA DE ESTORNO, FLAG OFF (20/10/2026)
+
+**Ação REAL em staging fictício segregado:** venda unificada da comanda #3 em dois CNPJs, R$ 15,00 (333 g de ração = R$ 5,00 + banho = R$ 10,00), três pagamentos EXTERNOS apenas declarados. A UI confirmou duas vendas e baixa exata de **1,000 kg para 0,667 kg**. Nenhum dinheiro/PSP/banco ou documento fiscal foi transacionado. O teste descobriu que comandas `FECHADA` desapareciam dos rascunhos e não podiam ser retomadas para estorno pela tela.
+
+**Correção entregue na branch:** endpoint restrito `GET /rascunhos-concluidos`, lista visual de vendas concluídas, reabertura read-only e acesso ao formulário de **estorno integral**. SHA de código `cec1c87e7e989564b5ed817e26b2b467209005e8`; [CI #39431148784](https://github.com/isaquesan7/sistema-pet/actions/runs/39431148784) **validate + isolated-postgres SUCCESS**. API/admin staging atualizados e SUCCESS. A UI exibiu **Venda #3** na nova lista durante janela curta de teste.
+
+**Pendência honesta:** a automação do navegador bloqueou observação dos detalhes após selecionar a venda finalizada; **estorno visual ainda NÃO validado/executado**. Estoque permanece **0,667 kg**. As três flags de checkout manual foram devolvidas a **0/listas vazias**, API safety deploy `c2466420-6b16-4ea4-b9ce-26754959a552` SUCCESS, quatro serviços online, interface **Simulação**. Reabrir nova janela autorizada e concluir estorno integral fictício pela UI, verificando estoque 1,000 kg e auditoria; em seguida OFF novamente. PR #36 **DRAFT**, sem merge/main/prod, fiscal, PSP ou restore R2 real. Detalhes: [M.5.54](POINTVET_M554_REABERTURA_ESTORNO_VISUAL.md).
+
+---
+
 # UPDATE M.5.53 — JANELA CONTROLADA DE CHECKOUT, SEGURANÇA RESTAURADA (20/10/2026)
 
 **Entregue:** commit funcional `388a307a739b7916aa9518c59e48ab7691b3d012`, exibição somente de leitura do ID da organização na tela Configurações para seleção estrita de tenant. CI **PointVet Unified PDV Foundation #39427440538 SUCCESS**. Admin de staging `6ffcf089-f23e-4165-9ca2-7b8abf94e6df` SUCCESS.
