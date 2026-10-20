@@ -1,3 +1,13 @@
+# UPDATE M.5.51 — DEPLOY APENAS DO PAINEL EM HOMOLOGAÇÃO (20/10/2026)
+
+- **Base de código:** PR #36 Draft, commit funcional/documental `9db4378030d7c1b12f86144ac1bacb123c370b27`. GitHub Actions `39028345586` concluiu com sucesso; testes locais `node --test admin-web/tests/unified-context.test.mjs admin-web/tests/unified-client-payload.test.mjs`: 2 suítes aprovadas.
+- **Publicação restrita:** somente `pointvet-admin-staging` do projeto Railway separado `Pet King PDV Homologacao`, ambiente `staging`, pinado no commit acima. Deploy `455a86b8-b9b9-4001-a6d6-ae5ff587803d` atingiu **SUCCESS** em 20/10/2026; 4/4 serviços do staging online, nenhum alerta ou pendência. API, PostgreSQL, portal e produção Pet King não foram modificados. Serviço administrativo anterior usava `8bffdd6c3daf16c5dba786b1c3b2297a4c93e3a4` (M.5.50).
+- **Verificação visual não autenticada:** login do staging exibe `HOMOLOGAÇÃO — dados de teste`. O ambiente exige credencial fictícia de homologação para a vistoria operacional; **a validação autenticada pela UI não foi executada nesta sessão**. Não assumir aceite de reabertura, alternância dos CNPJs, reserva, recebimentos manuais, fechamento ou estorno a partir de CI e do deploy.
+- **Próximo gate:** proprietário/atendente autentica no staging e executa checklist M.5.51 e M.5.49 com dados fictícios, sem registrar venda. Conferir tutor reaberto, contexto dos dois CNPJs, granel 333 g / R$ 5,00, distribuição R$ 3 dinheiro + R$ 2 Pix e R$ 10 transferência, reserva, preparação e mensagem de checkout **OFF**; relatar evidência não sensível. Depois planejar aceite controlado de fechamento/estorno unificados e restore de backup real apenas mediante autorização específica e controles LGPD/RTO/RPO.
+- **Limites preservados:** `main`/Pet King produção intocados; PR #36 Draft, checkout comercial/flags não ativados, nenhum merge ou migration de produção. Sem motor fiscal, banco/PSP/maquininha, integração física; processo fiscal/contábil externo aplicável segue necessário antes da operação comercial.
+
+---
+
 # UPDATE M.5.51 — ISOLAMENTO DA TELA EM CONTEXTO MULTIEMPRESA (17/10/2026)
 
 O proprietário da Pet King confirmou a execução dos botões de **simular sem
