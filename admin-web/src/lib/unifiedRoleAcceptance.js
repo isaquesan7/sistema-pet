@@ -1,30 +1,32 @@
 /**
- * M.5.62 — Read-only staging evidence of permissions already present in the
- * authenticated session. This is never a grant or server authorization check:
- * every API request still revalidates tenant, company and cargo permissions.
+ * M.5.63 — Evidência somente-leitura de permissões efetivas, consultadas na API
+ * (banco/cargo/vínculo ativos). Nunca usa permissões potencialmente obsoletas
+ * da sessão; esta função não concede acesso nem substitui a autorização da API.
  */
 export function buildUnifiedRoleAcceptanceMatrix({user,organization,selectedCompany,availability}={}){
- const organizationId=organization?.id;
- const companies=(Array.isArray(user?.empresas)?user.empresas:[])
-  .filter(company=>Boolean(organizationId)&&company?.organizacaoId===organizationId)
-  .map(company=>{
-   const permissions=Array.isArray(company.permissoes)?company.permissoes:[];
-   return {
-    id:company.id,
-    name:company.nomeFantasia||company.razaoSocial||company.nome||"Empresa sem nome",
-    cnpj:company.cnpj||null,
-    selected:company.id===selectedCompany?.id,
-    canAccess:permissions.includes("pdv.acessar"),
-    canCancel:permissions.includes("pdv.cancelar_venda")
-   };
-  });
+ const verified=Boolean(organization?.id&&selectedCompany?.id&&
+  availability?.contextoAcesso?.organizacaoId===organization.id&&
+  availability?.contextoAcesso?.empresaId===selectedCompany.id&&
+  Array.isArray(availability.permissoesEmpresas)&&availability.perfilAcesso);
+ const companies=verified?availability.permissoesEmpresas
+  .filter(company=>Boolean(company?.id))
+  .map(company=>({
+   id:company.id,
+   name:company.nomeFantasia||"Empresa sem nome",
+   cnpj:company.cnpj||null,
+   selected:company.id===selectedCompany?.id,
+   canAccess:company.pdvAcessar===true,
+   canCancel:company.pdvCancelarVenda===true
+  })):[];
  return {
+  verified,
   userName:user?.nome||"Conta não identificada",
-  platformAdmin:Boolean(user?.superAdmin),
+  platformAdmin:verified?availability.perfilAcesso.superAdmin===true:null,
+  organizationRole:verified?availability.perfilAcesso.papelOrganizacao||null:null,
   organizationName:organization?.nomeExibicao||organization?.nome||"Organização não selecionada",
   companies,
-  // Availability is scoped to the currently selected company on the API.
-  checkoutAvailable:availability==null?null:Boolean(availability.checkoutUnificadoDisponivel),
-  reversalAvailable:availability==null?null:Boolean(availability.estornoUnificadoDisponivel)
+  // Gates sempre específicos à empresa selecionada no momento da consulta.
+  checkoutAvailable:verified?Boolean(availability.checkoutUnificadoDisponivel):null,
+  reversalAvailable:verified?Boolean(availability.estornoUnificadoDisponivel):null
  };
 }
