@@ -1,3 +1,18 @@
+# UPDATE M.5.64 — REVOGAÇÃO IMEDIATA DE CARGO INATIVO / VÍNCULO POR CNPJ (20/10/2026)
+
+**Motivação:** o modelo `Cargo` já possui `ativo: Boolean` e a API já confere vínculos `UsuarioEmpresa.ativo`, mas `selecionarEmpresa` ainda aproveitava `cargo.permissoes` mesmo com `cargo.ativo=false`. Uma sessão JWT ainda válida podia acessar operações com cargo formalmente desativado. O painel M.5.63 também precisava apresentar estas permissões como revogadas.
+
+**Correção de código na branch da PR #36 DRAFT:**
+- Em `api/src/middlewares/auth.middleware.js`, a lista `req.permissoes` passa a ser `[]` quando o cargo atribuído à empresa está inativo ou ausente. `exigirPermissao` passa a negar as operações protegidas automaticamente, sem mudar contratos dos endpoints nem permitir bypass administrativo.
+- `GET /api/pdv-unificado/disponibilidade` consulta `cargo.ativo` e exibe `pdvAcessar=false` / `pdvCancelarVenda=false` no CNPJ de cargo inativo, preservando o isolamento organizacional e os campos de compatibilidade.
+- Na suíte HTTP do PostgreSQL CI descartável, um mesmo token de atendente perde imediatamente acesso ao CNPJ com cargo desativado, enquanto mantém o acesso ao outro; reativação restaura acesso. Desativação do vínculo `UsuarioEmpresa` impede acesso ao CNPJ e o retira da matriz sem renovar login. Remover/restaurar `pdv.cancelar_venda` do cargo atualiza imediatamente a matriz do supervisor sem afetar permissões da outra empresa.
+
+**Sem migration, grants, mudanças de dados reais, pagamento, banco/maquininha/TEF, motor fiscal, novas flags nem deploy.** Escopo sobre leitura e autorização existente: testes com identidades e CNPJs exclusivamente sintéticos. Código em branch da PR #36, não incorporado em `main`.
+
+**Evidência CI:** código testado no commit `4cdd9a2319a52523028688f3b0025b6d2dc89316`; [GitHub Actions #39479393026](https://github.com/isaquesan7/sistema-pet/actions/runs/39479393026), `validate SUCCESS` e `isolated-postgres SUCCESS`, incluindo HTTP de cargo inativo/vínculo inativo/revogação de permissão, transações/rollback, estoque e restauração CI. O ambiente Railway permanece com builds pausados conforme relato do usuário: **não tentar publicar** ou reconfigurar origens enquanto esse bloqueio persistir. Após a recuperação, atualizar **somente staging** para o HEAD verificado, testar com contas de atendente/supervisor distintas e obter aceite humano. Gate 2 segue parcial; fiscal, RTO/RPO comercial e canário não estão autorizados.
+
+---
+
 # UPDATE M.5.63 — PERMISSÕES VIVAS POR CNPJ E PERFIS NO STAGING (20/10/2026)
 
 **Objetivo:** corrigir o risco da M.5.62 de mostrar no painel dados de permissões do login em cache, que podem divergir das permissões atuais conferidas na API depois de mudanças de cargos. **Sem ação financeira, fiscal ou mudança de permissões.**
