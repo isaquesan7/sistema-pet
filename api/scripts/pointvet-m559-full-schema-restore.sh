@@ -16,7 +16,7 @@ command -v pg_dump >/dev/null && command -v pg_restore >/dev/null ||
 command -v sha256sum >/dev/null || die 'sha256sum not installed'
 
 source_db='pointvet_unified_ci'
-restore_db='pointvet_m559_full_restore'
+restore_db='pointvet_m559_full_restore_v2'
 scratch=$(mktemp -d /tmp/pointvet-m559.XXXXXXXX)
 trap 'rm -rf "$scratch"' EXIT HUP INT TERM
 sql() { psql -X -At -q -v ON_ERROR_STOP=1 -d "$1" -c "$2"; }
@@ -68,7 +68,7 @@ pg_restore --format=custom --no-owner --no-acl --exit-on-error \
  -d "$restore_db" "$scratch/full.dump" > "$scratch/restore.log" 2>&1 ||
  die 'pg_restore failed'
 restore_finished=$(date +%s)
-sha256sum --check --status "$scratch/full.sha256" ||
+sha256sum -c -s "$scratch/full.sha256" ||
  die 'backup checksum mismatch'
 
 # Fingerprint every public table, index, constraint, sequence, view, trigger,
