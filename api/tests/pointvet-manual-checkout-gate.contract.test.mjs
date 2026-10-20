@@ -1,7 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {checkoutManualHabilitado} from "../src/modules/pdv/pdv-unificado-checkout-manual.gate.js";
+import {checkoutManualHabilitado,estornoContingenciaHabilitado,estornoManualHabilitado,empresaEstornoContingenciaAutorizada} from "../src/modules/pdv/pdv-unificado-checkout-manual.gate.js";
 
 test("checkout manual falha fechado sem 4 autorizações e nunca exige motor fiscal",()=>{
  const enabled=process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED;
@@ -39,4 +39,32 @@ test("checkout manual falha fechado sem 4 autorizações e nunca exige motor fis
  assert.match(service,/criarVendasFilhasEmTransacao/);
  assert.match(service,/efetivarRecebimentosManuaisEmTransacao/);
  assert.doesNotMatch(service,/criarDocumentoAutomaticoVenda|emitirNota|enviarPagamento|webhook/i);
+});
+
+test("contingência M.5.56 autoriza apenas ESTORNO com três allowlists independentes",()=>{
+ const keys=["POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED","POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS",
+  "POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS","POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED",
+  "POINTVET_UNIFIED_MANUAL_REVERSAL_ORG_IDS","POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS"];
+ const originals=new Map(keys.map(key=>[key,process.env[key]]));
+ const org={id:"tenant-sintetico",configuracao:{pdvUnificadoHabilitado:true}};
+ try{
+  for(const key of keys)delete process.env[key];
+  assert.equal(estornoManualHabilitado(org,"empresa-a"),false);
+  process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED="1";
+  assert.equal(estornoManualHabilitado(org,"empresa-a"),false);
+  process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ORG_IDS="outro-tenant,tenant-sintetico";
+  assert.equal(estornoManualHabilitado(org,"empresa-a"),false);
+  process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS="empresa-a,empresa-b";
+  assert.equal(estornoManualHabilitado(org,"empresa-a"),true);
+  assert.equal(estornoContingenciaHabilitado(org,"empresa-b"),true);
+  assert.equal(empresaEstornoContingenciaAutorizada("empresa-c"),false);
+  assert.equal(checkoutManualHabilitado(org,"empresa-a"),false,
+   "A permissão de estorno jamais habilita o checkout");
+  assert.equal(estornoManualHabilitado({...org,id:"tenant-errado"},"empresa-a"),false);
+  assert.equal(estornoManualHabilitado({...org,configuracao:{pdvUnificadoHabilitado:false}},"empresa-a"),false);
+  process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED="0";
+  assert.equal(estornoManualHabilitado(org,"empresa-a"),false);
+ }finally{
+  for(const [key,value] of originals){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+ }
 });
