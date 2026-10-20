@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {unifiedScopedQueryKey,visibleUnifiedClients} from "../src/lib/unifiedDraft.js";
+import {unifiedScopedQueryKey,visibleUnifiedClients,keepUnifiedPdvRouteOnCompanyChange} from "../src/lib/unifiedDraft.js";
 
 test("queries cannot reuse a cached response from another selected company or organization",()=>{
  const a=unifiedScopedQueryKey("unified-catalog","organizacao-a","empresa-a","racao");
@@ -18,6 +18,19 @@ test("a reopened draft keeps its persisted tutor selected during a filtered sear
  assert.deepEqual(visibleUnifiedClients([persisted,another],persisted),[persisted,another]);
  assert.deepEqual(visibleUnifiedClients([],null),[]);
  assert.deepEqual(visibleUnifiedClients(undefined,persisted),[persisted]);
+});
+
+test("company switch preserves unified workspace only inside the same authorized organization",()=>{
+ const path="/pdv/unificado/simulacao";
+ const allowed={id:"b",organizacaoId:"org-a",permissoes:["pdv.acessar"]};
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",allowed),true);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange("/pdv","org-a",allowed),false);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-b",allowed),false);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",{...allowed,permissoes:[]}),false);
+ assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",null),false);
+ const layout=readFileSync(new URL("../src/layout/AppLayout.jsx",import.meta.url),"utf8");
+ assert.match(layout,/keepUnifiedPdvRouteOnCompanyChange\(location\.pathname, selectedOrganization\?\.id, nextCompany\)/);
+ assert.match(layout,/if \(!keepWorkspace\) navigate\("\/"\)/);
 });
 
 test("operator search clears stale tutor selection; reservation prevents editing it",()=>{
