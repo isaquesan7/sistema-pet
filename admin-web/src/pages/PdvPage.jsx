@@ -26,6 +26,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
+import "../pdv.css";
 
 const paymentLabels = {
   DINHEIRO: "Dinheiro",
@@ -139,18 +140,20 @@ function PaymentEditor({ payments, total, onChange }) {
   }
 
   return (
-    <div className="pdv-payments">
+    <div className="pdv-payments" aria-label="Distribuição dos pagamentos">
+
       <div className="pdv-payments__heading">
         <div>
           <strong>Pagamentos</strong>
-          <span>Você pode dividir o valor entre várias formas.</span>
+          <span>Informe manualmente como o cliente pagou, inclusive em formas diferentes. Sem integração com bancos ou maquininhas.</span>
         </div>
         <button className="ghost-button" type="button" onClick={add}><Plus size={14} /> Adicionar</button>
       </div>
+      <div className="pdv-payment-labels" aria-hidden="true"><span>Forma de pagamento</span><span>Valor (R$)</span><span>Parcelas / vencimento</span><span></span></div>
       <div className="pdv-payment-list">
         {payments.map((payment, index) => (
           <div className="pdv-payment-row" key={`${payment.forma}-${index}`}>
-            <select className="form-control" value={payment.forma} onChange={(event) => {
+            <select className="form-control" aria-label={`Forma de pagamento ${index+1}`} value={payment.forma} onChange={(event) => {
               const forma = event.target.value;
               update(index, { forma, ...(forma === "CREDITO_CLIENTE" && !payment.vencimentoEm ? { vencimentoEm: datePlusDays(30) } : {}) });
             }}>
@@ -159,6 +162,7 @@ function PaymentEditor({ payments, total, onChange }) {
             <input
               className="form-control"
               type="number"
+              aria-label={`Valor do pagamento ${index+1} em reais`}
               min="0.01"
               step="0.01"
               value={payment.valor}
@@ -169,6 +173,7 @@ function PaymentEditor({ payments, total, onChange }) {
                 className="form-control"
                 type="number"
                 min="1"
+                aria-label={`Parcelas do pagamento ${index+1}`}
                 max="36"
                 value={payment.parcelas || 1}
                 onChange={(event) => update(index, { parcelas: Math.max(1, Number(event.target.value) || 1) })}
@@ -178,12 +183,13 @@ function PaymentEditor({ payments, total, onChange }) {
               <input
                 className="form-control"
                 type="date"
+                aria-label={`Vencimento do crédito do cliente no pagamento ${index+1}`}
                 value={payment.vencimentoEm || datePlusDays(30)}
                 onChange={(event) => update(index, { vencimentoEm: event.target.value })}
                 title="Vencimento do fiado"
               />
             ) : <span className="pdv-payment-spacer" />}
-            <button type="button" className="icon-button table-action" onClick={() => remove(index)} disabled={payments.length === 1}><XCircle size={15} /></button>
+            <button type="button" className="icon-button table-action" aria-label={`Remover forma de pagamento ${index+1}`} onClick={() => remove(index)} disabled={payments.length === 1}><XCircle size={15} /></button>
           </div>
         ))}
       </div>
@@ -479,19 +485,22 @@ export default function PdvPage() {
 
   return (
     <div className="page-stack pdv-page">
-      <section className="page-heading page-heading--hero">
-        <div>
-          <span className="page-kicker">Operação comercial</span>
+      <header className="pdv-hero" aria-label="Painel do ponto de venda">
+        <div className="pdv-hero__copy">
+          <span className="pdv-hero__eyebrow">POINTVET <span aria-hidden="true">/</span> ATENDIMENTO</span>
           <h1>PDV e Comandas</h1>
-          <p>Venda, receba e acompanhe comandas mantendo cada CNPJ financeiro separado.</p>
+          <p>Venda rápida, comandas e caixa do CNPJ selecionado. Recebimentos registrados manualmente, sem vínculo bancário.</p>
+          <div className="pdv-hero__chips"><span>{selectedCompany?.nomeFantasia || "Empresa selecionada"}</span><span>Financeiro separado por CNPJ</span></div>
         </div>
-        <div className={`pdv-session-badge ${openSession ? "pdv-session-badge--open" : ""}`}>
-          <Store size={18} />
-          <div><span>Caixa</span><strong>{openSession ? `${openSession.caixa?.nome} aberto` : "Fechado"}</strong></div>
+        <div className={`pdv-session-badge ${openSession ? "pdv-session-badge--open" : ""}`} role="status">
+          <Store size={21} />
+          <div><span>CAIXA DO CNPJ</span><strong>{openSession ? openSession.caixa?.nome || "Caixa aberto" : "Caixa fechado"}</strong><small>{openSession ? "Pronto para registrar vendas" : "Abra o caixa para finalizar vendas"}</small></div>
         </div>
-      </section>
-
-      {unifiedStatus.data?.preferenciaUnificado&&<section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><div><strong>PDV Unificado · Prévia da Fase 20.1</strong><p style={{fontSize:14,marginTop:6}}>Simule uma comanda de várias empresas sem movimentar estoque, pagamentos ou documentos fiscais.</p></div><Link className="ghost-button" to="/pdv/unificado/simulacao">Abrir simulação multiempresa</Link></div></section>}
+      </header>
+      {unifiedStatus.data?.preferenciaUnificado&&<section className="pdv-unified-shortcut">
+        <div><span>ATENDIMENTO MULTIEMPRESA</span><h2>Venda em mais de um CNPJ?</h2><p>Use a comanda unificada quando precisar incluir itens de empresas diferentes. Os totais e recebimentos permanecem separados por CNPJ.</p></div>
+        <Link className="ghost-button" to="/pdv/unificado/simulacao">Abrir PDV Unificado <Plus size={15}/></Link>
+      </section>}
       <section className="pdv-summary-grid">
         <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
         <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje</span><strong>{summary.vendasHoje || 0}</strong></div></div>
@@ -499,20 +508,20 @@ export default function PdvPage() {
         <div className="pdv-summary-card"><Banknote size={19} /><div><span>Saldo inicial</span><strong>{formatCurrency(openSession?.valorAbertura || 0)}</strong></div></div>
       </section>
 
-      <div className="pdv-tabs">
+      <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
         {[ ["VENDA", ShoppingCart, "Venda rápida"], ["COMANDAS", WalletCards, "Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
-          <button className={tab === value ? "active" : ""} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
+          <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
-      </div>
+      </nav>
 
       {tab === "VENDA" ? (
-        <section className="pdv-sale-layout">
+        <section className="pdv-sale-layout" aria-label="Registrar venda rápida">
           <div className="panel pdv-catalog-panel">
-            <div className="panel__heading"><div><span>Catálogo do CNPJ</span><h2>Produtos e serviços</h2></div><Boxes size={18} /></div>
-            <label className="search-box pdv-search"><Search size={17} /><input value={itemSearch} onChange={(event) => setItemSearch(event.target.value)} placeholder="Nome, SKU ou código de barras..." /></label>
+            <div className="panel__heading"><div><span>01 / Escolha os itens</span><h2>Catálogo do CNPJ</h2><p>Adicione os produtos e serviços do caixa selecionado.</p></div><Boxes size={20} /></div>
+            <label className="search-box pdv-search"><Search size={17} /><input aria-label="Buscar produto, SKU ou código de barras" value={itemSearch} onChange={(event) => setItemSearch(event.target.value)} placeholder="Nome, SKU ou código de barras..." /></label>
             <div className="pdv-product-grid">
               {catalog.map((item) => (
-                <button className="pdv-product-card" type="button" onClick={() => addToCart(item)} key={item.id}>
+                <button className="pdv-product-card" type="button" aria-label={`Adicionar ${item.nome} ao carrinho`} onClick={() => addToCart(item)} key={item.id}>
                   <span className={`badge ${item.tipo === "PRODUTO" ? "badge--muted" : "badge--success"}`}>{item.tipo === "PRODUTO" ? "Produto" : "Serviço"}</span>
                   <strong>{item.nome}</strong>
                   <small>{item.categoria?.nome || "Sem categoria"}</small>
@@ -520,12 +529,13 @@ export default function PdvPage() {
                   {item.tipo === "PRODUTO" && item.produto?.controlaEstoque ? <em>Estoque: {money(item.produto?.estoque?.quantidade)}</em> : null}
                 </button>
               ))}
-              {!catalog.length ? <div className="mini-empty pdv-grid-empty">Nenhum item encontrado.</div> : null}
+              {itemsQuery.isLoading ? <div className="mini-empty pdv-grid-empty">Buscando produtos...</div> : null}
+              {!itemsQuery.isLoading && !catalog.length ? <div className="mini-empty pdv-grid-empty">Nenhum item encontrado. Experimente outro termo de busca.</div> : null}
             </div>
           </div>
 
           <div className="panel pdv-cart-panel">
-            <div className="panel__heading"><div><span>Venda atual</span><h2>Carrinho</h2></div><ShoppingCart size={18} /></div>
+            <div className="panel__heading"><div><span>02 / Confira e receba</span><h2>Carrinho de venda</h2><p>Revise tutor, itens, valores e pagamentos.</p></div><span className="pdv-cart-count"><ShoppingCart size={16}/>{cart.length} {cart.length===1?"item":"itens"}</span></div>
             <FormField label="Cliente (opcional, obrigatório para serviços com pet)">
               <select className="form-control" value={clientId} onChange={(event) => changeClient(event.target.value)}>
                 <option value="">Consumidor não identificado</option>
@@ -533,17 +543,17 @@ export default function PdvPage() {
               </select>
             </FormField>
 
-            <div className="pdv-cart-list">
+            <div className="pdv-cart-list" aria-label="Itens do carrinho">
               {cart.length ? cart.map((line, index) => (
                 <CartLine key={`${line.item.id}-${index}`} line={line} client={selectedClient} canDiscount={canDiscount} onUpdate={(patch) => updateCart(index, patch)} onRemove={() => removeCart(index)} />
-              )) : <div className="mini-empty">Clique em um produto ou serviço para adicioná-lo.</div>}
+              )) : <div className="pdv-empty-cart"><ShoppingCart size={25}/><strong>Seu carrinho está vazio</strong><p>Clique em um item do catálogo para iniciar a venda.</p></div>}
             </div>
 
-            <div className="pdv-totals">
+            <div className="pdv-totals" aria-label="Resumo de valores">
               <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
               {canDiscount ? <div><span>Desconto geral</span><input type="number" min="0" step="0.01" value={saleDiscount} onChange={(event) => { const value = Number(event.target.value) || 0; setSaleDiscount(value); setTimeout(() => useSinglePaymentTotal(round(subtotal - value + saleAddition)), 0); }} /></div> : null}
               <div><span>Acréscimo</span><input type="number" min="0" step="0.01" value={saleAddition} onChange={(event) => { const value = Number(event.target.value) || 0; setSaleAddition(value); setTimeout(() => useSinglePaymentTotal(round(subtotal - saleDiscount + value)), 0); }} /></div>
-              <div className="pdv-total-final"><span>Total</span><strong>{formatCurrency(total)}</strong></div>
+              <div className="pdv-total-final"><span>Total da venda</span><strong>{formatCurrency(total)}</strong></div>
             </div>
 
             <PaymentEditor payments={payments} total={total} onChange={setPayments} />
