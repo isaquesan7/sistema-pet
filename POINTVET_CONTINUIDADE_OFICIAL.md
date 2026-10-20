@@ -1,3 +1,15 @@
+# UPDATE M.5.53 — JANELA CONTROLADA DE CHECKOUT, SEGURANÇA RESTAURADA (20/10/2026)
+
+**Entregue:** commit funcional `388a307a739b7916aa9518c59e48ab7691b3d012`, exibição somente de leitura do ID da organização na tela Configurações para seleção estrita de tenant. CI **PointVet Unified PDV Foundation #39427440538 SUCCESS**. Admin de staging `6ffcf089-f23e-4165-9ca2-7b8abf94e6df` SUCCESS.
+
+**Homologação visual:** conta fictícia e organização Pet King - Homologacao no projeto Railway separado, dois CNPJs, comanda #3 reservada: 333 g de ração = R$ 5,00 + banho R$ 10,00, caixas separados, três formas de pagamento fictícias conferidas localmente. Uma janela curta ligou as três flags exclusivamente na API staging, com allowlists exatas de 1 organização e 2 empresas; deploy `14f72a46-011f-4a3f-8afe-94f8bc9168cd` SUCCESS e UI mudou para Fechamento manual. **Não se clicou em registrar venda nem estorno**; nenhuma transação ou baixa de estoque ocorreu, o saldo sintético permaneceu 1,000 kg.
+
+**Fechamento seguro da janela:** flags restauradas a `0` / listas vazias, API deploy `41d1a412-6398-4c84-9eb5-1dd591a0dda1` SUCCESS, UI voltou a Simulação; 4/4 serviços staging e 8/8 produção saudáveis. PR #36 ainda Draft, `main` e Pet King produção intactos. Próxima ação exige confirmação pontual **na hora do registro financeiro fictício** para executar venda integral e estorno pela UI em nova janela curta, com reversão OFF ao final. Não misturar com restore do R2 REAL, ainda pendente de autorização separada.
+
+Relatório completo, IDs sintéticos e procedimento exato: [POINTVET_M553_ID_SUPORTE_JANELA_TESTE.md](POINTVET_M553_ID_SUPORTE_JANELA_TESTE.md).
+
+---
+
 # UPDATE M.5.52 — TROCA DE CNPJ E CONFERÊNCIA OPERACIONAL NO STAGING (20/10/2026)
 
 A vistoria autenticada descobriu um defeito não coberto pelo teste de cache M.5.51: o seletor global redirecionava para `/` ao trocar CNPJ e descartava o workspace Unificado. **Corrigido** para preservar a rota `/pdv/unificado/simulacao` somente entre CNPJs autorizados da mesma organização; demais páginas, empresas não autorizadas e mudanças de organização continuam redirecionando. Commits `b1dbfff`, `10493db` e HEAD funcional `b768d694c95e9ba332a0209b82b7a676147d0af4`; [CI #39424381896](https://github.com/isaquesan7/sistema-pet/actions/runs/39424381896) **validate + isolated-postgres SUCCESS**.
