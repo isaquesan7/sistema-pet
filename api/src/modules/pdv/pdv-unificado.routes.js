@@ -20,15 +20,30 @@ const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
 r.get("/disponibilidade",async(req,res,next)=>{
  try{
-  const access=await prisma.usuarioEmpresa.findMany({where:{usuarioId:req.usuario.id,ativo:true,empresa:{ativo:true,organizacaoId:req.organizacao.id}},select:{empresaId:true,empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}}}});
+  // M.5.63: a mesma fonte viva de cargos/permissões usada pelo middleware,
+  // sempre limitada ao usuário autenticado e à organização selecionada.
+  const access=await prisma.usuarioEmpresa.findMany({
+   where:{usuarioId:req.usuario.id,ativo:true,empresa:{ativo:true,organizacaoId:req.organizacao.id}},
+   select:{empresaId:true,empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},
+    cargo:{select:{permissoes:{select:{permissao:{select:{codigo:true}}}}}}}
+  });
   const pdvHabilitado=Boolean(req.organizacao.configuracao?.pdvUnificadoHabilitado);
   const checkoutHabilitado=checkoutManualHabilitado(req.organizacao,req.empresa.id);
   const estornoHabilitado=estornoManualHabilitado(req.organizacao,req.empresa.id);
+  res.set("Cache-Control","no-store");
   return res.json({success:true,dados:{
    preferenciaUnificado:pdvHabilitado,checkoutUnificadoDisponivel:checkoutHabilitado,
    estornoUnificadoDisponivel:estornoHabilitado,
    modoEfetivo:checkoutHabilitado?"UNIFICADO_MANUAL":"INDIVIDUAL",
    empresasAcessiveis:access.map(v=>v.empresa),
+   contextoAcesso:{organizacaoId:req.organizacao.id,empresaId:req.empresa.id},
+   // Evidência de homologação; não concede acesso nem substitui os gates das rotas.
+   perfilAcesso:{papelOrganizacao:req.vinculoOrganizacao.papel,superAdmin:Boolean(req.usuario.superAdmin)},
+   permissoesEmpresas:access.map(v=>{
+    const permissoes=new Set(v.cargo?.permissoes.map(p=>p.permissao.codigo)||[]);
+    return {id:v.empresa.id,nomeFantasia:v.empresa.nomeFantasia,cnpj:v.empresa.cnpj,
+     pdvAcessar:permissoes.has("pdv.acessar"),pdvCancelarVenda:permissoes.has("pdv.cancelar_venda")};
+   }),
    aviso:checkoutHabilitado?
     "Fechamento manual restrito à organização autorizada, sem fiscal ou integração física.":
     "O PDV individual permanece em uso até a homologação do fechamento multiempresa."
