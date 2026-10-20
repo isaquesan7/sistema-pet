@@ -3,7 +3,7 @@ import {Router} from "express";
 import {z} from "zod";
 import prisma from "../../config/prisma.js";
 import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,listarCaixasDisponiveisUnificados,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "./pdv-unificado-preparacao.service.js";
-import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
+import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,listarEstornosUnificados,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
 import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
 import {consultarRecebiveisCartaoLeituraM57,listarComandasRecebiveisCartaoLeituraM57} from "./pdv-unificado-recebiveis-leitura.service.js";
 import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "./pdv-unificado-repasse-historico.service.js";
@@ -300,6 +300,12 @@ r.get("/rascunhos",async(req,res,next)=>{try{
 r.get("/rascunhos-concluidos",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
  if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({success:false,message:"Checkout manual desativado."});
  return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,somenteConcluidas:true})});
+}catch(e){next(e);}});
+// Histórico de estornos já executados: leitura fiscalmente neutra, inclusive
+// com kill switch OFF. Nunca autoriza novo pagamento, venda ou estorno.
+r.get("/rascunhos-estornados",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ return res.json({success:true,dados:await listarEstornosUnificados({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id})});
 }catch(e){next(e);}});
 r.post("/rascunhos",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
