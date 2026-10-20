@@ -1,3 +1,25 @@
+# UPDATE M.5.67 — INTERFACE DE BALCÃO DO PDV TRADICIONAL (20/10/2026)
+
+**Continuidade da Issue #37 / PR #36 DRAFT:** na etapa anterior M.5.66, modernizamos a área Unificada. Agora, com deploys ainda pausados pelo Railway, atualizamos **também o PDV tradicional** sem publicar ou alterar o motor comercial.
+
+**Problema original constatado no código:** `admin-web/src/index.css` mantinha textos críticos do PDV com 7–10 px (produtos, estoque, quantidade, itens, dinheiro, formas de pagamento, resumo), e o grid de parcelas/vencimento era ocultado em telas com no máximo 700 px. Carrinho ficava apertado em tela de balcão, e a indicação de PDV Unificado tinha texto da antiga "prévia" mesmo com fechamento manual controlado já disponível para organizações habilitadas.
+
+**Mudanças em `admin-web/src/pages/PdvPage.jsx` + novo `admin-web/src/pdv.css`:**
+1. Cabeçalho visual consistente com M.5.66, contexto do CNPJ selecionado e **caixa aberto/fechado** sem alterar autorização/estado.
+2. Acesso contextual ao PDV Unificado quando a preferência de organização estiver habilitada; nenhuma alteração nos gates/rotas.
+3. Indicadores de faturamento, vendas, comandas e saldo inicial com fontes acessíveis (em geral 11–22 px). Navegação de abas com toque/teclado e `aria-pressed`.
+4. Catálogo maior, cartões legíveis por nome/categoria/preço/estoque, busca identificada e mensagens de carregamento/vazio. Carrinho mostra contagem, estado vazio claro, linhas flexíveis para quantidade, desconto e total, e total final em destaque.
+5. Formas de pagamento manuais com coluna identificada, controles rotulados para leitores de tela, campos preservados no celular **inclusive parcelas de cartão e vencimento do crédito do cliente** (a CSS anterior os ocultava em até 700 px).
+6. Estilos do domínio isolados em `pdv.css`, com quebras 1250/900/700/560/390 px, foco visível e respeito à preferência por movimento reduzido. Não dependem de novo pacote npm.
+
+**Limites deliberados:** todas as rotas e chamadas existentes `/pdv/vendas`, comandas, crédito do cliente, caixa, pacote, cancelamento/estoque, PDV Unificado opt-in e `hasPermission` mantidas. A interface **não recebe dinheiro**; só registra a forma indicada pelo atendente. Nenhuma API, schema, migration, PSP/TEF, vínculo bancário ou motor fiscal foi alterado. Nenhuma transação real executada.
+
+**Rastreabilidade:** CSS `fd17df1`, JSX `bbe88d0`, teste estrutural `d7cbf42` (`admin-web/tests/pdv-layout.test.mjs`). Os testes protegem layout e acessibilidade sem alterar permissões nem declarações manuais. [CI de PDV #39494067354](https://github.com/isaquesan7/sistema-pet/actions/runs/39494067354) e [CI geral #39494067426](https://github.com/isaquesan7/sistema-pet/actions/runs/39494067426) **validate SUCCESS** e **isolated-postgres SUCCESS** (PDV); **admin-web build SUCCESS** (geral).
+
+**Gate seguinte:** aguardar Railway voltar a aceitar deploy, atualizar somente o staging da Pet King, vistoriar manualmente telas com 1366 × 768 e celulares e simular casos autorizados com tutor, itens com estoque, pets, desconto, pagamento misto, parcelas/vencimento, caixa, comanda e dois CNPJs. Nunca publicar em produção/main automaticamente; confirmar separação por CNPJ e limites fiscais antes de futura liberação comercial.
+
+---
+
 # UPDATE M.5.66 — REDESENHO DA TELA DO PDV UNIFICADO (20/10/2026)
 
 **Pedido do proprietário:** priorizar a usabilidade e a aparência da página do PDV enquanto o Railway informa "Limited Access / Deploys have been paused temporarily". Trabalho exclusivamente na branch `feat/pointvet-20-1-unified-pdv-foundation` / PR #36 **DRAFT**; não houve deploy, merge, alteração de flags nem execução de vendas reais.
