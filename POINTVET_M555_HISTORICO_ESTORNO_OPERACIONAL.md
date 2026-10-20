@@ -1,3 +1,7 @@
+> **ACEITE VISUAL DA PROPRIETÁRIA (20/10/2026, 11h29 BRT):** após a implantação M.5.55, a usuária confirmou em conversa: **“apareceu sim, pode continuar”**. Isso encerra a pendência de **visibilidade da seção de histórico de estornos no painel de homologação**. Não confundir essa confirmação de exibição com autorização de canário de produção, novos recebimentos ou teste de estorno de contingência. O texto histórico abaixo documenta a restrição do navegador automatizado anterior.
+
+---
+
 # PointVet M.5.55 — Histórico operacional de estornos integrais (20/10/2026)
 
 ## Entrega
