@@ -1,3 +1,15 @@
+# UPDATE M.5.65 — REVALIDAÇÃO DO CNPJ SELECIONADO DENTRO DA OPERAÇÃO (20/10/2026)
+
+**Falha encontrada em auditoria do PDV multiempresa:** o helper `empresasAutorizadas` em `pdv-unificado.service.js` conferia `pdv.acessar` com `Cargo.ativo` para os outros CNPJs, mas considerava a empresa selecionada autorizada apenas por seu ID. Embora o middleware já exija acesso no início da requisição, ele não protege uma operação mais longa se o cargo/vínculo for revogado entre a autenticação e a transação de fechamento ou estorno.
+
+**Correção implementada na PR #36 DRAFT:** `empresasAutorizadas` passa a exigir vínculo ativo, empresa ativa, cargo ativo e permissão `pdv.acessar` **também no CNPJ selecionado**, sempre consultados na base atual no ponto de uso. Mantidos os mecanismos existentes de verificação de `pdv.cancelar_venda` em todos os CNPJs para estorno integral, os gates opt-in/allowlists, a transação serializable, replay/rollback e os contratos HTTP. Nenhuma migration.
+
+**Teste em PostgreSQL CI descartável:** após a comanda multiempresa fictícia e estorno controlado, o teste desativa o cargo de atendente **depois de criada a sessão** e chama o núcleo `consultarReservaFechamento(...,tx)` diretamente, simulando a revogação ocorrida após o middleware; deve lançar `EMPRESA_SEM_ACESSO`. A reativação restaura somente os acessos concedidos, e a inativação do vínculo do segundo CNPJ também bloqueia o uso da comanda mesmo se o operador mantém autorização na Loja. Todas as alterações ocorreram no banco sintético da CI; nenhum recebimento externo, Pix real, fiscal, PSP, maquininha ou alteração na Pet King.
+
+**Evidência:** código em `869b5810c73fac59bfaa5175dddf78e9573bea58`, [GitHub Actions #39482434830](https://github.com/isaquesan7/sistema-pet/actions/runs/39482434830) com `validate SUCCESS` + `isolated-postgres SUCCESS`, incluindo teste real de revogação após a seleção de CNPJ, checkout manual com dois CNPJs e rollback/restauração sintéticos. O Railway permanece com novos deployments pausados conforme o usuário: não alterar serviços, flags ou origens de publicação. PR #36 permanece DRAFT; `main`, staging atual e comercial preservados. Após liberação, publicar somente staging com SHA e SUCCESS confirmados, testar autorização de ambas as empresas e obter aceite humano de atendente/supervisor antes de qualquer canário. Gate 2 permanece parcial.
+
+---
+
 # UPDATE M.5.64 — REVOGAÇÃO IMEDIATA DE CARGO INATIVO / VÍNCULO POR CNPJ (20/10/2026)
 
 **Motivação:** o modelo `Cargo` já possui `ativo: Boolean` e a API já confere vínculos `UsuarioEmpresa.ativo`, mas `selecionarEmpresa` ainda aproveitava `cargo.permissoes` mesmo com `cargo.ativo=false`. Uma sessão JWT ainda válida podia acessar operações com cargo formalmente desativado. O painel M.5.63 também precisava apresentar estas permissões como revogadas.
