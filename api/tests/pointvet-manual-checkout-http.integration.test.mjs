@@ -21,16 +21,25 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  const productId="chk-prod-"+suffix,itemId="chk-item-"+suffix,serviceId="chk-svc-"+suffix;
  const old={secret:process.env.JWT_ACCESS_SECRET,enabled:process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED,
   allowed:process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS,
-  companies:process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS};
+  companies:process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS,
+  reversalEnabled:process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED,
+  reversalOrgs:process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ORG_IDS,
+  reversalCompanies:process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS};
  process.env.JWT_ACCESS_SECRET="checkout-ci-synthetic-only-never-production";
  delete process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED;
  delete process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS;
  delete process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS;
+ delete process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED;
+ delete process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ORG_IDS;
+ delete process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS;
  t.after(()=>{
   for(const [key,value] of [["JWT_ACCESS_SECRET",old.secret],
    ["POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED",old.enabled],
    ["POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS",old.allowed],
-   ["POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS",old.companies]]){
+   ["POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS",old.companies],
+   ["POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED",old.reversalEnabled],
+   ["POINTVET_UNIFIED_MANUAL_REVERSAL_ORG_IDS",old.reversalOrgs],
+   ["POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS",old.reversalCompanies]]){
    if(value===undefined)delete process.env[key];else process.env[key]=value;
   }
  });
@@ -206,8 +215,8 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(await prisma.venda.count(),before.sales+2);
  assert.equal(await prisma.pagamento.count(),before.pay+3);
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.667);
- // Estorno integral autenticado: o mesmo gate, com permissão para cancelar
- // em TODOS os CNPJs; um checkbox não realiza refund bancário.
+ // Estorno integral autenticado: permissão para cancelar em TODOS os CNPJs.
+ // M.5.56 permite um gate independente de contingência SEM habilitar vendas.
  const reverseUrl=`/api/pdv-unificado/rascunhos/${draft.id}/estornar-manual`;
  const reversal={versao:1,motivo:"Devolução externa integral conferida pelo atendente",
   referenciaExterna:"ACERTO-MANUAL-CI",confirmouDevolucaoExterna:true};
@@ -223,10 +232,18 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await request("GET","/api/pdv-unificado/rascunhos-concluidos",403);
  assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.modoEfetivo,"INDIVIDUAL");
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.667);
- process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
- process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store;
+ process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED="1";
  await request("POST",reverseUrl,403,reversal);
- process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store+","+service;
+ process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ORG_IDS=org;
+ await request("POST",reverseUrl,403,reversal);
+ process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS=store;
+ assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.estornoUnificadoDisponivel,true);
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-concluidos",200)).dados.some(x=>x.id===draft.id),true);
+ await request("POST",reverseUrl,403,reversal); // Outro CNPJ sem allowlist de contingência.
+ process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_COMPANY_IDS=store+","+service;
+ assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.checkoutUnificadoDisponivel,false);
+ await request("POST",endpoint,403,body); // Contingência não reabre venda.
+ await request("POST",reverseUrl,403,reversal,limitedAuth);
  const reversed=await request("POST",reverseUrl,201,reversal);
  assert.equal(reversed.dados.reutilizada,false);
  assert.equal(reversed.dados.apenasAmbienteIsolado,false);
@@ -263,10 +280,14 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(reversedReplay.dados.id,reversed.dados.id);
  assert.equal(reversedReplay.dados.reutilizada,true);
  await request("POST",reverseUrl,409,{...reversal,motivo:"Um motivo diferente de estorno integral"});
- await request("POST",endpoint,409,body);
+ await request("POST",endpoint,403,body);
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals+1);
  assert.equal(await prisma.movimentacaoEstoque.count(),before.stock+2);
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
  assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados[0].id,reversed.dados.id,
   "A auditoria read-only deve continuar disponível com kill switch OFF");
+ process.env.POINTVET_UNIFIED_MANUAL_REVERSAL_ENABLED="0";
+ assert.equal((await request("GET","/api/pdv-unificado/disponibilidade",200)).dados.estornoUnificadoDisponivel,false);
+ await request("GET","/api/pdv-unificado/rascunhos-concluidos",403);
+ await request("POST",reverseUrl,403,reversal);
 });
