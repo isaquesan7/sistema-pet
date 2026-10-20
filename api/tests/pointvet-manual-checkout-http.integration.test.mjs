@@ -17,6 +17,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(db[0].usuario,"pointvet_ci");
  const suffix=Date.now().toString(36)+process.pid.toString(36);
  const org="chk-org-"+suffix,store="chk-store-"+suffix,service="chk-service-"+suffix;
+ const foreignOrg="chk-other-org-"+suffix,foreignCompany="chk-other-company-"+suffix;
  const seller="chk-user-"+suffix,limited="chk-limited-"+suffix,client="chk-client-"+suffix;
  const attendant="chk-attendant-"+suffix,supervisor="chk-supervisor-"+suffix;
  const productId="chk-prod-"+suffix,itemId="chk-item-"+suffix,serviceId="chk-svc-"+suffix;
@@ -53,6 +54,10 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
   {id:store,organizacaoId:org,cnpj:"55"+String(Date.now()).slice(-12),nomeFantasia:"Pet Shop CI",razaoSocial:"Pet Shop CI",tipo:"LOJA_CONSULTORIO"},
   {id:service,organizacaoId:org,cnpj:"44"+String(Date.now()).slice(-12),nomeFantasia:"Estetica CI",razaoSocial:"Estetica CI",tipo:"BANHO_TOSA"}
  ]});
+ // Outro tenant deliberadamente vinculado ao mesmo login: a consulta não pode vazar seus CNPJs.
+ await prisma.organizacao.create({data:{id:foreignOrg,slug:foreignOrg,nome:"Tenant alheio CI"}});
+ await prisma.empresa.create({data:{id:foreignCompany,organizacaoId:foreignOrg,
+  cnpj:"66"+String(Date.now()).slice(-12),nomeFantasia:"Loja outro tenant",razaoSocial:"Loja outro tenant",tipo:"LOJA_CONSULTORIO"}});
  await prisma.usuario.createMany({data:[
   {id:seller,nome:"Caixa autorizado CI",email:seller+"@ci.invalid",senhaHash:"inutil"},
   {id:limited,nome:"Caixa limitado CI",email:limited+"@ci.invalid",senhaHash:"inutil"},
@@ -79,6 +84,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
   {usuarioId:supervisor,empresaId:store,cargoId:roleStore.id},
   {usuarioId:supervisor,empresaId:service,cargoId:roleService.id}
  ]});
+ await prisma.usuarioEmpresa.create({data:{usuarioId:attendant,empresaId:foreignCompany}});
  await prisma.cliente.create({data:{id:client,organizacaoId:org,nome:"Tutor CI"}});
  await prisma.itemCatalogo.createMany({data:[
   {id:itemId,empresaId:store,nome:"Racao Adulto Granel",tipo:"PRODUTO",precoVenda:"15.00"},
@@ -115,8 +121,20 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert(catalog.some(item=>item.id===itemId));
  // M.5.61: perfis MEMBER efetivos em duas empresas, sem papel admin.
  assert.equal((await request("GET","/api/pdv-unificado/catalogo",200,null,attendantAuth)).dados.some(x=>x.id===serviceId),true);
- await request("GET","/api/pdv-unificado/disponibilidade",200,null,attendantAuth,service);
- await request("GET","/api/pdv-unificado/disponibilidade",200,null,supervisorAuth,service);
+ // M.5.63: a leitura reflete cargos do banco (não JWT/sessão), apenas no tenant corrente.
+ const roleEvidence=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,attendantAuth,service)).dados;
+ assert.deepEqual(roleEvidence.contextoAcesso,{organizacaoId:org,empresaId:service});
+ assert.deepEqual(roleEvidence.perfilAcesso,{papelOrganizacao:"MEMBRO",superAdmin:false});
+ assert.deepEqual(roleEvidence.permissoesEmpresas.map(v=>v.id).sort(),[store,service].sort(),
+  "A associação ativa a outro tenant nunca aparece na API");
+ assert.equal(roleEvidence.permissoesEmpresas.find(v=>v.id===store)?.pdvAcessar,true);
+ assert.equal(roleEvidence.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,false);
+ assert.equal(roleEvidence.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,false);
+ const supervisorBefore=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,supervisorAuth,service)).dados;
+ assert.equal(supervisorBefore.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,true);
+ assert.equal(supervisorBefore.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,false);
+ const limitedAccess=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,limitedAuth,store)).dados;
+ assert.deepEqual(limitedAccess.permissoesEmpresas.map(v=>v.id),[store]);
  await request("GET","/api/pdv-unificado/disponibilidade",403,null,limitedAuth,service);
  await request("GET","/api/pdv-unificado/rascunhos-concluidos",403,null,attendantAuth);
  const items=[{empresaId:store,itemCatalogoId:itemId,quantidade:0.333},
@@ -253,6 +271,12 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  // O operador está autorizado na loja, mas falta autorização na estética.
  assert.equal(await prisma.estornoFechamentoManualUnificado.count(),before.reversals);
  await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
+ const supervisorAfter=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,supervisorAuth,store)).dados;
+ assert.equal(supervisorAfter.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,true,
+  "Mudança no cargo deve aparecer na mesma sessão autenticada, sem relogin");
+ const attendantAfter=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,attendantAuth,store)).dados;
+ assert.equal(attendantAfter.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,false,
+  "Ganho de autorização no outro CNPJ não amplia permissões da Loja");
  // Só o supervisor tem pdv.cancelar_venda também na Loja; atendente continua restrito.
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
  await request("POST",reverseUrl,403,reversal);
