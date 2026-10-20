@@ -96,7 +96,7 @@ export default function AppLayout() {
   function handleCompanyChange(event) {
     const nextCompany = companies.find((company) => company.id === event.target.value);
     if (!nextCompany || nextCompany.id === selectedCompany?.id) return;
-    const keepWorkspace = keepUnifiedPdvRouteOnCompanyChange(location.pathname, selectedOrganization?.id, nextCompany);
+    const keepWorkspace = keepUnifiedPdvRouteOnCompanyChange(location.pathname, selectedOrganization?.id, nextCompany, organizationConfig.pdvUnificadoHabilitado === true);
     selectCompany(nextCompany.id);
     // Preserve a multi-CNPJ draft within its organization; other screens reset context.
     if (!keepWorkspace) navigate("/");
