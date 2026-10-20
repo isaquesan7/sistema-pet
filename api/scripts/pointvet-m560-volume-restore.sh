@@ -38,6 +38,12 @@ for attempt in $(seq 1 120); do
 done
 test "$ready" = 'M560_READY' || die 'synthetic volume load not complete'
 
+# Bulk-loaded PostgreSQL tables might not yet have usable planner stats.
+# Ensure both fixture verification and post-restore joins are planned safely.
+echo 'POINTVET_M560_ANALYZE_START: synthetic relational fixtures'
+psql -X -q -v ON_ERROR_STOP=1 -d "$source_db" -c \
+ 'ANALYZE clientes; ANALYZE pets; ANALYZE vendas; ANALYZE venda_itens; ANALYZE pagamentos;'
+
 check_volume() {
  sql "$1" "
   SELECT CASE WHEN
@@ -88,6 +94,8 @@ pg_restore --format=custom --no-owner --no-acl --exit-on-error \
  }
 restore_finished=$(date +%s)
 sha256sum -c -s "$scratch/full.sha256" || die 'backup checksum mismatch'
+psql -X -q -v ON_ERROR_STOP=1 -d "$restore_db" -c \
+ 'ANALYZE clientes; ANALYZE pets; ANALYZE vendas; ANALYZE venda_itens; ANALYZE pagamentos;'
 test "$(check_volume "$restore_db")" = 'READY' ||
  die 'restored synthetic rows or financial amounts invalid'
 echo 'POINTVET_M560_RESTORE_ROW_CHECK_SUCCESS'
