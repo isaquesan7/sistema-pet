@@ -12,7 +12,9 @@ test("uma comanda concluída pode ser reaberta para estorno sem recriar cobranç
  assert.match(page,/draft\?\.status!=="FECHADA"/);
  // A reabertura trava a edicao imediatamente, mas a conferencia so pode
  // montar depois de carregar a reserva; evita crash React em rede lenta.
- assert.match(page,/isReserved&&reservation\.data&&<UnifiedAllocationConference/);
+ assert.match(page,/isReserved&&reservation\.data\?\.status==="RESERVADA"&&<UnifiedAllocationConference/);
+ // Nao oferecer cancelamento de reserva ja CANCELADA apos estorno.
+ assert.match(page,/isReserved&&reservation\.data\.status==="RESERVADA"&&!reservation\.data\.operacoes\.some/);
  assert.match(page,/if\(completed\)return <section/);
  assert.match(page,/operacoesFechadas=\{reservation\.operacoes\}/);
  assert.match(page,/queryKey:\["unified-completed"\]/);
