@@ -8,5 +8,8 @@ RUN cd api && npm ci --include=dev
 COPY api ./api
 COPY admin-web/src/lib ./admin-web/src/lib
 WORKDIR /pointvet/api
-RUN npm run build
+# Prisma generate parses its config at build time but never contacts this
+# intentionally nonexistent placeholder connection. Runtime gets Railway's
+# private disposable DATABASE_URL; no real password is baked into the image.
+RUN DATABASE_URL=postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder npm run build
 CMD ["node", "scripts/pointvet-m559-seed.mjs"]
