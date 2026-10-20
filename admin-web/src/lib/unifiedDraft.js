@@ -22,8 +22,12 @@ export function unifiedScopedQueryKey(resource, organizationId, companyId, ...pa
 }
 
 /** The unified workspace spans companies, but never organizations or missing PDV access. */
-export function keepUnifiedPdvRouteOnCompanyChange(pathname, organizationId, nextCompany) {
- return pathname === "/pdv/unificado/simulacao"
+export function keepUnifiedPdvRouteOnCompanyChange(pathname, organizationId, nextCompany, intelligentPreference=false) {
+ // Na tela única, preservar comanda local SOMENTE no modo inteligente e dentro
+ // da mesma organização. No individual, redirecionar para limpar o carrinho.
+ const eligiblePath = pathname === "/pdv/unificado/simulacao"
+  || (pathname === "/pdv" && intelligentPreference === true);
+ return eligiblePath
   && Boolean(organizationId)
   && nextCompany?.organizacaoId === organizationId
   && nextCompany?.permissoes?.includes("pdv.acessar") === true;
