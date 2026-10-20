@@ -25,7 +25,7 @@ r.get("/disponibilidade",async(req,res,next)=>{
   const access=await prisma.usuarioEmpresa.findMany({
    where:{usuarioId:req.usuario.id,ativo:true,empresa:{ativo:true,organizacaoId:req.organizacao.id}},
    select:{empresaId:true,empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},
-    cargo:{select:{permissoes:{select:{permissao:{select:{codigo:true}}}}}}}
+    cargo:{select:{ativo:true,permissoes:{select:{permissao:{select:{codigo:true}}}}}}}
   });
   const pdvHabilitado=Boolean(req.organizacao.configuracao?.pdvUnificadoHabilitado);
   const checkoutHabilitado=checkoutManualHabilitado(req.organizacao,req.empresa.id);
@@ -40,7 +40,7 @@ r.get("/disponibilidade",async(req,res,next)=>{
    // Evidência de homologação; não concede acesso nem substitui os gates das rotas.
    perfilAcesso:{papelOrganizacao:req.vinculoOrganizacao.papel,superAdmin:Boolean(req.usuario.superAdmin)},
    permissoesEmpresas:access.map(v=>{
-    const permissoes=new Set(v.cargo?.permissoes.map(p=>p.permissao.codigo)||[]);
+    const permissoes=new Set(v.cargo?.ativo?v.cargo.permissoes.map(p=>p.permissao.codigo):[]);
     return {id:v.empresa.id,nomeFantasia:v.empresa.nomeFantasia,cnpj:v.empresa.cnpj,
      pdvAcessar:permissoes.has("pdv.acessar"),pdvCancelarVenda:permissoes.has("pdv.cancelar_venda")};
    }),
