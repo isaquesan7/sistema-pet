@@ -34,20 +34,21 @@ function UnifiedPdvWorkspace(){
  const clientDetails=useQuery({queryKey:scopedKey("unified-client-pets",clientId),enabled:enabled&&Boolean(clientId),queryFn:async()=>(await api.get(`/clientes/${clientId}`)).data.cliente});
  const catalog=useQuery({queryKey:scopedKey("unified-catalog",search),enabled,queryFn:async()=>(await api.get("/pdv-unificado/catalogo",{params:{busca:search}})).data.dados||[]});
  const draftList=useQuery({queryKey:scopedKey("unified-drafts"),enabled,queryFn:async()=>(await api.get("/pdv-unificado/rascunhos")).data.dados||[]});
+ const completedList=useQuery({queryKey:scopedKey("unified-completed"),enabled:manualCheckoutEnabled&&hasPermission("pdv.cancelar_venda"),queryFn:async()=>(await api.get("/pdv-unificado/rascunhos-concluidos")).data.dados||[]});
  const save=useMutation({mutationFn:async()=>{
    const dados=buildUnifiedDraftPayload(clientId,lines);
    const response=draft?await api.put(`/pdv-unificado/rascunhos/${draft.id}`,{...dados,versao:draft.versao}):await api.post("/pdv-unificado/rascunhos",dados);
    return response.data.dados;
  },onSuccess:async data=>{setLocalChanges(false);setDraft({id:data.id,versao:data.versao});setSavedNotice(`Rascunho #${data.numero} salvo. Sem venda ou cobrança.`);await queryClient.invalidateQueries({queryKey:["unified-drafts"]});}});
- const closingReview=useQuery({queryKey:scopedKey("unified-preclose",draft?.id,draft?.versao),enabled:enabled&&Boolean(draft?.id),queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/pre-fechamento`,{params:{versao:draft.versao}})).data.dados});
+ const closingReview=useQuery({queryKey:scopedKey("unified-preclose",draft?.id,draft?.versao),enabled:enabled&&Boolean(draft?.id)&&draft?.status!=="FECHADA",queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/pre-fechamento`,{params:{versao:draft.versao}})).data.dados});
  const closingPlan=useQuery({queryKey:scopedKey("unified-close-plan",draft?.id,draft?.versao),enabled:enabled&&Boolean(draft?.id)&&closingReview.data?.pendencias?.length===0,queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/plano-fechamento`,{params:{versao:draft.versao}})).data.dados});
  const reservation=useQuery({queryKey:scopedKey("unified-reservation",draft?.id,draft?.versao),enabled:enabled&&Boolean(draft?.id),queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/reserva`,{params:{versao:draft.versao}})).data.dados});
- const isReserved=reservation.data?.status==="RESERVADA";
+ const isReserved=draft?.status==="FECHADA"||reservation.data?.status==="RESERVADA"||Boolean(reservation.data?.operacoes?.some(op=>op.status==="CONCLUIDA"));
  const reserveMutation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/reservar`,{versao:draft.versao})).data.dados,onSuccess:async()=>{setSavedNotice("Operações reservadas com segurança. Nenhuma cobrança foi realizada.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
  const cancelReservation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/cancelar-reserva`,{versao:draft.versao,motivo:motivoCancelar})).data.dados,onSuccess:async()=>{setSavedNotice("Reserva cancelada. Ajuste e salve uma nova versão da comanda.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
  const preview=useMutation({mutationFn:async()=>(await api.post("/pdv-unificado/simulacao",buildUnifiedDraftPayload(clientId,lines))).data.dados});
  function reopen(saved){
-   setLocalChanges(false);setClientId(saved.cliente.id);setSelectedClient(saved.cliente);setClientSearch(saved.cliente.nome);setDraft({id:saved.id,versao:saved.versaoRascunho});setSavedNotice("");
+   setLocalChanges(false);setClientId(saved.cliente.id);setSelectedClient(saved.cliente);setClientSearch(saved.cliente.nome);setDraft({id:saved.id,versao:saved.versaoRascunho,status:saved.status});setSavedNotice("");
    setLines(rehydrateUnifiedDraft(saved));preview.reset();save.reset();
  }
  function add(item){const key=`nova:${++nextLineId.current}`;setLocalChanges(true);setSavedNotice("");setLines(rows=>addUnifiedCatalogItem(rows,item,key));preview.reset();}
@@ -64,7 +65,7 @@ function UnifiedPdvWorkspace(){
   <Link className="ghost-button pv-back" to="/pdv"><ArrowLeft size={18}/> Voltar ao PDV</Link>
   <section className="page-heading"><div><span className="page-kicker">PDV Unificado · Gestão manual</span><h1>Comanda multiempresa — {manualCheckoutEnabled?"Fechamento manual":"Simulação"}</h1><p>{manualCheckoutEnabled?"Após confirmar cada recebimento externo, você poderá registrar a venda com baixa de estoque. Nenhuma nota fiscal será emitida pelo PointVet.":"Confira itens e valores por empresa. Nenhuma venda ou pagamento será registrado nesta tela."}</p></div></section>
   {eligibility.isLoading?<p>Conferindo acesso...</p>:eligibility.isError?<p className="alert alert--error">{getApiErrorMessage(eligibility.error)}</p>:!enabled?<div className="panel pv-detail-panel"><h2>Preferência ainda desativada</h2><p>Um gestor pode habilitar a preferência em Configurações → Módulos. Isso libera somente a simulação e não altera o PDV tradicional.</p></div>:<>
-   <section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><h2>Rascunhos recentes</h2><button type="button" className="ghost-button" onClick={()=>{setDraft(null);setClientId("");setSelectedClient(null);setClientSearch("");setLines([]);setLocalChanges(false);setSavedNotice("");preview.reset();save.reset();}}>Nova comanda</button></div>{draftList.isError&&<p className="alert alert--error">{getApiErrorMessage(draftList.error)}</p>}{(draftList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>#{d.numero} · {d.cliente.nome} · versão {d.versaoRascunho}</button>)}</section>
+   <section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><h2>Rascunhos recentes</h2><button type="button" className="ghost-button" onClick={()=>{setDraft(null);setClientId("");setSelectedClient(null);setClientSearch("");setLines([]);setLocalChanges(false);setSavedNotice("");preview.reset();save.reset();}}>Nova comanda</button></div>{draftList.isError&&<p className="alert alert--error">{getApiErrorMessage(draftList.error)}</p>}{(draftList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>#{d.numero} · {d.cliente.nome} · versão {d.versaoRascunho}</button>)}{manualCheckoutEnabled&&hasPermission("pdv.cancelar_venda")&&<div className="pv-unified-completed"><h3>Vendas unificadas concluídas — estorno integral</h3><p>Reabra uma venda já registrada para conferir seu estorno. Nenhum estorno parcial é permitido.</p>{completedList.isError&&<p className="alert alert--error">{getApiErrorMessage(completedList.error)}</p>}{(completedList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>Venda #{d.numero} · {d.cliente.nome} · estorno integral</button>)}</div>}</section>
    <section className="panel pv-detail-panel"><h2>Cliente</h2><input className="form-control" placeholder="Buscar tutor" value={clientSearch} disabled={isReserved} onChange={e=>{setClientSearch(e.target.value);setClientId("");setSelectedClient(null);setLocalChanges(true);preview.reset();}}/><select className="form-control" value={clientId} onChange={e=>{const id=e.target.value;setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||null);setLocalChanges(true);preview.reset();}} aria-label="Selecione cliente" disabled={isReserved}><option value="">Selecione um cliente ativo</option>{visibleUnifiedClients(clients.data,selectedClient).map(c=><option value={c.id} key={c.id}>{c.nome}</option>)}</select>{draft&&localChanges&&!clientId&&<small>Selecione novamente o tutor para atualizar a comanda.</small>}</section>
    <section className="panel pv-detail-panel"><h2>Produtos e serviços autorizados</h2><input className="form-control" placeholder="Buscar em suas empresas" value={search} onChange={e=>setSearch(e.target.value)}/>{catalog.isError&&<p className="alert alert--error">{getApiErrorMessage(catalog.error)}</p>}<div className="pv-unified-catalog">{(catalog.data||[]).map(item=><div key={item.id}><div><strong>{item.nome}</strong><span>{item.empresa?.nomeFantasia} · {formatCurrency(item.precoVenda)} por {stockUnitLabel(item.unidade)}</span></div><button className="ghost-button" disabled={isReserved} onClick={()=>add(item)}><Plus size={16}/> Adicionar</button></div>)}</div></section>
    <section className="panel pv-detail-panel"><h2>Itens da simulação</h2>
@@ -138,14 +139,15 @@ function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled,on
  const scopedKey=(name,...details)=>unifiedScopedQueryKey(name,selectedOrganization?.id,selectedCompany?.id,...details);
  const [forms,setForms]=useState({});
  const nextPaymentId=useRef(0);
+ const completed=reservation.operacoes.length>0&&reservation.operacoes.every(op=>op.status==="CONCLUIDA"&&op.vendaId);
  const sessions=useQuery({
   queryKey:scopedKey("unified-cash-sessions",draft?.id,draft?.versao),
-  enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
+  enabled:!completed&&Boolean(draft?.id)&&reservation?.status==="RESERVADA",
   queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/caixas-disponiveis`,{params:{versao:draft.versao}})).data.dados||[]
  });
  const diagnosis=useQuery({
   queryKey:scopedKey("unified-recovery-diagnosis",draft?.id,draft?.versao),
-  enabled:Boolean(draft?.id)&&reservation?.status==="RESERVADA",
+  enabled:!completed&&Boolean(draft?.id)&&reservation?.status==="RESERVADA",
   queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/diagnostico-recuperacao`,{params:{versao:draft.versao}})).data.dados
  });
  const localCheck=previewManualAllocation(reservation.operacoes,sessions.data||[],forms);
@@ -167,6 +169,12 @@ function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled,on
  function changePayment(op,id,patch){set(op.empresaId,{pagamentos:paymentRows(op).map(p=>p.id===id?{...p,...patch}:p)});}
  function addPayment(op){set(op.empresaId,{pagamentos:[...paymentRows(op),{id:`novo:${++nextPaymentId.current}`,forma:"PIX",valor:""}]});}
  function removePayment(op,id){set(op.empresaId,{pagamentos:paymentRows(op).filter(p=>p.id!==id)});}
+ if(completed)return <section className="panel pv-detail-panel"><h2>Venda concluída — estorno integral</h2>
+  <p>Venda recuperada do histórico da organização. Nenhuma venda-filha poderá ser estornada isoladamente.</p>
+  {preparation.isLoading&&<p>Recuperando preparação de recebimentos...</p>}
+  {preparation.isError&&<p className="alert alert--error">{getApiErrorMessage(preparation.error)}</p>}
+  {preparation.data?.status==="PREPARADA"&&<UnifiedManualReceiptPreview key={preparation.data.id} preparacao={preparation.data} versao={draft.versao} comandaId={draft.id} checkoutEnabled={checkoutEnabled} onEstorno={onEstorno} operacoesFechadas={reservation.operacoes}/>}
+ </section>;
  return <section className="panel pv-detail-panel"><h2>Conferência de pagamentos por empresa</h2>
   <p>Informe a distribuição MANUAL por empresa: dinheiro, Pix, cartões ou transferência, inclusive pagamentos mistos. A soma deve bater exatamente com a comanda. Esta tela apenas confere: não registra recebimento, parcela, caixa, estoque ou nota fiscal.</p>
   {sessions.isError&&<p className="alert alert--error">{getApiErrorMessage(sessions.error)}</p>}
@@ -243,6 +251,7 @@ function UnifiedManualReceiptPreview({preparacao,versao,comandaId,checkoutEnable
   })).data.dados,
   onSuccess:async()=>{onEstorno();await Promise.all([
    queryClient.invalidateQueries({queryKey:["unified-drafts"]}),
+   queryClient.invalidateQueries({queryKey:["unified-completed"]}),
    queryClient.invalidateQueries({queryKey:["unified-reservation"]}),
    queryClient.invalidateQueries({queryKey:["unified-preparation"]})
   ]);}
