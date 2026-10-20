@@ -1,0 +1,16 @@
+/** M.5.54: retomada de venda unificada já fechada para estorno integral. */
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+
+const page=readFileSync(new URL("../src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
+
+test("uma comanda concluída pode ser reaberta para estorno sem recriar cobrança",()=>{
+ assert.match(page,/pdv-unificado\/rascunhos-concluidos/);
+ assert.match(page,/Vendas unificadas concluídas — estorno integral/);
+ assert.match(page,/enabled:manualCheckoutEnabled&&hasPermission\("pdv\.cancelar_venda"\)/);
+ assert.match(page,/draft\?\.status!=="FECHADA"/);
+ assert.match(page,/if\(completed\)return <section/);
+ assert.match(page,/operacoesFechadas=\{reservation\.operacoes\}/);
+ assert.match(page,/queryKey:\["unified-completed"\]/);
+});
