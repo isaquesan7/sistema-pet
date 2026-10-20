@@ -27,6 +27,9 @@ function UnifiedPdvWorkspace(){
  const [selectedClient,setSelectedClient]=useState(null);
  const [search,setSearch]=useState(""),[lines,setLines]=useState([]);
  const hasBulkErrors=lines.some(row=>Boolean(row.erroEntradaGranel));
+ // Apenas estimativa local para orientar o balcão; a conferência oficial continua na API.
+ const estimatedCents=lines.reduce((total,row)=>total+(isBulkWeightProduct(row)?bulkTotalCents(row):Math.round(Number(row.preco)*Number(row.quantidade)*100)),0);
+ const hasValidEstimate=lines.length>0&&!hasBulkErrors&&Number.isSafeInteger(estimatedCents)&&estimatedCents>=0;
  const nextLineId=useRef(0);
  const eligibility=useQuery({queryKey:scopedKey("unified-eligibility"),queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados});
  const enabled=Boolean(eligibility.data?.preferenciaUnificado);
@@ -64,22 +67,59 @@ function UnifiedPdvWorkspace(){
   }));
   setLocalChanges(true);preview.reset();
  }
+ function startNewDraft(){
+  setDraft(null);setClientId("");setSelectedClient(null);setClientSearch("");setLines([]);
+  setLocalChanges(false);setSavedNotice("");preview.reset();save.reset();
+ }
  return <div className="page-stack pv-unified-preview">
   <Link className="ghost-button pv-back" to="/pdv"><ArrowLeft size={18}/> Voltar ao PDV</Link>
-  <section className="page-heading"><div><span className="page-kicker">PDV Unificado · Gestão manual</span><h1>Comanda multiempresa — {manualCheckoutEnabled?"Fechamento manual":"Simulação"}</h1><p>{manualCheckoutEnabled?"Após confirmar cada recebimento externo, você poderá registrar a venda com baixa de estoque. Nenhuma nota fiscal será emitida pelo PointVet.":"Confira itens e valores por empresa. Nenhuma venda ou pagamento novo será registrado nesta tela."}{!manualCheckoutEnabled&&manualReversalEnabled?" Estorno integral autorizado separadamente para vendas já concluídas.":""}</p></div></section>
+  <header className="pv-unified-hero">
+   <div className="pv-unified-hero-copy">
+    <span className="pv-unified-eyebrow">POINTVET <span aria-hidden="true">/</span> FRENTE DE CAIXA</span>
+    <h1>PDV Unificado</h1>
+    <p>Uma única comanda para o atendimento. Produtos e serviços são separados por empresa no fechamento.</p>
+    <div className="pv-unified-hero-tags">
+     <span>{manualCheckoutEnabled?"Registro manual habilitado":"Simulação sem cobrança"}</span>
+     <span>Financeiro por CNPJ</span>
+     <span>Sem integração bancária ou emissão fiscal</span>
+    </div>
+   </div>
+   <div className="pv-unified-hero-status">
+    <span>COMANDA EM ATENDIMENTO</span>
+    <strong>{draft?`Rascunho ${draft.id.slice(0,8)}`:"Nova comanda"}</strong>
+    <small>{isReserved?"Edição bloqueada":localChanges?"Há alterações não salvas":"Pronta para edição"}</small>
+    <button type="button" className="pv-unified-new-draft" onClick={startNewDraft}>Nova comanda <Plus size={16}/></button>
+   </div>
+  </header>
   <UnifiedRoleAcceptancePanel
    availability={!eligibility.isFetching&&!eligibility.isError?eligibility.data:null}
    refreshing={eligibility.isFetching}
    errorMessage={eligibility.isError?getApiErrorMessage(eligibility.error):null}
    onRefresh={()=>eligibility.refetch()}/>
   {eligibility.isLoading?<p>Conferindo acesso...</p>:eligibility.isError?<p className="alert alert--error">{getApiErrorMessage(eligibility.error)}</p>:!enabled?<div className="panel pv-detail-panel"><h2>Preferência ainda desativada</h2><p>Um gestor pode habilitar a preferência em Configurações → Módulos. Isso libera somente a simulação e não altera o PDV tradicional.</p></div>:<>
-   <section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><h2>Rascunhos recentes</h2><button type="button" className="ghost-button" onClick={()=>{setDraft(null);setClientId("");setSelectedClient(null);setClientSearch("");setLines([]);setLocalChanges(false);setSavedNotice("");preview.reset();save.reset();}}>Nova comanda</button></div>{draftList.isError&&<p className="alert alert--error">{getApiErrorMessage(draftList.error)}</p>}{(draftList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>#{d.numero} · {d.cliente.nome} · versão {d.versaoRascunho}</button>)}{manualReversalEnabled&&hasPermission("pdv.cancelar_venda")&&<div className="pv-unified-completed"><h3>Vendas unificadas concluídas — estorno integral</h3><p>Reabra uma venda já registrada para conferir seu estorno. Nenhum estorno parcial é permitido.</p>{completedList.isError&&<p className="alert alert--error">{getApiErrorMessage(completedList.error)}</p>}{(completedList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>Venda #{d.numero} · {d.cliente.nome} · estorno integral</button>)}</div>}</section>
-   {hasPermission("pdv.cancelar_venda")&&<section className="panel pv-detail-panel"><h2>Histórico de estornos integrais</h2><p>Somente leitura. Exibe estornos já registrados nas empresas autorizadas, inclusive quando o fechamento manual está desligado. Nenhuma devolução monetária é processada nesta consulta.</p>{reversalHistory.isError&&<p className="alert alert--error">{getApiErrorMessage(reversalHistory.error)}</p>}{!reversalHistory.isLoading&&!reversalHistory.isError&&!(reversalHistory.data||[]).length&&<p>Nenhum estorno unificado encontrado para as empresas selecionadas.</p>}{(reversalHistory.data||[]).map(registro=><div className="pv-unified-manual-company" key={registro.id}><strong>Comanda #{registro.comanda.numero} · {registro.comanda.cliente.nome} · {formatCurrency(registro.total)}</strong><small>Estornada em {new Date(registro.criadoEm).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})} · Auditoria #{registro.id.slice(0,8)}</small>{registro.empresas.map(empresa=><div key={empresa.id}>{empresa.nome} · {formatCurrency(empresa.total)}</div>)}</div>)}</section>}
-   <section className="panel pv-detail-panel"><h2>Cliente</h2><input className="form-control" placeholder="Buscar tutor" value={clientSearch} disabled={isReserved} onChange={e=>{setClientSearch(e.target.value);setClientId("");setSelectedClient(null);setLocalChanges(true);preview.reset();}}/><select className="form-control" value={clientId} onChange={e=>{const id=e.target.value;setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||null);setLocalChanges(true);preview.reset();}} aria-label="Selecione cliente" disabled={isReserved}><option value="">Selecione um cliente ativo</option>{visibleUnifiedClients(clients.data,selectedClient).map(c=><option value={c.id} key={c.id}>{c.nome}</option>)}</select>{draft&&localChanges&&!clientId&&<small>Selecione novamente o tutor para atualizar a comanda.</small>}</section>
-   <section className="panel pv-detail-panel"><h2>Produtos e serviços autorizados</h2><input className="form-control" placeholder="Buscar em suas empresas" value={search} onChange={e=>setSearch(e.target.value)}/>{catalog.isError&&<p className="alert alert--error">{getApiErrorMessage(catalog.error)}</p>}<div className="pv-unified-catalog">{(catalog.data||[]).map(item=><div key={item.id}><div><strong>{item.nome}</strong><span>{item.empresa?.nomeFantasia} · {formatCurrency(item.precoVenda)} por {stockUnitLabel(item.unidade)}</span></div><button className="ghost-button" disabled={isReserved} onClick={()=>add(item)}><Plus size={16}/> Adicionar</button></div>)}</div></section>
-   <section className="panel pv-detail-panel"><h2>Itens da simulação</h2>
+   <div className="pv-unified-workspace">
+    <aside className="pv-unified-sourcing" aria-label="Cliente e catálogo">
+   <section className="panel pv-detail-panel pv-unified-customer">
+    <div className="pv-unified-panel-head"><span className="pv-unified-panel-index">01</span><div><h2>Cliente</h2><p>Identifique o tutor da comanda</p></div></div><label className="pv-unified-input-label" htmlFor="pv-unified-client-search">Buscar tutor</label><input id="pv-unified-client-search" className="form-control" placeholder="Nome do tutor" value={clientSearch} disabled={isReserved} onChange={e=>{setClientSearch(e.target.value);setClientId("");setSelectedClient(null);setLocalChanges(true);preview.reset();}}/><label className="pv-unified-input-label" htmlFor="pv-unified-client-select">Cliente selecionado</label><select id="pv-unified-client-select" className="form-control" value={clientId} onChange={e=>{const id=e.target.value;setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||null);setLocalChanges(true);preview.reset();}} aria-label="Selecione cliente" disabled={isReserved}><option value="">Selecione um cliente ativo</option>{visibleUnifiedClients(clients.data,selectedClient).map(c=><option value={c.id} key={c.id}>{c.nome}</option>)}</select>{draft&&localChanges&&!clientId&&<small>Selecione novamente o tutor para atualizar a comanda.</small>}</section>
+   <section className="panel pv-detail-panel pv-unified-products">
+    <div className="pv-unified-panel-head"><span className="pv-unified-panel-index">02</span><div><h2>Catálogo</h2><p>Produtos e serviços das empresas autorizadas</p></div></div><label className="pv-unified-input-label" htmlFor="pv-unified-product-search">Pesquisar no catálogo</label><input id="pv-unified-product-search" className="form-control" placeholder="Nome do produto ou serviço" value={search} onChange={e=>setSearch(e.target.value)}/>{catalog.isError&&<p className="alert alert--error">{getApiErrorMessage(catalog.error)}</p>}<div className="pv-unified-catalog" aria-label="Resultados de produtos e serviços">
+    {catalog.isLoading&&<p className="pv-empty">Buscando itens...</p>}
+    {!catalog.isLoading&&!catalog.isError&&!(catalog.data||[]).length&&<p className="pv-empty">Nenhum item encontrado para esta busca.</p>}
+    {(catalog.data||[]).map(item=><div className="pv-unified-catalog-item" key={item.id}>
+     <div className="pv-unified-catalog-info"><strong>{item.nome}</strong><span>{item.empresa?.nomeFantasia}</span><small>{formatCurrency(item.precoVenda)} / {stockUnitLabel(item.unidade)}</small></div>
+     <button type="button" className="ghost-button pv-unified-add" disabled={isReserved} onClick={()=>add(item)} aria-label={`Adicionar ${item.nome} à comanda`}><Plus size={16}/> Adicionar</button>
+    </div>)}
+   </div></section>
+    </aside>
+    <div className="pv-unified-order" aria-label="Comanda e fechamento">
+   <section className="panel pv-detail-panel pv-unified-cart">
+    <div className="pv-unified-panel-head pv-unified-panel-head--cart"><span className="pv-unified-panel-index">03</span><div><h2>Comanda</h2><p>Revise as quantidades e valide por empresa</p></div><span className="pv-unified-count">{lines.length} {lines.length===1?"item":"itens"}</span></div>
+    <div className="pv-unified-order-summary" aria-live="polite">
+     <div><span>Estimativa dos itens</span><strong>{hasValidEstimate?formatCurrency(estimatedCents/100):"—"}</strong></div>
+     <small>Valor apenas informativo. Use “Validar e calcular sem cobrar” para conferir preços e divisão por CNPJ.</small>
+    </div>
     {lines.map(row=><div className="pv-unified-line" key={row.lineKey}>
-     <div><strong>{row.nome}</strong><small>{row.empresa} · {formatCurrency(row.preco)} por {stockUnitLabel(row.unidade)} {row.rascunhoItemId?"(valor salvo)":""}</small></div>
+     <div className="pv-unified-line-info"><strong>{row.nome}</strong><small>{row.empresa} · {formatCurrency(row.preco)} / {stockUnitLabel(row.unidade)} {row.rascunhoItemId?"· valor salvo":""}</small></div>
      {row.tipo==="SERVICO"&&<label>{row.exigePet?"Pet obrigatório":"Pet (opcional)"}
       <select className="form-control" value={row.petId||""} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{petId:e.target.value}));setLocalChanges(true);preview.reset();}}>
        <option value="">Selecione o pet</option>{(clientDetails.data?.pets||[]).map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
@@ -98,9 +138,9 @@ function UnifiedPdvWorkspace(){
       {row.erroEntradaGranel&&<small className="pv-unified-bulk-error" role="alert">{row.erroEntradaGranel}</small>}
       <UnifiedBulkScaleCheck row={row}/>
      </div>:<label>Quantidade<input type="number" min="0.001" max="10000" step="0.001" className="form-control" value={row.quantidade} disabled={isReserved} onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(e.target.value)}));setLocalChanges(true);preview.reset();}}/></label>}
-     <button className="icon-button" title="Remover esta linha" disabled={isReserved} onClick={()=>{setLines(ls=>removeUnifiedLine(ls,row.lineKey));setLocalChanges(true);preview.reset();}}><Trash2 size={18}/></button>
+     <button type="button" className="icon-button pv-unified-remove" aria-label={`Remover ${row.nome} da comanda`} title="Remover esta linha" disabled={isReserved} onClick={()=>{setLines(ls=>removeUnifiedLine(ls,row.lineKey));setLocalChanges(true);preview.reset();}}><Trash2 size={18}/></button>
     </div>)}
-    {!lines.length&&<p className="pv-empty">Adicione produtos e serviços para simular.</p>}
+    {!lines.length&&<div className="pv-unified-empty-cart"><span aria-hidden="true">＋</span><strong>Sua comanda está vazia</strong><p>Escolha um tutor, encontre produtos no catálogo e clique em Adicionar.</p></div>}
     <div className="pv-pet-card-actions"><button className="primary-button" disabled={!clientId||!lines.length||hasBulkErrors||preview.isPending||isReserved} onClick={()=>preview.mutate()}><ShieldCheck size={17}/> Validar e calcular sem cobrar</button><button type="button" className="ghost-button" disabled={!clientId||!lines.length||hasBulkErrors||save.isPending||isReserved} onClick={()=>{setSavedNotice("");save.mutate();}}> {save.isPending?"Salvando...":draft?"Atualizar rascunho":"Salvar rascunho"} </button></div>
     {save.isError&&<p className="alert alert--error">{getApiErrorMessage(save.error)}</p>}{savedNotice&&<p className="alert alert--success">{savedNotice}</p>}{closingReview.isError&&<p className="alert alert--error">{getApiErrorMessage(closingReview.error)}</p>}{closingPlan.isError&&<p className="alert alert--error">{getApiErrorMessage(closingPlan.error)}</p>}
     {closingPlan.data&&!localChanges&&<div className="pv-unified-total"><h3>Planejamento por empresa — sem executar</h3>{closingPlan.data.operacoes.map(op=><div key={op.empresaId}><span>{op.empresa} · {op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}<p>Operações apenas planejadas. O sistema não cria vendas, não movimenta caixa e não emite notas fiscais.</p></div>}{reservation.isError&&<p className="alert alert--error">{getApiErrorMessage(reservation.error)}</p>}
@@ -111,6 +151,15 @@ function UnifiedPdvWorkspace(){
  {isReserved&&reservation.data?.status==="RESERVADA"&&<UnifiedAllocationConference draft={draft} reservation={reservation.data} dirty={localChanges} checkoutEnabled={manualCheckoutEnabled} reversalEnabled={manualReversalEnabled} onEstorno={()=>setSavedNotice("Estorno integral registrado; estoque e lote recompostos. A devolução externa foi apenas declarada, não processada pelo PointVet.")}/>}
  {localChanges&&draft&&<p className="alert">A comanda tem alterações não salvas. O pré-fechamento abaixo só será atualizado após salvar uma nova versão.</p>}
  {closingReview.data&&!localChanges&&<div className="pv-unified-total"><h3>Pré-fechamento (somente conferência)</h3>{closingReview.data.empresas.map(e=><div key={e.empresaId}><span>{e.nome} · {e.cnpj}</span><strong>{formatCurrency(Number(e.total))}</strong></div>)}<div><strong>Total por empresas</strong><strong>{formatCurrency(Number(closingReview.data.total))}</strong></div>{closingReview.data.pendencias.length?<div><strong>Revise antes de seguir:</strong>{closingReview.data.pendencias.map((p,i)=><p key={`${p.itemId}-${p.codigo}-${i}`}>{lines.find(l=>l.rascunhoItemId===p.itemId)?.nome||"Item da comanda"}: {unifiedPrecloseMessages[p.codigo]||p.codigo}</p>)}</div>:<p>Itens conferidos. Fechamento e pagamento continuam desabilitados; a emissão fiscal é uma integração futura independente.</p>}</div>}{preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}{preview.data&&<div className="pv-unified-total"><h3>Resumo por empresa</h3>{preview.data.empresas.map(e=><div key={e.empresaId}><strong>{e.empresa}</strong><span>{formatCurrency(Number(e.total))}</span></div>)}<div><strong>Total consolidado</strong><strong>{formatCurrency(Number(preview.data.total))}</strong></div><p>Prévia validada. Nenhuma venda, estoque ou documento fiscal foi movimentado.</p></div>}</section>
+    </div>
+   </div>
+   <details className="panel pv-unified-history">
+    <summary><span>Rascunhos, vendas concluídas e histórico de estornos</span><small>Consultar e retomar atendimentos anteriores</small></summary>
+    <div className="pv-unified-history-content">
+   <section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><h2>Rascunhos recentes</h2><button type="button" className="ghost-button" onClick={startNewDraft}>Nova comanda</button></div>{draftList.isError&&<p className="alert alert--error">{getApiErrorMessage(draftList.error)}</p>}{(draftList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>#{d.numero} · {d.cliente.nome} · versão {d.versaoRascunho}</button>)}{manualReversalEnabled&&hasPermission("pdv.cancelar_venda")&&<div className="pv-unified-completed"><h3>Vendas unificadas concluídas — estorno integral</h3><p>Reabra uma venda já registrada para conferir seu estorno. Nenhum estorno parcial é permitido.</p>{completedList.isError&&<p className="alert alert--error">{getApiErrorMessage(completedList.error)}</p>}{(completedList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>Venda #{d.numero} · {d.cliente.nome} · estorno integral</button>)}</div>}</section>
+   {hasPermission("pdv.cancelar_venda")&&<section className="panel pv-detail-panel"><h2>Histórico de estornos integrais</h2><p>Somente leitura. Exibe estornos já registrados nas empresas autorizadas, inclusive quando o fechamento manual está desligado. Nenhuma devolução monetária é processada nesta consulta.</p>{reversalHistory.isError&&<p className="alert alert--error">{getApiErrorMessage(reversalHistory.error)}</p>}{!reversalHistory.isLoading&&!reversalHistory.isError&&!(reversalHistory.data||[]).length&&<p>Nenhum estorno unificado encontrado para as empresas selecionadas.</p>}{(reversalHistory.data||[]).map(registro=><div className="pv-unified-manual-company" key={registro.id}><strong>Comanda #{registro.comanda.numero} · {registro.comanda.cliente.nome} · {formatCurrency(registro.total)}</strong><small>Estornada em {new Date(registro.criadoEm).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})} · Auditoria #{registro.id.slice(0,8)}</small>{registro.empresas.map(empresa=><div key={empresa.id}>{empresa.nome} · {formatCurrency(empresa.total)}</div>)}</div>)}</section>}
+    </div>
+   </details>
   </>}
  </div>;
 }
