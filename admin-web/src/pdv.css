@@ -82,3 +82,33 @@
 @media(max-width:560px){.pdv-page .pdv-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pdv-page .pdv-product-grid{grid-template-columns:1fr}.pdv-page .pdv-product-card{min-height:125px}.pdv-page .pdv-cart-line{grid-template-columns:minmax(0,1fr) 36px}.pdv-page .pdv-cart-line__main{grid-column:1/-1}.pdv-page .pdv-quantity{grid-column:1;grid-row:auto}.pdv-page .pdv-line-discount{grid-column:1;grid-row:auto}.pdv-page .pdv-line-total{grid-column:1;grid-row:auto;text-align:left}.pdv-page .pdv-cart-line>.table-action{grid-column:2;grid-row:2}.pdv-payment-labels{display:none}.pdv-page .pdv-payment-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.pdv-page .pdv-payment-row>:nth-child(3){grid-column:1;grid-row:2}.pdv-page .pdv-payment-row>.table-action{grid-column:2;grid-row:2;justify-self:end}.pdv-page .pdv-payment-balance{flex-wrap:wrap}.pdv-page .pdv-payments__heading{display:grid}}
 @media(max-width:390px){.pdv-page .pdv-summary-grid{grid-template-columns:1fr}.pdv-page .pdv-total-final{flex-wrap:wrap}.pdv-page .pdv-total-final strong{font-size:24px}}
 @media(prefers-reduced-motion:reduce){.pdv-page .pdv-product-card{transition:none;transform:none!important}}
+
+
+/* M.5.68 — o PDV inteligente compartilha a apresentação do balcão tradicional.
+ * Componentes de checkout continuam autorizados exclusivamente pela API. */
+.pdv-page .pv-unified-embedded{width:100%;max-width:none;margin:0;display:grid;gap:15px;min-width:0}
+.pdv-page .pv-unified-hero--embedded{padding:17px 21px;border:1px solid #e1e5f3;border-radius:14px;background:linear-gradient(112deg,#f8f9ff,#f1edff);color:#26334e;box-shadow:none;gap:16px}
+.pdv-page .pv-unified-hero--embedded:before{display:none}
+.pdv-page .pv-unified-hero--embedded .pv-unified-eyebrow{font-size:11px;color:#7665b1;font-weight:800;letter-spacing:.08em}
+.pdv-page .pv-unified-hero--embedded h2{font-size:22px;line-height:1.3;margin:4px 0 7px;color:#283650}
+.pdv-page .pv-unified-hero--embedded p{font-size:13px;line-height:1.55;color:#68758d;max-width:600px}
+.pdv-page .pv-unified-hero--embedded .pv-unified-hero-tags span{color:#61558b;background:#fff;border:1px solid #e4e0f4}
+.pdv-page .pv-unified-hero--embedded .pv-unified-hero-status{padding:12px 14px;border:1px solid #e3dcf8;background:#fff;border-radius:12px;min-width:235px}
+.pdv-page .pv-unified-hero--embedded .pv-unified-hero-status span{color:#7568a6}
+.pdv-page .pv-unified-hero--embedded .pv-unified-hero-status strong{color:#29364f}
+.pdv-page .pv-unified-hero--embedded .pv-unified-hero-status small{color:#69758b}
+.pdv-page .pv-unified-hero--embedded .pv-unified-new-draft{min-height:40px;border-radius:9px;background:#6355c4;color:#fff;font-weight:750}
+.pdv-page .pv-unified-workspace{grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:17px;align-items:start}
+.pdv-page .pv-unified-workspace .pv-detail-panel{border:1px solid #e5e9f2;border-radius:15px;box-shadow:0 3px 13px rgba(35,47,73,.035)}
+.pdv-page .pv-unified-sourcing,.pdv-page .pv-unified-order{min-width:0}
+.pdv-page .pv-unified-catalog{max-height:420px}
+.pdv-page .pv-unified-catalog-item{border-color:#e4e9f2;border-radius:11px}
+.pdv-page .pv-unified-catalog-item:hover{border-color:#b8b0df;background:#faf9ff}
+.pdv-page .pv-unified-catalog-item strong,.pdv-page .pv-unified-line-info strong{font-size:14px;line-height:1.45}
+.pdv-page .pv-unified-order-summary{border-radius:11px;background:#f4f1ff;border-color:#ded8f7}
+.pdv-page .pv-unified-order-summary strong{font-variant-numeric:tabular-nums;font-size:25px;color:#493a9a}
+.pdv-page .pv-unified-new-draft:focus-visible,.pdv-page .pv-unified-add:focus-visible{outline:2px solid #7868ca;outline-offset:3px}
+@media(max-width:1250px){.pdv-page .pv-unified-workspace{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:900px){.pdv-page .pv-unified-workspace{grid-template-columns:1fr}}
+@media(max-width:700px){.pdv-page .pv-unified-hero--embedded{flex-direction:column;align-items:stretch;padding:17px}.pdv-page .pv-unified-hero--embedded .pv-unified-hero-status{min-width:0}.pdv-page .pv-unified-catalog{max-height:340px}}
+@media(prefers-reduced-motion:reduce){.pdv-page .pv-unified-catalog-item{transition:none}}
