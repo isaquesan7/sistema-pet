@@ -4,7 +4,7 @@
 
 Histórico **somente leitura** de estornos integrais concluídos no PDV Unificado, disponível na tela `/pdv/unificado/simulacao`, inclusive com o gate de **checkout manual OFF**. O recurso não reabre, cancela nem estorna vendas: expõe apenas informação operacional de transações já estornadas.
 
-- API: `GET /api/pdv/unificado/rascunhos-estornados` (rota montada pelo módulo PDV unificado), com autenticação, autorização `pdv.cancelar_venda`, preferência `pdvUnificadoHabilitado` e isolamento por organização/empresas às quais o usuário tem acesso. **Não** exige o gate `checkoutManualHabilitado` porque é exclusivamente leitura.
+- API: `GET /api/pdv-unificado/rascunhos-estornados` (rota montada pelo módulo PDV unificado), com autenticação, autorização `pdv.cancelar_venda`, preferência `pdvUnificadoHabilitado` e isolamento por organização/empresas às quais o usuário tem acesso. **Não** exige o gate `checkoutManualHabilitado` porque é exclusivamente leitura.
 - Dados exibidos: ID de auditoria, data/hora, número da comanda, tutor, total e valores por empresa. Sem exibir detalhes sensíveis adicionais ou dados fiscais.
 - Lista limitada a registros recentes, ordenada por data decrescente e filtrada por acesso a todas as empresas participantes.
 - Painel: seção **Histórico de estornos integrais**, sem ação de reabertura/estorno, com atualização de cache após um estorno confirmado.
