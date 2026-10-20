@@ -48,7 +48,7 @@ export default function SettingsPage() {
           <h1>Configurações</h1>
           <p>Personalize a organização e alimente os cadastros auxiliares do PointVet.</p>
         </div>
-        <div className="company-badge"><Building2 size={18} /><div><strong>{selectedCompany?.nomeFantasia}</strong><span>Configurações compartilhadas da organização</span></div></div>
+        <div className="company-badge"><Building2 size={18} /><div><strong>{selectedCompany?.nomeFantasia}</strong><span>Configurações compartilhadas da organização</span>{selectedOrganization?.id && <span>Identificador da organização (suporte): {selectedOrganization.id}</span>}</div></div>
       </section>
 
       <div className="settings-tabs" role="tablist">
