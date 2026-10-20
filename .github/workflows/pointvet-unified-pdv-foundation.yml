@@ -237,6 +237,9 @@ on:
       - "POINTVET_M55_REPASSES_CARTAO_MANUAIS.md"
       - "api/prisma/migrations/20261014210000_unified_manual_closing_ledger_foundation/**"
       - "admin-web/src/pages/UnifiedPdvPreviewPage.jsx"
+      - "admin-web/src/components/UnifiedRoleAcceptancePanel.jsx"
+      - "admin-web/src/lib/unifiedRoleAcceptance.js"
+      - "admin-web/tests/unified-role-acceptance.test.mjs"
       - "admin-web/src/pages/PdvPage.jsx"
       - "admin-web/src/App.jsx"
       - "admin-web/src/clients.css"
@@ -416,6 +419,7 @@ jobs:
         working-directory: admin-web
         run: |
           npm ci
+          node --test tests/unified-role-acceptance.test.mjs
           npm run build
 
   isolated-postgres:
