@@ -295,6 +295,12 @@ r.get("/rascunhos",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
  return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id})});
 }catch(e){next(e);}});
+// Recuperação de vendas concluídas para estorno integral pela UI. Nunca expor
+// a funcionários sem permissão de cancelamento ou quando o gate manual está OFF.
+r.get("/rascunhos-concluidos",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({success:false,message:"Checkout manual desativado."});
+ return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,somenteConcluidas:true})});
+}catch(e){next(e);}});
 r.post("/rascunhos",async(req,res,next)=>{try{
  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
  const parsed=previewSchema.safeParse(req.body);
