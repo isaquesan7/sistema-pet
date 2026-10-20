@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import jwt from "jsonwebtoken";
 import app from "../src/app.js";
 import prisma from "../src/config/prisma.js";
+import {consultarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
 
 const CI_URL="postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/pointvet_unified_ci";
 test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollback",async t=>{
@@ -344,19 +345,30 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  // M.5.64 — revogação real: o mesmo JWT não pode conservar privilégios de
  // cargo desativado ou vínculo removido em um dos CNPJs.
  const roleEndpoint="/api/pdv-unificado/disponibilidade";
+ const selectedResvCtx={organizacaoId:org,usuarioId:attendant,empresaId:store,id:draft.id,versao:1};
  await prisma.cargo.update({where:{id:roleAttendantStore.id},data:{ativo:false}});
  await request("GET",roleEndpoint,403,null,attendantAuth,store);
+ // M.5.65: simula revogação APÓS o middleware e ANTES da operação.
+ // Mesmo com a empresa selecionada, o serviço deve negar dentro da transação.
+ await prisma.$transaction(async tx=>{
+  await assert.rejects(()=>consultarReservaFechamento(selectedResvCtx,tx),/EMPRESA_SEM_ACESSO/);
+ });
  const offRole=(await request("GET",roleEndpoint,200,null,attendantAuth,service)).dados;
  assert.equal(offRole.permissoesEmpresas.find(v=>v.id===store)?.pdvAcessar,false);
  assert.equal(offRole.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,false);
  assert.equal(offRole.permissoesEmpresas.find(v=>v.id===service)?.pdvAcessar,true);
  await prisma.cargo.update({where:{id:roleAttendantStore.id},data:{ativo:true}});
+ assert.equal((await consultarReservaFechamento(selectedResvCtx)).comandaId,draft.id,
+  "O serviço volta a reconhecer o CNPJ selecionado depois da reativação");
  assert.equal((await request("GET",roleEndpoint,200,null,attendantAuth,store)).dados
   .permissoesEmpresas.find(v=>v.id===store)?.pdvAcessar,true);
  await prisma.usuarioEmpresa.update({
   where:{usuarioId_empresaId:{usuarioId:attendant,empresaId:service}},data:{ativo:false}
  });
  await request("GET",roleEndpoint,403,null,attendantAuth,service);
+ await prisma.$transaction(async tx=>{
+  await assert.rejects(()=>consultarReservaFechamento(selectedResvCtx,tx),/EMPRESA_SEM_ACESSO/);
+ });
  const withoutService=(await request("GET",roleEndpoint,200,null,attendantAuth,store)).dados;
  assert.deepEqual(withoutService.permissoesEmpresas.map(v=>v.id),[store],
   "Um vínculo inativo desaparece da listagem mesmo quando o JWT permanece válido");
