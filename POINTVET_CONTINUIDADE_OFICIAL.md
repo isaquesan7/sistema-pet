@@ -1,3 +1,23 @@
+# UPDATE M.5.66 — REDESENHO DA TELA DO PDV UNIFICADO (20/10/2026)
+
+**Pedido do proprietário:** priorizar a usabilidade e a aparência da página do PDV enquanto o Railway informa "Limited Access / Deploys have been paused temporarily". Trabalho exclusivamente na branch `feat/pointvet-20-1-unified-pdv-foundation` / PR #36 **DRAFT**; não houve deploy, merge, alteração de flags nem execução de vendas reais.
+
+**Entrega de interface** (`admin-web/src/pages/UnifiedPdvPreviewPage.jsx` e `admin-web/src/clients.css`):
+- Layout de balcão em duas áreas: tutor e catálogo autorizados à esquerda, comanda e conferência à direita; organização responsiva em 1100/900/680/420 px, incluindo cenário de monitor 1366 × 768.
+- Cabeçalho com contexto de operação, situação da comanda e botão visível **Nova comanda**. Mantida a mesma limpeza de estado do botão anterior.
+- Produtos com empresa e preço legíveis, busca identificada, vazio/carregando no catálogo, linhas de comanda com rótulos claros e empty state orientativo.
+- **Estimativa local** do valor da comanda, com arredondamento em centavos; produtos a granel continuam usando `bulkTotalCents`, e a interface marca explicitamente que só a validação do servidor confere o fechamento. Nada novo é gravado ao exibir a estimativa.
+- Rascunhos recentes, vendas concluídas e histórico de estornos preservados e movidos para seção **recolhível**, reduzindo a rolagem durante a venda.
+- Paleta coerente com o admin, foco de teclado visível e preferência de movimento reduzido.
+
+**Regra de ouro:** nenhum contrato API ou fluxo de checkout/estorno foi alterado. Inalterados `buildUnifiedDraftPayload`, granel por peso/valor, escolha de pet, validação sem cobrança, reservas, caixa por CNPJ, declaração externa de dinheiro/Pix/cartões/transferência, transação de fechamento, opt-in/allowlist, autorização viva, estoque, rateio e proibição de fiscal/TEF/PSP nesta versão. Estimativa visual nunca autoriza cobrança nem substitui `/pdv-unificado/simulacao`.
+
+**Testes no GitHub:** acrescentado `admin-web/tests/unified-pdv-layout.test.mjs` para proteger hierarquia da tela, ações existentes, isolamento e regras de responsividade. Commits: UI `e7bafc8`, CSS `5f7611a`, teste `37bea1a`. [CI Unified PDV #39487561660](https://github.com/isaquesan7/sistema-pet/actions/runs/39487561660): `validate SUCCESS` (inclui build do admin); `isolated-postgres SUCCESS` (ambos concluídos). [CI 16.1 #39487561723](https://github.com/isaquesan7/sistema-pet/actions/runs/39487561723): `admin-web` build SUCCESS.
+
+**Publicação:** não executar "Deploy Latest Commit" enquanto o Railway persistir no bloqueio, inclusive para o plano Pro. Staging da Pet King permanece com o commit antigo, sem o redesenho. Quando o acesso voltar, efetuar deploy controlado da branch, vistoria REAL da UI com 1366 × 768 e telas menores, teste por atendente/tutor/2 CNPJs/granel 333 g/caixa/estorno sob flags e permissões, sem expor produção. Revisar o **PDV tradicional** na etapa visual seguinte para uma experiência consistente, sem redesenhar sua lógica de negócio.
+
+---
+
 # UPDATE M.5.65 — REVALIDAÇÃO DO CNPJ SELECIONADO DENTRO DA OPERAÇÃO (20/10/2026)
 
 **Falha encontrada em auditoria do PDV multiempresa:** o helper `empresasAutorizadas` em `pdv-unificado.service.js` conferia `pdv.acessar` com `Cargo.ativo` para os outros CNPJs, mas considerava a empresa selecionada autorizada apenas por seu ID. Embora o middleware já exija acesso no início da requisição, ele não protege uma operação mais longa se o cargo/vínculo for revogado entre a autenticação e a transação de fechamento ou estorno.
