@@ -513,18 +513,18 @@ export default function PdvPage() {
         </div>
       </header>
       {intelligentPreference&&!intelligentCheckoutEnabled&&<section className="pdv-unified-shortcut" aria-label="Situação do fechamento inteligente">
-        <div><span>LIBERAÇÃO OPERACIONAL</span><h2>Fechamento multiempresa ainda restrito</h2><p>O catálogo inteligente e a comanda integrada estão disponíveis. Enquanto o checkout por CNPJ não for autorizado na API, você pode registrar uma venda individual pelo fluxo anterior, nesta mesma tela.</p></div>
+        <div><span>LIBERAÇÃO OPERACIONAL</span><h2>Fechamento multiempresa ainda restrito</h2><p>O catálogo inteligente e a comanda integrada estão disponíveis. Enquanto o checkout por CNPJ não for autorizado na API, você pode registrar uma venda individual pelo fluxo anterior, nesta mesma tela. Salve qualquer rascunho antes de alternar o modo temporário.</p></div>
         <button className="ghost-button" type="button" onClick={()=>setIndividualFallback(value=>!value)}>{individualFallback?"Voltar à comanda inteligente":"Venda individual temporária"} <Plus size={15}/></button>
       </section>}
       <section className="pdv-summary-grid">
-        <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
-        <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje</span><strong>{summary.vendasHoje || 0}</strong></div></div>
+        <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje (CNPJ atual)</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
+        <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje (CNPJ atual)</span><strong>{summary.vendasHoje || 0}</strong></div></div>
         <div className="pdv-summary-card"><WalletCards size={19} /><div><span>Comandas pendentes</span><strong>{summary.comandasAbertas || 0}</strong></div></div>
         <div className="pdv-summary-card"><Banknote size={19} /><div><span>Saldo inicial</span><strong>{formatCurrency(openSession?.valorAbertura || 0)}</strong></div></div>
       </section>
 
       <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
-        {[ ["VENDA", ShoppingCart, "Venda rápida"], ["COMANDAS", WalletCards, "Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
+        {[ ["VENDA", ShoppingCart, "Venda"], ["COMANDAS", WalletCards, intelligentPreference?"Comandas por CNPJ":"Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
           <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
       </nav>
@@ -589,7 +589,7 @@ export default function PdvPage() {
       {tab === "COMANDAS" ? (
         <section className="panel table-panel">
           <div className="toolbar">
-            <div><strong className="table-main-text">Comandas da organização</strong><div className="table-subtext">Uma comanda pode reunir itens dos diferentes CNPJs; cada CNPJ fecha sua própria venda.</div></div>
+            <div><strong className="table-main-text">Comandas da organização</strong><div className="table-subtext">Histórico e operação individual por CNPJ. Para uma nova comanda multiempresa, use a aba Venda do PDV Inteligente; nunca feche uma comanda unificada pela rotina legada.</div></div>
             <button className="primary-button" type="button" onClick={() => setCommandModal(true)}><Plus size={16} /> Nova comanda</button>
           </div>
           <div className="table-scroll">
