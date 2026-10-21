@@ -8,8 +8,7 @@ import {buildUnifiedDraftPayload,unifiedScopedQueryKey,visibleUnifiedClients,reh
 import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../lib/unifiedBulk.js";
 import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewManualReceipt} from "../lib/unifiedManualAllocation.js";
 import {useAuth} from "../context/AuthContext.jsx";
-import UnifiedRoleAcceptancePanel from "../components/UnifiedRoleAcceptancePanel.jsx";
-import PdvSaleLayout,{PdvProductCard,PdvEmptyCart} from "../components/PdvSaleLayout.jsx";
+import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvPaymentPending,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
 import "../clients.css";
 export default function UnifiedPdvPreviewPage(){
  const {selectedOrganization}=useAuth();
@@ -94,18 +93,20 @@ function UnifiedPdvWorkspace(){
     </>}
     cartCount={lines.length}
     cartDescription="Revise tutor, itens e valores. O sistema separa cada CNPJ na conferência do fechamento."
-    customerControl={<div className="pdv-unified-customer-control">
-     <label className="form-field"><span>Buscar tutor</span><input className="form-control"
-       aria-label="Buscar tutor" placeholder="Nome do tutor" value={clientSearch} disabled={isReserved}
-       onChange={e=>{setClientSearch(e.target.value);setClientId("");setSelectedClient(null);setLocalChanges(true);preview.reset();}}/></label>
-     <label className="form-field"><span>Cliente selecionado</span>
-      <select className="form-control" value={clientId} disabled={isReserved}
-       onChange={e=>{const id=e.target.value;setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||null);setLocalChanges(true);preview.reset();}}>
-       <option value="">Selecione um cliente ativo</option>
-       {visibleUnifiedClients(clients.data,selectedClient).map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
-      </select></label>
-     {draft&&localChanges&&!clientId&&<small>Selecione novamente o tutor para atualizar a comanda.</small>}
-    </div>}
+    customerControl={<PdvCustomerPicker
+     clients={visibleUnifiedClients(clients.data,selectedClient)}
+     label="Cliente (obrigatório para comanda multiempresa)"
+     emptyLabel="Selecione um cliente ativo"
+     value={clientId} disabled={isReserved}
+     search={clientSearch} onSearch={value=>{
+      setClientSearch(value);setClientId("");setSelectedClient(null);
+      setLocalChanges(true);preview.reset();
+     }}
+     onChange={id=>{
+      setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||selectedClient?.id===id?selectedClient:null);
+      setLocalChanges(true);preview.reset();
+     }}
+    />}
     cartContent={lines.length?lines.map(row=><div className="pdv-cart-line pdv-unified-line" key={row.lineKey}>
      <div className="pdv-cart-line__main">
       <strong>{row.nome}</strong>
@@ -148,29 +149,30 @@ function UnifiedPdvWorkspace(){
       <Trash2 size={15}/>
      </button>
     </div>):<PdvEmptyCart description="Selecione um tutor e adicione itens do catálogo para iniciar a comanda."/>}
-    totalsContent={<div className="pdv-totals" aria-label="Resumo de valores">
-     <div><span>Subtotal estimado</span><strong>{hasValidEstimate?formatCurrency(estimatedCents/100):"—"}</strong></div>
-     <div className="pdv-total-final"><span>Total estimado da venda</span>
-      <strong>{hasValidEstimate?formatCurrency(estimatedCents/100):"—"}</strong>
-     </div>
-     <small>Valor informativo. A validação final confirma a divisão por CNPJ sem cobrar.</small>
-    </div>}
-    paymentsContent={<div className="pdv-payments" aria-label="Pagamentos por CNPJ">
-     <div className="pdv-payments__heading"><div><strong>Pagamentos</strong>
-      <span>Recebimentos manuais por CNPJ, sem integração bancária ou emissão fiscal. A conferência aparece após salvar e reservar a comanda.</span>
-     </div></div>
-     {isReserved&&reservation.data?.status==="RESERVADA"&&<UnifiedAllocationConference
-      draft={draft} reservation={reservation.data} dirty={localChanges} checkoutEnabled={manualCheckoutEnabled}
-      reversalEnabled={manualReversalEnabled}
-      onEstorno={()=>setSavedNotice("Estorno integral registrado; estoque e lote recompostos. A devolução externa foi apenas declarada, não processada pelo PointVet.")}/>}
-    </div>}
+    totalsContent={<PdvTotals subtotal={hasValidEstimate?estimatedCents/100:null}
+     total={hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
+     discount={0} addition={0} canDiscount={false}
+     description="Estimativa: desconto e acréscimo indisponíveis até o rateio autorizado por CNPJ. A conferência oficial ocorre antes de qualquer venda."
+    />}
+    paymentsContent={<PdvPaymentSection description="Recebimentos manuais por CNPJ, sem integração com bancos ou maquininhas. A distribuição será liberada após salvar e reservar a comanda.">
+     {isReserved&&reservation.data?.status==="RESERVADA"
+      ?<UnifiedAllocationConference
+        draft={draft} reservation={reservation.data} dirty={localChanges}
+        checkoutEnabled={manualCheckoutEnabled} reversalEnabled={manualReversalEnabled}
+        onEstorno={()=>setSavedNotice("Estorno integral registrado; estoque e lote recompostos. A devolução externa foi apenas declarada, não processada pelo PointVet.")}/>
+      :<PdvPaymentPending message="O pagamento não pode ser informado nesta etapa. Salve, confira e reserve a comanda para distribuir os valores pelas empresas autorizadas."/>}
+    </PdvPaymentSection>}
     noticesContent={<>
      {save.isError&&<p className="alert alert--error">{getApiErrorMessage(save.error)}</p>}
      {savedNotice&&<p className="alert alert--success">{savedNotice}</p>}
      {preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}
     </>}
     actionsContent={<div className="pdv-unified-actions">
-     <button className="primary-button primary-button--large" type="button"
+     <PdvCheckoutButton total={hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
+      disabled={true} reason={manualCheckoutEnabled
+       ?"Finalize pela conferência de pagamentos por CNPJ após salvar e reservar a comanda. Este botão não dispara um fechamento sem a confirmação individual de cada empresa."
+       :"Fechamento multiempresa ainda não habilitado pela API. Use a validação abaixo, sem cobrança."}/>
+     <button className="ghost-button" type="button"
       disabled={!clientId||!lines.length||hasBulkErrors||preview.isPending||isReserved}
       onClick={()=>preview.mutate()}><ShieldCheck size={17}/> Validar e calcular sem cobrar</button>
      <button className="ghost-button" type="button"
@@ -195,15 +197,7 @@ function UnifiedPdvWorkspace(){
  {closingReview.data&&!localChanges&&<div className="pv-unified-total"><h3>Pré-fechamento (somente conferência)</h3>{closingReview.data.empresas.map(e=><div key={e.empresaId}><span>{e.nome} · {e.cnpj}</span><strong>{formatCurrency(Number(e.total))}</strong></div>)}<div><strong>Total por empresas</strong><strong>{formatCurrency(Number(closingReview.data.total))}</strong></div>{closingReview.data.pendencias.length?<div><strong>Revise antes de seguir:</strong>{closingReview.data.pendencias.map((p,i)=><p key={`${p.itemId}-${p.codigo}-${i}`}>{lines.find(l=>l.rascunhoItemId===p.itemId)?.nome||"Item da comanda"}: {unifiedPrecloseMessages[p.codigo]||p.codigo}</p>)}</div>:<p>Itens conferidos. Fechamento e pagamento continuam desabilitados; a emissão fiscal é uma integração futura independente.</p>}</div>}{preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}{preview.data&&<div className="pv-unified-total"><h3>Resumo por empresa</h3>{preview.data.empresas.map(e=><div key={e.empresaId}><strong>{e.empresa}</strong><span>{formatCurrency(Number(e.total))}</span></div>)}<div><strong>Total consolidado</strong><strong>{formatCurrency(Number(preview.data.total))}</strong></div><p>Prévia validada. Nenhuma venda, estoque ou documento fiscal foi movimentado.</p></div>}
     </div>}
    />
-   <details className="panel pv-unified-acceptance">
-    <summary>Conferir cargos e permissões do PDV</summary>
-    <UnifiedRoleAcceptancePanel
-     availability={!eligibility.isFetching&&!eligibility.isError?eligibility.data:null}
-     refreshing={eligibility.isFetching}
-     errorMessage={eligibility.isError?getApiErrorMessage(eligibility.error):null}
-     onRefresh={()=>eligibility.refetch()}/>
-   </details>
-      <details className="panel pv-unified-history">
+   <details className="panel pv-unified-history">
     <summary><span>Rascunhos, vendas concluídas e histórico de estornos</span><small>Consultar e retomar atendimentos anteriores</small></summary>
     <div className="pv-unified-history-content">
    <section className="panel pv-detail-panel"><div className="pv-detail-section-actions"><h2>Rascunhos recentes</h2><button type="button" className="ghost-button" onClick={startNewDraft}>Nova comanda</button></div>{draftList.isError&&<p className="alert alert--error">{getApiErrorMessage(draftList.error)}</p>}{(draftList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>#{d.numero} · {d.cliente.nome} · versão {d.versaoRascunho}</button>)}{manualReversalEnabled&&hasPermission("pdv.cancelar_venda")&&<div className="pv-unified-completed"><h3>Vendas unificadas concluídas — estorno integral</h3><p>Reabra uma venda já registrada para conferir seu estorno. Nenhum estorno parcial é permitido.</p>{completedList.isError&&<p className="alert alert--error">{getApiErrorMessage(completedList.error)}</p>}{(completedList.data||[]).map(d=><button key={d.id} className="ghost-button" type="button" onClick={()=>reopen(d)}>Venda #{d.numero} · {d.cliente.nome} · estorno integral</button>)}</div>}</section>
