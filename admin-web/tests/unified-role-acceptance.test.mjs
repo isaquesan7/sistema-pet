@@ -72,11 +72,15 @@ test("falha fechada em resposta antiga, sem dados ou com organização/CNPJ dive
 test("painel de homologação é somente leitura, faz refresh GET e não se auto-habilita em produção",()=>{
  const panel=readFileSync(new URL("../src/components/UnifiedRoleAcceptancePanel.jsx",import.meta.url),"utf8");
  const page=readFileSync(new URL("../src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
+ const settings=readFileSync(new URL("../src/pages/SettingsPage.jsx",import.meta.url),"utf8");
  assert.match(panel,/if\(!POINTVET_IS_STAGING\)return null/);
  assert.match(panel,/buildUnifiedRoleAcceptanceMatrix/);
  assert.match(panel,/NÃO prova autorização/);
  assert.match(panel,/Atualizar permissões da API/);
  assert.doesNotMatch(panel,/api\.(post|put|patch|delete)\(/);
- assert.match(page,/availability=\{!eligibility.isFetching&&!eligibility.isError\?eligibility.data:null\}/);
- assert.match(page,/onRefresh=\{\(\)=>eligibility.refetch\(\)\}/);
+ assert.doesNotMatch(page,/UnifiedRoleAcceptancePanel/);
+ assert.match(settings,/POINTVET_IS_STAGING&&hasPermission\("pdv.acessar"\)/);
+ assert.match(settings,/queryKey:\["pdv-role-acceptance-settings",organizationId,companyId\]/);
+ assert.match(settings,/<UnifiedRoleAcceptancePanel availability=\{!query.isFetching&&!query.isError\?query.data:null\}/);
+ assert.match(settings,/onRefresh=\{\(\)=>query.refetch\(\)\}/);
 });
