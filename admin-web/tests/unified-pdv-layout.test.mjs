@@ -41,7 +41,7 @@ test("nova apresentação mantém fluxos sensíveis conectados e isolados",()=>{
  ])assert.ok(page.includes(guard),`Fluxo removido: ${guard}`);
  assert.match(page,/formatCurrency\(estimatedCents\/100\)/);
  assert.match(page,/isBulkWeightProduct\(row\)\?bulkTotalCents\(row\)/);
- assert.match(page,/Valor informativo/);
+ assert.match(page,/Estimativa: desconto e acréscimo indisponíveis/);
 });
 
 test("responsividade, foco e conferência avançada permanecem no padrão do PDV",()=>{
