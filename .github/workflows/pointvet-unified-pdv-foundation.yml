@@ -248,6 +248,7 @@ on:
       - "admin-web/src/pages/SettingsPage.jsx"
       - "admin-web/src/layout/AppLayout.jsx"
       - "admin-web/src/pdv.css"
+      - "admin-web/src/components/PdvSaleLayout.jsx"
       - "admin-web/src/pages/PdvPage.jsx"
       - "admin-web/src/App.jsx"
       - "admin-web/src/clients.css"
