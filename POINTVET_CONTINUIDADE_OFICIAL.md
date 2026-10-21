@@ -1,3 +1,13 @@
+# M.5.70 — RETOMADA CONTROLADA DO DEPLOY ADMIN STAGING APÓS INCIDENTE RAILWAY (21/10/2026)
+
+**Rechecagem 21/10:** o Railway voltou a responder e os 4 serviços do projeto `Pet King PDV Homologacao`, ambiente `staging`, estavam online. A tentativa autorizada anterior de publicar M.5.70 foi **parcial**: `connect_service_source(staged=true)` e `accept_deploy` fixaram corretamente `source.commitSha=1d15e2f91f45f9b95c86c0e2310d4fea3c85bf3e`, mas não criaram um deployment novo durante o incidente. Último **build efetivamente online**: M.5.69 (`680f09e772d6d634a490e3ac2cf4daef76861e63`, deployment `5f5da75a-c977-4c86-81a2-55159769cbde`).
+
+**Reaplicação segura:** nunca tratar a atualização do campo `source.commitSha` isoladamente como sucesso de publicação. Criar este registro de release/retry na branch da PR #36 (sem mudar API/UX/transações), aguardar `validate` e `isolated-postgres` verdes para o novo SHA, preparar `connect_service_source(staged=true)` exclusivamente para `pointvet-admin-staging`, conferir que `get_staged_changes` contém **apenas** a troca de `source.commitSha` e nenhuma modificação destrutiva, confirmar com `accept_deploy`, acompanhar `list_deployments` até existir um NOVO deployment com o SHA exato e status `SUCCESS`. Se a Railway continuar sem iniciar build, parar e solicitar ação no dashboard para “Deploy latest commit”, sem usar `redeploy` (que recicla build velho), conectar source em todas as environments, nem alterar flags/dados.
+
+**Escopo autorizado:** somente Admin staging (projeto `9564acfc-1582-45d8-8ac3-f0bc2d998530` / environment `5fe41299-936f-4c6f-b034-92b71d67bf96` / service `9b7b472e-7275-464a-b7a4-b1e9c0db542a`). PR #36 segue DRAFT. Nenhum deploy para API, Portal, PostgreSQL, produção ou Pet King DEV; gates financeiros e integrações bancárias/fiscais intocados. Aceite visual humano dos modos Individual e Inteligente ainda pendente.
+
+---
+
 # UPDATE M.5.70 — PADRÃO FUNCIONAL/UX ÚNICO DOS DOIS MODOS DE PDV (20/10/2026)
 
 **Pedido do proprietário:** após comparar screenshots reais dos modos Individual e Unificado Inteligente no staging M.5.69, unificar **também os controles**: título, busca, seletor de cliente, carrinho vazio, subtotal/desconto/acréscimo/total, editor de pagamentos, botão principal e retirar painel técnico da frente de caixa. Preservar o visual do Individual; o inteligente traz a origem do item por CNPJ e conferência separada internamente.
