@@ -11,11 +11,11 @@ import {useAuth} from "../context/AuthContext.jsx";
 import UnifiedRoleAcceptancePanel from "../components/UnifiedRoleAcceptancePanel.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart} from "../components/PdvSaleLayout.jsx";
 import "../clients.css";
-export default function UnifiedPdvPreviewPage({embedded=false}){
+export default function UnifiedPdvPreviewPage(){
  const {selectedOrganization}=useAuth();
- return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"} embedded={embedded}/>;
+ return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"}/>;
 }
-function UnifiedPdvWorkspace({embedded}){
+function UnifiedPdvWorkspace(){
  const {selectedOrganization,selectedCompany,hasPermission}=useAuth();
  const scopedKey=(name,...details)=>unifiedScopedQueryKey(name,selectedOrganization?.id,selectedCompany?.id,...details);
  const [motivoCancelar,setMotivoCancelar]=useState("Revisão da comanda");
