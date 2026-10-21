@@ -75,8 +75,6 @@ function UnifiedPdvWorkspace(){
    eligibility.isError?<p className="alert alert--error">{getApiErrorMessage(eligibility.error)}</p>:
    !enabled?<section className="panel"><h2>PDV por empresa</h2><p>O modo inteligente está desativado em Configurações → Módulos.</p></section>:<>
    <PdvSaleLayout
-    catalogTitle="Catálogo de produtos e serviços"
-    catalogDescription="Produtos e serviços dos CNPJs autorizados. A empresa responsável aparece em cada item."
     searchControl={<label className="search-box pdv-search"><Search size={17}/><input
       aria-label="Buscar produto, SKU ou código de barras"
       placeholder="Nome do produto ou serviço..." value={search}
@@ -92,10 +90,9 @@ function UnifiedPdvWorkspace(){
       disabled={isReserved} onAdd={add}/>)}
     </>}
     cartCount={lines.length}
-    cartDescription="Revise tutor, itens e valores. O sistema separa cada CNPJ na conferência do fechamento."
     customerControl={<PdvCustomerPicker
      clients={visibleUnifiedClients(clients.data,selectedClient)}
-     label="Cliente (obrigatório para comanda multiempresa)"
+     label="Cliente"
      emptyLabel="Selecione um cliente ativo"
      value={clientId} disabled={isReserved}
      search={clientSearch} onSearch={value=>{
@@ -149,12 +146,12 @@ function UnifiedPdvWorkspace(){
       <Trash2 size={15}/>
      </button>
     </div>):<PdvEmptyCart description="Selecione um tutor e adicione itens do catálogo para iniciar a comanda."/>}
-    totalsContent={<PdvTotals subtotal={hasValidEstimate?estimatedCents/100:null}
-     total={hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
+    totalsContent={<PdvTotals subtotal={!lines.length?0:hasValidEstimate?estimatedCents/100:null}
+     total={!lines.length?0:hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
      discount={0} addition={0} canDiscount={false}
      description="Estimativa: desconto e acréscimo indisponíveis até o rateio autorizado por CNPJ. A conferência oficial ocorre antes de qualquer venda."
     />}
-    paymentsContent={<PdvPaymentSection description="Recebimentos manuais por CNPJ, sem integração com bancos ou maquininhas. A distribuição será liberada após salvar e reservar a comanda.">
+    paymentsContent={<PdvPaymentSection>
      {isReserved&&reservation.data?.status==="RESERVADA"
       ?<UnifiedAllocationConference
         draft={draft} reservation={reservation.data} dirty={localChanges}
@@ -168,7 +165,7 @@ function UnifiedPdvWorkspace(){
      {preview.isError&&<p className="alert alert--error">{getApiErrorMessage(preview.error)}</p>}
     </>}
     actionsContent={<div className="pdv-unified-actions">
-     <PdvCheckoutButton total={hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
+     <PdvCheckoutButton total={!lines.length?0:hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
       disabled={true} reason={manualCheckoutEnabled
        ?"Finalize pela conferência de pagamentos por CNPJ após salvar e reservar a comanda. Este botão não dispara um fechamento sem a confirmação individual de cada empresa."
        :"Fechamento multiempresa ainda não habilitado pela API. Use a validação abaixo, sem cobrança."}/>
