@@ -243,6 +243,7 @@ on:
       - "admin-web/tests/unified-pdv-layout.test.mjs"
       - "admin-web/tests/pdv-layout.test.mjs"
       - "admin-web/tests/pdv-single-screen.test.mjs"
+      - "admin-web/tests/pdv-uniform-ux.test.mjs"
       - "admin-web/tests/unified-context.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
       - "admin-web/src/pages/SettingsPage.jsx"
@@ -428,7 +429,7 @@ jobs:
         working-directory: admin-web
         run: |
           npm ci
-          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs
+          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs
           npm run build
 
   isolated-postgres:
