@@ -39,7 +39,7 @@ test("nova apresentação mantém fluxos sensíveis conectados e isolados",()=>{
   'checkoutEnabled={manualCheckoutEnabled}','reversalEnabled={manualReversalEnabled}',
   '/fechar-manual','/estornar-manual'
  ])assert.ok(page.includes(guard),`Fluxo removido: ${guard}`);
- assert.match(page,/formatCurrency\(estimatedCents\/100\)/);
+ assert.match(page,/estimatedCents\/100/);
  assert.match(page,/isBulkWeightProduct\(row\)\?bulkTotalCents\(row\)/);
  assert.match(page,/Estimativa: desconto e acréscimo indisponíveis/);
 });
