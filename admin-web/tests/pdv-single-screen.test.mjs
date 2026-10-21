@@ -10,6 +10,7 @@ const pdv=source("../src/pages/PdvPage.jsx");
 const intelligent=source("../src/pages/UnifiedPdvPreviewPage.jsx");
 const settings=source("../src/pages/SettingsPage.jsx");
 const css=source("../src/pdv.css");
+const shared=source("../src/components/PdvSaleLayout.jsx");
 
 test("somente /pdv é tela de operação; URL anterior redireciona",()=>{
  assert.match(app,/<Route path="pdv" element={<PdvPage \/>} \/>/);
@@ -18,7 +19,9 @@ test("somente /pdv é tela de operação; URL anterior redireciona",()=>{
  assert.match(pdv,/import UnifiedPdvPreviewPage from "\.\/UnifiedPdvPreviewPage\.jsx"/);
  assert.match(pdv,/<UnifiedPdvPreviewPage embedded \/>/);
  assert.match(intelligent,/export default function UnifiedPdvPreviewPage\(\{embedded=false\}\)/);
- assert.match(intelligent,/embedded\?"pv-unified-preview pv-unified-embedded"/);
+ assert.match(intelligent,/<PdvSaleLayout/);
+ assert.match(pdv,/<PdvSaleLayout/);
+ assert.match(shared,/className="pdv-sale-layout"/);
 });
 
 test("modo inteligente vem da API escopada por organização e empresa e falha fechado",()=>{
@@ -55,10 +58,14 @@ test("troca de CNPJ mantém o atendimento somente na mesma organização e com P
  assert.match(intelligent,/queryKey:scopedKey\("unified-catalog",search\)/);
 });
 
-test("tela unificada tem o mesmo tema e responsividade do PDV padrão",()=>{
- for(const rule of [".pdv-page .pv-unified-embedded",".pdv-page .pv-unified-workspace",".pdv-page .pv-unified-catalog-item"]){
-  assert.ok(css.includes(rule),`Estilo ausente: ${rule}`);
+test("tela única compartilha a marcação original do balcão, inclusive no mobile",()=>{
+ for(const cls of ['className="pdv-sale-layout"','className="panel pdv-catalog-panel"',
+  'className="panel pdv-cart-panel"','className="pdv-product-grid"',
+  'className="pdv-cart-list"']){
+  assert.ok(shared.includes(cls),`Padrão visual ausente: ${cls}`);
  }
- assert.match(css,/@media\(max-width:900px\)\{\.pdv-page \.pv-unified-workspace/);
- assert.match(css,/@media\(max-width:700px\)\{\.pdv-page \.pv-unified-hero--embedded/);
+ assert.match(css,/@media\\(max-width:1250px\\)/);
+ assert.match(css,/@media\\(max-width:560px\\)/);
+ assert.match(css,/\\.pdv-page \\.pdv-cart-line\\.pdv-unified-line/);
+ assert.doesNotMatch(intelligent,/className="pv-unified-hero"|className="pv-unified-workspace"/);
 });
