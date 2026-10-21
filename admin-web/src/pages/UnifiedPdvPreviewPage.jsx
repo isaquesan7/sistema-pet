@@ -103,7 +103,7 @@ function UnifiedPdvWorkspace(){
       setLocalChanges(true);preview.reset();
      }}
      onChange={id=>{
-      setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||selectedClient?.id===id?selectedClient:null);
+      setClientId(id);setSelectedClient((clients.data||[]).find(c=>c.id===id)||(selectedClient?.id===id?selectedClient:null));
       setLocalChanges(true);preview.reset();
      }}
     />}
