@@ -5,16 +5,17 @@ import {readFileSync} from "node:fs";
 
 const page=readFileSync(new URL("../src/pages/PdvPage.jsx",import.meta.url),"utf8");
 const style=readFileSync(new URL("../src/pdv.css",import.meta.url),"utf8");
+const shared=readFileSync(new URL("../src/components/PdvSaleLayout.jsx",import.meta.url),"utf8");
 
 test("PDV tradicional apresenta caixa, catalogo, carrinho e pagamentos de forma clara",()=>{
  for(const marker of [
   'import "../pdv.css";','className="pdv-hero"','className="pdv-hero__chips"',
   'className="pdv-unified-shortcut"','className="pdv-summary-grid"',
   '<nav className="pdv-tabs"','aria-pressed={tab === value}',
-  'className="pdv-sale-layout"','className="pdv-product-grid"',
-  'className="pdv-cart-count"','className="pdv-empty-cart"',
+  '<PdvSaleLayout','<PdvProductCard','<PdvEmptyCart',
   'className="pdv-totals"','className="pdv-payment-labels"'
  ])assert.ok(page.includes(marker),`Seção ausente: ${marker}`);
+ for(const marker of ['className="pdv-sale-layout"','className="pdv-product-grid"','className="pdv-cart-count"','className="pdv-empty-cart"'])assert.ok(shared.includes(marker),`Visual não compartilhado: ${marker}`);
  assert.match(page,/aria-label=\{`Forma de pagamento \$\{index\+1\}\`\}/);
  assert.match(page,/aria-label=\{`Valor do pagamento \$\{index\+1\} em reais\`\}/);
  assert.match(page,/Sem integração com bancos ou maquininhas/);
@@ -28,7 +29,7 @@ test("continua usando os mesmos fluxos de venda, comandas, caixa e cancelamento"
   'api.post(`/pdv/vendas/${cancelSale.id}/cancelar`',
   'if (!openSession) return setSaleError','if (missingPet) return setSaleError',
   'hasPermission("pdv.aplicar_desconto")','hasPermission("pdv.cancelar_venda")',
-  'onClick={finalizeSale}','<PaymentEditor payments={payments} total={total} onChange={setPayments} />',
+  'onClick={finalizeSale}','<PaymentEditor payments={payments} total={total} onChange={setPayments}/>',
   '<UnifiedPdvPreviewPage embedded />'
  ])assert.ok(page.includes(marker),`Fluxo ausente: ${marker}`);
 });
