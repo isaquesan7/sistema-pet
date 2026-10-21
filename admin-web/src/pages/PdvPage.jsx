@@ -26,7 +26,7 @@ import Modal from "../components/Modal.jsx";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
 import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
-import PdvSaleLayout,{PdvProductCard,PdvEmptyCart} from "../components/PdvSaleLayout.jsx";
+import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
 import "../pdv.css";
 
 const paymentLabels = {
@@ -141,15 +141,7 @@ function PaymentEditor({ payments, total, onChange }) {
   }
 
   return (
-    <div className="pdv-payments" aria-label="Distribuição dos pagamentos">
-
-      <div className="pdv-payments__heading">
-        <div>
-          <strong>Pagamentos</strong>
-          <span>Informe manualmente como o cliente pagou, inclusive em formas diferentes. Sem integração com bancos ou maquininhas.</span>
-        </div>
-        <button className="ghost-button" type="button" onClick={add}><Plus size={14} /> Adicionar</button>
-      </div>
+    <PdvPaymentSection action={<button className="ghost-button" type="button" onClick={add}><Plus size={14} /> Adicionar</button>}>
       <div className="pdv-payment-labels" aria-hidden="true"><span>Forma de pagamento</span><span>Valor (R$)</span><span>Parcelas / vencimento</span><span></span></div>
       <div className="pdv-payment-list">
         {payments.map((payment, index) => (
@@ -198,7 +190,7 @@ function PaymentEditor({ payments, total, onChange }) {
         <span>Informado {formatCurrency(paid)}</span>
         <strong>{Math.abs(remaining) < 0.01 ? "Pagamento completo" : `Falta ${formatCurrency(remaining)}`}</strong>
       </div>
-    </div>
+    </PdvPaymentSection>
   );
 }
 
@@ -220,6 +212,7 @@ export default function PdvPage() {
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
+  const [clientSearch,setClientSearch]=useState("");
   const [saleDiscount, setSaleDiscount] = useState(0);
   const [saleAddition, setSaleAddition] = useState(0);
   const [payments, setPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
@@ -247,7 +240,7 @@ export default function PdvPage() {
   const [cancelReason, setCancelReason] = useState("");
   // Não carregar o carrinho de uma empresa para outra ao trocar o seletor global.
   useEffect(()=>{
-    setCart([]);setClientId("");setSaleDiscount(0);setSaleAddition(0);
+    setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
     setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);
     setCashModal(null);setCommandModal(false);setPackageReceive(null);
@@ -553,24 +546,20 @@ export default function PdvPage() {
             {!itemsQuery.isLoading&&!catalog.length&&<div className="mini-empty pdv-grid-empty">Nenhum item encontrado. Experimente outro termo de busca.</div>}
           </>}
           cartCount={cart.length}
-          customerControl={<FormField label="Cliente (opcional, obrigatório para serviços com pet)">
-            <select className="form-control" value={clientId} onChange={(event)=>changeClient(event.target.value)}>
-              <option value="">Consumidor não identificado</option>
-              {clients.map(client=><option value={client.id} key={client.id}>{client.nome}</option>)}
-            </select>
-          </FormField>}
+          customerControl={<PdvCustomerPicker
+            clients={clients.filter(client=>!clientSearch||client.nome?.toLowerCase().includes(clientSearch.toLowerCase())||client.id===clientId)}
+            value={clientId} onChange={changeClient}
+            search={clientSearch} onSearch={setClientSearch}
+          />}
           cartContent={cart.length?cart.map((line,index)=><CartLine
             key={`${line.item.id}-${index}`} line={line} client={selectedClient}
             canDiscount={canDiscount} onUpdate={patch=>updateCart(index,patch)}
             onRemove={()=>removeCart(index)}/>):<PdvEmptyCart/>}
-          totalsContent={<div className="pdv-totals" aria-label="Resumo de valores">
-            <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
-            {canDiscount&&<div><span>Desconto geral</span><input type="number" min="0" step="0.01"
-              value={saleDiscount} onChange={(event)=>{const value=Number(event.target.value)||0;setSaleDiscount(value);setTimeout(()=>useSinglePaymentTotal(round(subtotal-value+saleAddition)),0);}}/></div>}
-            <div><span>Acréscimo</span><input type="number" min="0" step="0.01"
-              value={saleAddition} onChange={(event)=>{const value=Number(event.target.value)||0;setSaleAddition(value);setTimeout(()=>useSinglePaymentTotal(round(subtotal-saleDiscount+value)),0);}}/></div>
-            <div className="pdv-total-final"><span>Total da venda</span><strong>{formatCurrency(total)}</strong></div>
-          </div>}
+          totalsContent={<PdvTotals subtotal={subtotal} total={total} formatMoney={formatCurrency}
+            discount={saleDiscount} addition={saleAddition} canDiscount={canDiscount}
+            onDiscountChange={canDiscount?value=>{setSaleDiscount(value);setTimeout(()=>useSinglePaymentTotal(round(subtotal-value+saleAddition)),0);}:undefined}
+            onAdditionChange={value=>{setSaleAddition(value);setTimeout(()=>useSinglePaymentTotal(round(subtotal-saleDiscount+value)),0);}}
+          />}
           paymentsContent={<>
             <PaymentEditor payments={payments} total={total} onChange={setPayments}/>
             {payments.length===1&&money(payments[0].valor)!==total&&<button className="ghost-button pdv-fill-payment" type="button"
@@ -580,10 +569,8 @@ export default function PdvPage() {
             <InlineNotice tone="error">{saleError}</InlineNotice>
             {!openSession&&<InlineNotice>O caixa está fechado. Abra uma sessão na aba Caixa para vender.</InlineNotice>}
           </>}
-          actionsContent={<button className="primary-button primary-button--large" type="button"
-            onClick={finalizeSale} disabled={saleMutation.isPending||!openSession}>
-            {saleMutation.isPending?"Finalizando...":`Finalizar venda · ${formatCurrency(total)}`}
-          </button>}
+          actionsContent={<PdvCheckoutButton total={total} formatMoney={formatCurrency}
+            onClick={finalizeSale} pending={saleMutation.isPending} disabled={!openSession}/>}
         />
       ) : null}
 
