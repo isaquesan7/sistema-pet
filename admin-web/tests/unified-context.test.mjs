@@ -43,7 +43,8 @@ test("operator search clears stale tutor selection; reservation prevents editing
  assert.match(page,/setClientSearch\(e\.target\.value\);setClientId\(""\);setSelectedClient\(null\)/);
  assert.match(page,/setSelectedClient\(saved\.cliente\)/);
  assert.match(page,/setClientSearch\(""\);setLines\(\[\]\)/);
- assert.match(page,/value=\{clientSearch\} disabled=\{isReserved\}/);
+ assert.match(page,/search=\{clientSearch\} onSearch=\{value=>/);
+ assert.match(page,/value=\{clientId\} disabled=\{isReserved\}/);
  for(const name of ["unified-eligibility","unified-clients","unified-client-pets","unified-catalog","unified-drafts","unified-preclose","unified-close-plan","unified-reservation","unified-cash-sessions","unified-recovery-diagnosis","unified-preparation"]){
   assert.ok(page.includes(`scopedKey("${name}"`),`${name} must include organization and company in the cache key`);
  }
