@@ -40,9 +40,9 @@ test("operator search clears stale tutor selection; reservation prevents editing
  const page=readFileSync(new URL("../src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
  assert.match(page,/function UnifiedPdvWorkspace\(\)/);
  assert.match(page,/key=\{selectedOrganization\?\.id\|\|"sem-organizacao"\}/);
- assert.match(page,/setClientSearch\(e\.target\.value\);setClientId\(""\);setSelectedClient\(null\)/);
+ assert.match(page,/setClientSearch\(value\);setClientId\("");setSelectedClient\(null\)/);
  assert.match(page,/setSelectedClient\(saved\.cliente\)/);
- assert.match(page,/setClientSearch\(""\);setLines\(\[\]\)/);
+ assert.match(page,/setClientSearch\(value\);setClientId\("");setSelectedClient\(null\)/);
  assert.match(page,/search=\{clientSearch\} onSearch=\{value=>/);
  assert.match(page,/value=\{clientId\} disabled=\{isReserved\}/);
  for(const name of ["unified-eligibility","unified-clients","unified-client-pets","unified-catalog","unified-drafts","unified-preclose","unified-close-plan","unified-reservation","unified-cash-sessions","unified-recovery-diagnosis","unified-preparation"]){
