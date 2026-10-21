@@ -13,12 +13,12 @@ test("PDV tradicional apresenta caixa, catalogo, carrinho e pagamentos de forma 
   'className="pdv-unified-shortcut"','className="pdv-summary-grid"',
   '<nav className="pdv-tabs"','aria-pressed={tab === value}',
   '<PdvSaleLayout','<PdvProductCard','<PdvEmptyCart',
-  'className="pdv-totals"','className="pdv-payment-labels"'
+  '<PdvTotals','<PdvPaymentSection','className="pdv-payment-labels"'
  ])assert.ok(page.includes(marker),`Seção ausente: ${marker}`);
  for(const marker of ['className="pdv-sale-layout"','className="pdv-product-grid"','className="pdv-cart-count"','className="pdv-empty-cart"'])assert.ok(shared.includes(marker),`Visual não compartilhado: ${marker}`);
  assert.match(page,/aria-label=\{`Forma de pagamento \$\{index\+1\}\`\}/);
  assert.match(page,/aria-label=\{`Valor do pagamento \$\{index\+1\} em reais\`\}/);
- assert.match(page,/Sem integração com bancos ou maquininhas/);
+ assert.match(shared,/Sem integração com bancos ou maquininhas/);
 });
 
 test("continua usando os mesmos fluxos de venda, comandas, caixa e cancelamento",()=>{
