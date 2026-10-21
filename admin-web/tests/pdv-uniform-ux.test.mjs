@@ -43,6 +43,8 @@ test("o modo inteligente não permite desconto global fictício nem fechamento p
  assert.match(individual,/onClick=\{finalizeSale\}/);
  assert.match(individual,/api\.post\("\/pdv\/vendas"/);
  assert.match(shared,/disabled=\{disabled\|\|pending\}/);
+ assert.match(shared,/aria-describedby=\{reason\?reasonId:undefined\}/);
+ assert.match(shared,/<small id=\{reasonId\} className="pdv-checkout-action__reason" role="status">/);
 });
 
 test("mesmos campos de pagamentos sem simular recebimento real",()=>{
