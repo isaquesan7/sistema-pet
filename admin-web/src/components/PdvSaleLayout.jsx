@@ -28,7 +28,7 @@ export function PdvEmptyCart({description="Clique em um item do catálogo para i
  * sem obrigar dois campos permanentes ou alterar a identidade do cliente salvo. */
 export function PdvCustomerPicker({
  clients=[],value="",onChange,search="",onSearch,disabled=false,
- label="Cliente (opcional, obrigatório para serviços com pet)",emptyLabel="Consumidor não identificado"
+ label="Cliente",emptyLabel="Consumidor não identificado"
 }){
  const [searchOpen,setSearchOpen]=useState(false);
  const options=clients.filter(c=>c&&typeof c.id==="string");
@@ -114,9 +114,9 @@ export function PdvCheckoutButton({total,formatMoney,onClick,disabled=false,pend
 
 /** Mesmas colunas, títulos, componentes de catálogo/carrinho e responsividade. */
 export default function PdvSaleLayout({
- catalogTitle="Catálogo do CNPJ",catalogDescription="Adicione os produtos e serviços do caixa selecionado.",
+ catalogTitle="Catálogo de produtos e serviços",catalogDescription="Escolha produtos e serviços para adicionar ao carrinho.",
  searchControl,catalogContent,cartTitle="Carrinho de venda",
- cartDescription="Revise tutor, itens, valores e pagamentos.",cartCount=0,
+ cartDescription="Revise cliente, itens, valores e pagamentos.",cartCount=0,
  customerControl,cartContent,totalsContent,paymentsContent,actionsContent,noticesContent,
  afterCartContent
 }){
