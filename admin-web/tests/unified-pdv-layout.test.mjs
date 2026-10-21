@@ -6,20 +6,27 @@ import {readFileSync} from "node:fs";
 const page=readFileSync(new URL("../src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
 const css=readFileSync(new URL("../src/clients.css",import.meta.url),"utf8");
 
-test("balcão reúne tutor e catálogo à esquerda e comanda à direita",()=>{
- const left=page.indexOf('className="pv-unified-sourcing"');
- const customer=page.indexOf('className="panel pv-detail-panel pv-unified-customer"');
- const catalog=page.indexOf('className="panel pv-detail-panel pv-unified-products"');
- const right=page.indexOf('className="pv-unified-order"');
- const cart=page.indexOf('className="panel pv-detail-panel pv-unified-cart"');
- const history=page.indexOf('className="panel pv-unified-history"');
- assert.ok(left>=0&&left<customer&&customer<catalog&&catalog<right&&right<cart&&cart<history);
- assert.match(page,/aria-label="Cliente e catálogo"/);
- assert.match(page,/aria-label="Comanda e fechamento"/);
- assert.match(page,/className="pv-unified-order-summary"/);
- assert.match(page,/className="pv-unified-new-draft"/);
- assert.match(page,/function startNewDraft\(\)/);
- assert.equal(page.match(/onClick=\{startNewDraft\}/g)?.length,2);
+const individual=readFileSync(new URL("../src/pages/PdvPage.jsx",import.meta.url),"utf8");
+const shared=readFileSync(new URL("../src/components/PdvSaleLayout.jsx",import.meta.url),"utf8");
+const pdvCss=readFileSync(new URL("../src/pdv.css",import.meta.url),"utf8");
+
+test("individual e inteligente usam exatamente os mesmos componentes e classes do balcão",()=>{
+ for(const marker of ["<PdvSaleLayout","<PdvProductCard","<PdvEmptyCart"]) {
+  assert.ok(page.includes(marker),"Motor inteligente sem visual comum: "+marker);
+  assert.ok(individual.includes(marker),"Motor individual sem visual comum: "+marker);
+ }
+ for(const cls of ['className="pdv-sale-layout"','className="panel pdv-catalog-panel"',
+   'className="pdv-product-grid"','className="panel pdv-cart-panel"',
+   'className="pdv-cart-list"','className="pdv-cart-count"']){
+  assert.ok(shared.includes(cls),"Componente visual ausente: "+cls);
+ }
+ assert.doesNotMatch(page,/className="pv-unified-workspace"|className="pv-unified-hero"/);
+ assert.match(page,/className="pdv-cart-line pdv-unified-line"/);
+ assert.match(page,/className="pdv-quantity"/);
+ assert.match(page,/className="pdv-totals"/);
+ assert.match(page,/className="pdv-payments"/);
+ assert.match(shared,/className="pdv-product-card"/);
+ assert.match(pdvCss,/\.pdv-page \.pdv-cart-line\.pdv-unified-line/);
 });
 
 test("nova apresentação mantém fluxos sensíveis conectados e isolados",()=>{
@@ -36,11 +43,11 @@ test("nova apresentação mantém fluxos sensíveis conectados e isolados",()=>{
  assert.match(page,/apenas informativo/);
 });
 
-test("layout mantém responsividade, legibilidade e foco por teclado",()=>{
- assert.match(css,/\.pv-unified-workspace\{display:grid;grid-template-columns:/);
- assert.match(css,/@media\(max-width:900px\)\{\.pv-unified-workspace\{grid-template-columns:minmax\(0,1fr\)/);
- assert.match(css,/@media\(max-width:680px\)/);
- assert.match(css,/\.pv-unified-new-draft:focus-visible/);
+test("responsividade, foco e conferência avançada permanecem no padrão do PDV",()=>{
+ assert.match(pdvCss,/\.pdv-page \.pdv-sale-layout\{display:grid;grid-template-columns:/);
+ assert.match(pdvCss,/@media\(max-width:1250px\)/);
+ assert.match(pdvCss,/@media\(max-width:560px\)/);
+ assert.match(pdvCss,/\.pv-unified-acceptance>summary:focus-visible/);
  assert.match(css,/\.pv-unified-history>summary:focus-visible/);
  assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
 });
