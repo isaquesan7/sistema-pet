@@ -536,7 +536,7 @@ export default function PdvPage() {
           searchControl={<label className="search-box pdv-search"><Search size={17}/><input
             aria-label="Buscar produto, SKU ou código de barras" value={itemSearch}
             onChange={(event)=>setItemSearch(event.target.value)}
-            placeholder="Nome, SKU ou código de barras..."/></label>}
+            placeholder="Nome do produto ou serviço..."/></label>}
           catalogContent={<>
             {catalog.map(item=><PdvProductCard key={item.id}
               item={{...item,valorFormatado:formatCurrency(item.precoVenda)}}
