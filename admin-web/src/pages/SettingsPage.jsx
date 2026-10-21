@@ -6,6 +6,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
+import UnifiedRoleAcceptancePanel from "../components/UnifiedRoleAcceptancePanel.jsx";
+import {POINTVET_IS_STAGING} from "../lib/stagingEnvironment.js";
 
 const tabs = [
   ["marca", "Marca", Palette],
@@ -71,9 +73,33 @@ export default function SettingsPage() {
         queryClient.invalidateQueries({queryKey:["organization"]});
         queryClient.invalidateQueries({queryKey:["unified-pdv-status"]});
         queryClient.invalidateQueries({queryKey:["unified-eligibility"]});
-      }}/></>}
+      }}/>{POINTVET_IS_STAGING&&hasPermission("pdv.acessar")&&<PdvRoleAcceptanceSettings organizationId={selectedOrganization?.id} companyId={selectedCompany?.id}/>}</>}
     </div>
   );
+}
+
+/** Somente homologação: diagnóstico de autorização fora da frente de caixa.
+ * O servidor continua sendo a única fonte de RBAC; nenhuma mutação financeira.
+ */
+function PdvRoleAcceptanceSettings({organizationId,companyId}){
+ const [visible,setVisible]=useState(false);
+ const query=useQuery({
+  queryKey:["pdv-role-acceptance-settings",organizationId,companyId],
+  enabled:visible&&Boolean(organizationId&&companyId),
+  queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados,
+  retry:false,
+ });
+ return <section className="panel settings-section">
+  <div className="panel__heading"><div><span>Homologação · somente staging</span>
+   <h2>Perfis e permissões do PDV</h2>
+   <p>Área administrativa para conferir, sem conceder, acesso por CNPJ com contas independentes de atendente e supervisor.</p>
+  </div></div>
+  <button type="button" className="ghost-button" aria-expanded={visible}
+   onClick={()=>setVisible(v=>!v)}>{visible?"Ocultar diagnóstico":"Conferir permissões por CNPJ"}</button>
+  {visible&&<UnifiedRoleAcceptancePanel availability={!query.isFetching&&!query.isError?query.data:null}
+   refreshing={query.isFetching} errorMessage={query.isError?getApiErrorMessage(query.error):null}
+   onRefresh={()=>query.refetch()}/>}
+ </section>;
 }
 
 function BrandSettings({ organization, loading, canManage, onUpdated }) {
