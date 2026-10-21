@@ -64,8 +64,8 @@ test("tela única compartilha a marcação original do balcão, inclusive no mob
   'className="pdv-cart-list"']){
   assert.ok(shared.includes(cls),`Padrão visual ausente: ${cls}`);
  }
- assert.match(css,/@media\\(max-width:1250px\\)/);
- assert.match(css,/@media\\(max-width:560px\\)/);
+ assert.ok(css.includes("@media(max-width:1250px)"));
+ assert.ok(css.includes("@media(max-width:560px)"));
  assert.match(css,/\\.pdv-page \\.pdv-cart-line\\.pdv-unified-line/);
  assert.doesNotMatch(intelligent,/className="pv-unified-hero"|className="pv-unified-workspace"/);
 });
