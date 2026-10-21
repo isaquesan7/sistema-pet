@@ -66,6 +66,6 @@ test("tela única compartilha a marcação original do balcão, inclusive no mob
  }
  assert.ok(css.includes("@media(max-width:1250px)"));
  assert.ok(css.includes("@media(max-width:560px)"));
- assert.match(css,/\\.pdv-page \\.pdv-cart-line\\.pdv-unified-line/);
+ assert.ok(css.includes(".pdv-page .pdv-cart-line.pdv-unified-line"));
  assert.doesNotMatch(intelligent,/className="pv-unified-hero"|className="pv-unified-workspace"/);
 });
