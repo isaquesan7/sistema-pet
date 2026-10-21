@@ -17,8 +17,8 @@ test("somente /pdv é tela de operação; URL anterior redireciona",()=>{
  assert.match(app,/<Route path="pdv\/unificado\/simulacao" element={<Navigate to="\/pdv" replace \/>} \/>/);
  assert.doesNotMatch(app,/Route path="pdv\/unificado\/simulacao" element={<UnifiedPdvPreviewPage/);
  assert.match(pdv,/import UnifiedPdvPreviewPage from "\.\/UnifiedPdvPreviewPage\.jsx"/);
- assert.match(pdv,/<UnifiedPdvPreviewPage embedded \/>/);
- assert.match(intelligent,/export default function UnifiedPdvPreviewPage\(\{embedded=false\}\)/);
+ assert.match(pdv,/<UnifiedPdvPreviewPage \/>/);
+ assert.match(intelligent,/export default function UnifiedPdvPreviewPage\(\)/);
  assert.match(intelligent,/<PdvSaleLayout/);
  assert.match(pdv,/<PdvSaleLayout/);
  assert.match(shared,/className="pdv-sale-layout"/);
