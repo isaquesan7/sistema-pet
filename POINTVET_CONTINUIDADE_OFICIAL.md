@@ -8,9 +8,9 @@
 
 **Testes e regressão:** `admin-web/tests/pdv-layout.test.mjs`, `unified-pdv-layout.test.mjs`, `pdv-single-screen.test.mjs` e `unified-context.test.mjs` verificam uso efetivo dos mesmos componentes, navegação, responsividade e preservação de RBAC/checkout. Workflow CI incluiu o novo componente compartilhado. **GitHub Actions [#39521593155](https://github.com/isaquesan7/sistema-pet/actions/runs/39521593155): jobs `validate` e `isolated-postgres` SUCCESS**, HEAD de código `4f4f7d9128d71e084c45248cd3b322c5b3e6b27f`.
 
-**Publicação:** **M.5.69 ainda NÃO publicada no Railway.** O Admin staging permanece em M.5.68, commit `81842d8979935c1d19acf206629866efd29c72b6`; APIs e bancos inalterados; Pet King DEV, main, produção, checkout real, estorno e flags financeiras intocados. PR #36 segue DRAFT.
+**Publicação M.5.69 CONCLUÍDA no Railway STAGING (20/10/2026):** autorização explícita do proprietário; SOMENTE `pointvet-admin-staging` recebeu o commit **`680f09e772d6d634a490e3ac2cf4daef76861e63`** no projeto `Pet King PDV Homologacao` / ambiente `staging`. Deployment **`5f5da75a-c977-4c86-81a2-55159769cbde` SUCCESS**, build Vite concluído, servidor estático online na porta 8080. Verificação posterior confirmou **4/4 serviços online**, nenhum alerta Railway ativo. O patch não destrutivo alterou apenas `source.commitSha` do Admin; API, Portal, PostgreSQL, variáveis/flags, Pet King DEV, produção, main e dados não foram alterados. PR #36 segue DRAFT. **PENDENTE: aceite humano visual nos dois modos em `/pdv`.**
 
-**Próximo gate:** obter aprovação explícita para publicar somente o Admin staging. Conferir em navegador com a preferência inteligente ON/OFF as MESMAS duas colunas, cartões, carrinho, totais, botões e responsividade; usar atendente/supervisor nos dois CNPJs. Não liberar venda real/estorno multiempresa nem notas sem homologação independente.
+**Próximo gate:** o responsável deve avaliar em navegador `https://pointvet-admin-staging-staging.up.railway.app/pdv` com a preferência inteligente ON/OFF e confirmar as MESMAS duas colunas, cartões, carrinho, totais, botões e responsividade (1366×768 e celular); testar permissões de atendente/supervisor nos dois CNPJs. Publicação bem-sucedida NÃO equivale a aceite humano. Não liberar venda real/estorno multiempresa nem notas sem homologação independente.
 
 ---
 
