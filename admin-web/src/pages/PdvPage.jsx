@@ -537,7 +537,7 @@ export default function PdvPage() {
       ) : unifiedStatus.isError ? (
         <section className="panel"><InlineNotice tone="error">Não foi possível consultar a configuração de PDV. Por segurança, o fechamento fica indisponível até atualizar.</InlineNotice><button className="ghost-button" type="button" onClick={()=>unifiedStatus.refetch()}>Tentar novamente</button></section>
       ) : showIntelligentSale ? (
-        <UnifiedPdvPreviewPage embedded />
+        <UnifiedPdvPreviewPage />
       ) : (
         <PdvSaleLayout
           searchControl={<label className="search-box pdv-search"><Search size={17}/><input
