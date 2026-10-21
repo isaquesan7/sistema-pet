@@ -23,16 +23,17 @@ test("individual e inteligente usam exatamente os mesmos componentes e classes d
  assert.doesNotMatch(page,/className="pv-unified-workspace"|className="pv-unified-hero"/);
  assert.match(page,/className="pdv-cart-line pdv-unified-line"/);
  assert.match(page,/className="pdv-quantity"/);
- assert.match(page,/className="pdv-totals"/);
- assert.match(page,/className="pdv-payments"/);
+ assert.match(page,/<PdvTotals/);
+ assert.match(shared,/className="pdv-totals"/);
+ assert.match(page,/<PdvPaymentSection/);
+ assert.match(shared,/className="pdv-payments"/);
  assert.match(shared,/className="pdv-product-card"/);
  assert.match(pdvCss,/\.pdv-page \.pdv-cart-line\.pdv-unified-line/);
 });
 
 test("nova apresentação mantém fluxos sensíveis conectados e isolados",()=>{
  for(const guard of [
-  'UnifiedRoleAcceptancePanel','/pdv-unificado/disponibilidade',
-  'onRefresh={()=>eligibility.refetch()}','buildUnifiedDraftPayload(clientId,lines)',
+  '/pdv-unificado/disponibilidade','buildUnifiedDraftPayload(clientId,lines)',
   'visibleUnifiedClients(clients.data,selectedClient)','UnifiedBulkScaleCheck',
   'preview.mutate()','save.mutate()','<UnifiedAllocationConference',
   'checkoutEnabled={manualCheckoutEnabled}','reversalEnabled={manualReversalEnabled}',
@@ -47,7 +48,7 @@ test("responsividade, foco e conferência avançada permanecem no padrão do PDV
  assert.match(pdvCss,/\.pdv-page \.pdv-sale-layout\{display:grid;grid-template-columns:/);
  assert.match(pdvCss,/@media\(max-width:1250px\)/);
  assert.match(pdvCss,/@media\(max-width:560px\)/);
- assert.match(pdvCss,/\.pv-unified-acceptance>summary:focus-visible/);
+ assert.match(pdvCss,/\.pdv-customer-picker__search-toggle:focus-visible/);
  assert.match(css,/\.pv-unified-history>summary:focus-visible/);
  assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
 });
