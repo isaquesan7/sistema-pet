@@ -12,7 +12,7 @@
 
 **Sem mudanças** na API, schemas Prisma, migrations, bancos, caixas, financeiro, estoque, conciliação real, fiscal, TEF/PSP/maquininha, funções de recebimento/estorno, kill switches, RBAC ou allowlists. Preservar cautela: um visual igual NÃO quer dizer que os dois motores tenham as mesmas ações financeiras habilitadas. Falha fechada em modo inteligente enquanto gates da API e aceite humano impedem checkout.
 
-**CI:** build/validação GitHub Actions para `M.5.70` consultado antes do registro; atualizar esta nota com SHA da versão aprovada e resultado `isolated-postgres` ao concluir.
+**CI M.5.70 APROVADO:** commit de código `2ebde8968bd663d8c6e3398eea247433c7aaebb9`, [GitHub Actions #39528050325](https://github.com/isaquesan7/sistema-pet/actions/runs/39528050325), **`validate SUCCESS` e `isolated-postgres SUCCESS`**, com regressões do visual compartilhado, HTTP/ACL por CNPJ, checkout manual sob opt-in e restauração sintética. Commit documental `a4c23042d89829cc4370d0284e92a1c10738ee53` testado novamente em [#39528246589](https://github.com/isaquesan7/sistema-pet/actions/runs/39528246589): **`validate SUCCESS` e `isolated-postgres SUCCESS`**. Isso confirma CI em ambiente isolado, não substitui aceite humano visual no staging.
 
 **DEPLOY:** **M.5.70 ainda NÃO publicada em Railway**. Staging Admin continua M.5.69 (commit `680f09e772d6d634a490e3ac2cf4daef76861e63`), API e Portal/DB não mudam. PR #36 DRAFT, `main` e Pet King DEV/produção intocados. Próximo gate: **autorização explícita para publicar somente Admin staging** e aceite visual em 1366×768 e mobile com alternância da preferência, cliente/pet, etiquetas de CNPJ, granel e gating de pagamento. Sem operações comerciais reais ou notas fiscais por esta atualização de UI.
 
