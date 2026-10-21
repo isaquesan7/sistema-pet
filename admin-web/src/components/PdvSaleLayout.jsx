@@ -3,7 +3,7 @@
  * nos respectivos controladores e na API. Não abre caixa nem processa vendas.
  */
 import {Boxes,ShoppingCart,Search} from "lucide-react";
-import {useState} from "react";
+import {useId,useState} from "react";
 
 export function PdvProductCard({item,onAdd,disabled=false,subtitle,extra}){
  return <button className="pdv-product-card" type="button"
@@ -103,12 +103,16 @@ export function PdvPaymentPending({message}){
 }
 
 export function PdvCheckoutButton({total,formatMoney,onClick,disabled=false,pending=false,reason}){
+ // O motivo da indisponibilidade deve ser anunciado também a leitores de tela,
+ // sem associar o botão ao motor financeiro nem modificar suas permissões.
+ const reasonId=useId();
  return <div className="pdv-checkout-action">
   <button className="primary-button primary-button--large" type="button"
-   disabled={disabled||pending} onClick={onClick}>
+   disabled={disabled||pending} aria-describedby={reason?reasonId:undefined}
+   onClick={onClick}>
    {pending?"Finalizando...":`Finalizar venda · ${total===null?"—":formatMoney(total)}`}
   </button>
-  {reason&&<small className="pdv-checkout-action__reason">{reason}</small>}
+  {reason&&<small id={reasonId} className="pdv-checkout-action__reason" role="status">{reason}</small>}
  </div>;
 }
 
