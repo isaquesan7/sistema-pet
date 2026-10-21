@@ -1,3 +1,19 @@
+# UPDATE M.5.69 — PADRÃO VISUAL REALMENTE ÚNICO PARA O PDV (20/10/2026)
+
+**Feedback explícito do proprietário, após M.5.68 publicada em staging:** a tela inteligente funcionava, mas continuava com aparência diferente da tela individual, contrariamente à decisão aprovada. A M.5.68 incorporou o componente antigo visualmente separado; a M.5.69 corrige a CAUSA, não somente o CSS.
+
+**Código da PR #36 DRAFT:** `admin-web/src/components/PdvSaleLayout.jsx` foi criado como **ÚNICO componente de apresentação** do catálogo e carrinho, com `PdvProductCard` e `PdvEmptyCart` compartilhados. O controlador individual `PdvPage.jsx` e o controlador do motor multiempresa `UnifiedPdvPreviewPage.jsx` usam exatamente o mesmo layout `pdv-sale-layout`, painéis `pdv-catalog-panel`/`pdv-cart-panel`, cartões `pdv-product-card`, lista `pdv-cart-list`, quantidades, resumo `pdv-totals`/`pdv-total-final`, pagamentos `pdv-payments` e ações no padrão da M.5.67. **Não há dois heros, duas grades ou dois designs na aba Venda.** O componente unificado não usa mais modo visual `embedded`; há uma única página `/pdv`, com operação determinada pela preferência da organização e autorização do servidor.
+
+**Distinções funcionais legítimas:** no modo inteligente, cada produto identifica sua empresa, o tutor é obrigatório para a comanda multiempresa, itens a granel preservam peso/valor e serviços permitem pet; após salvar/reservar, a conferência de recebimentos por CNPJ e prevenção de estorno parcial permanecem como controles específicos dentro do mesmo carrinho. Não implementar venda multiempresa com endpoint do PDV individual; NÃO alterar contratos transacionais, Prisma, API, notas fiscais ou regras de checkout. A preferência de tela nunca concede checkout, revogação ou autorização de outros CNPJs. O fallback individual continua disponível quando checkout inteligente não autorizado. Dados reais da Pet King NÃO foram usados nos testes.
+
+**Testes e regressão:** `admin-web/tests/pdv-layout.test.mjs`, `unified-pdv-layout.test.mjs`, `pdv-single-screen.test.mjs` e `unified-context.test.mjs` verificam uso efetivo dos mesmos componentes, navegação, responsividade e preservação de RBAC/checkout. Workflow CI incluiu o novo componente compartilhado. **GitHub Actions [#39521593155](https://github.com/isaquesan7/sistema-pet/actions/runs/39521593155): jobs `validate` e `isolated-postgres` SUCCESS**, HEAD de código `4f4f7d9128d71e084c45248cd3b322c5b3e6b27f`.
+
+**Publicação:** **M.5.69 ainda NÃO publicada no Railway.** O Admin staging permanece em M.5.68, commit `81842d8979935c1d19acf206629866efd29c72b6`; APIs e bancos inalterados; Pet King DEV, main, produção, checkout real, estorno e flags financeiras intocados. PR #36 segue DRAFT.
+
+**Próximo gate:** obter aprovação explícita para publicar somente o Admin staging. Conferir em navegador com a preferência inteligente ON/OFF as MESMAS duas colunas, cartões, carrinho, totais, botões e responsividade; usar atendente/supervisor nos dois CNPJs. Não liberar venda real/estorno multiempresa nem notas sem homologação independente.
+
+---
+
 # UPDATE M.5.68 — UM ÚNICO PDV, COM OPÇÃO INTELIGENTE POR ORGANIZAÇÃO (20/10/2026)
 
 **Decisão expressa do proprietário:** eliminar a necessidade de navegar entre as páginas PDV Tradicional e PDV Unificado, preservando o layout moderno da M.5.67. A página oficial passa a ser **`/pdv`**: modo individual quando `ConfiguracaoOrganizacao.pdvUnificadoHabilitado=false` (padrão) e modo **PDV Unificado Inteligente** quando a preferência de organização estiver ativa e a API autenticada a confirmar. **É a mesma página e o mesmo menu**, não dois PDVs visíveis. A rota anterior `/pdv/unificado/simulacao` redireciona para `/pdv`.
