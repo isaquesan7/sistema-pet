@@ -690,6 +690,22 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
   });
 }
 
+/** Orçamentos da empresa selecionada, somente leitura; autorização financeiro.visualizar
+ * aplicada na rota. Não converte, não reserva estoque e não emite documentos. */
+export async function listarOrcamentosPdv({organizacaoId,empresaId}){
+ const rows=await prisma.orcamentoCliente.findMany({
+  where:{organizacaoId,empresaId},
+  include:{cliente:{select:{id:true,nome:true,cpfCnpj:true}},itens:{select:{id:true,descricao:true,petId:true,pet:{select:{nome:true}}}}},
+  orderBy:{createdAt:"desc"},take:100
+ });
+ return rows.map(row=>({
+  id:row.id,numero:row.numero,status:row.status,createdAt:row.createdAt,
+  updatedAt:row.updatedAt,cliente:row.cliente,
+  empresaId:row.empresaId,total:Number(row.total),
+  itens:row.itens
+ }));
+}
+
 export async function listarComandas({ organizacaoId, busca, status }) {
   return prisma.comanda.findMany({
     where: {
