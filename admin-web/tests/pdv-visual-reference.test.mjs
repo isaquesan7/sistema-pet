@@ -34,7 +34,7 @@ test("workspace tem painel de itens e identificacao com resumo por CNPJ",()=>{
   "Total da comanda","Itens pendentes deste CNPJ","Registrar pagamento e fechar este CNPJ"]){
   assert.ok(page.includes(name),`Ausente: ${name}`);
  }
- assert.match(page,/commandCompanyGroups=useMemo/);
+ assert.match(page,/commandCompanyGroups\s*=\s*useMemo/);
  assert.match(page,/commandReadyToClose=currentCompanyCommandItems\.length>0/);
  assert.match(page,/commandPaymentsTotal===currentCompanyCommandTotal/);
  assert.match(page,/disabled=\{!commandReadyToClose\|\|closeCommandMutation\.isPending\}/);
