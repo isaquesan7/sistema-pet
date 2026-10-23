@@ -14,7 +14,7 @@ test("migração retroativa mantém cliente e isola toda comanda por organizaç�
  assert.match(migration,/RAISE EXCEPTION/);
  assert.match(migration,/ALTER COLUMN "clienteId" DROP NOT NULL/);
  assert.match(migration,/FOREIGN KEY \("organizacaoId"\)/);
- assert.match(svc,/where: \{ id, organizacaoId, rascunhoUnificado: false \}/);
+ assert.match(svc,/where: \{ id, organizacaoId, rascunhoUnificado: false, AND: \[escopoComandaEmpresa\(empresaId\)\] \}/);
  assert.doesNotMatch(svc,/where: \{ id, cliente: \{ organizacaoId \}/);
 });
 test("toda criação de comanda preserva a organização e cliente opcional",()=>{
