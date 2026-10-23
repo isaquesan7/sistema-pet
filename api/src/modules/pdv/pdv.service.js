@@ -706,7 +706,7 @@ export async function listarComandas({ organizacaoId, busca, status }) {
     orderBy: { updatedAt: "desc" },
     take: 100,
     include: {
-      cliente: { select: { id: true, nome: true, telefone: true, whatsapp: true } },
+      cliente: { select: { id: true, nome: true, cpfCnpj: true, telefone: true, whatsapp: true } },
       itens: {
         where: { status: { not: "CANCELADO" } },
         include: {
