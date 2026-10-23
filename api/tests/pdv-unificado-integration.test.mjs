@@ -2672,7 +2672,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
   await travarUnidadesProdutos(tx,[raceItem.id]);
   writerAcquired.liberar();
   await writerGate.promise;
-  const cart=await tx.comanda.create({data:{clienteId:ids.client,rascunhoUnificado:true}});
+  const cart=await tx.comanda.create({data:{organizacaoId:ids.org,clienteId:ids.client,rascunhoUnificado:true}});
   await tx.comandaItem.create({data:{comandaId:cart.id,empresaId:ids.co1,
    itemCatalogoId:raceItem.id,descricao:"Ração concorrente CI",quantidade:"0.333",
    valorUnitario:"15.00",valorTotal:"5.00"}});
