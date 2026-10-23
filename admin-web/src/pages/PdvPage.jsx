@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownCircle,
@@ -199,6 +200,7 @@ function PaymentEditor({ payments, total, onChange }) {
 export default function PdvPage() {
   const { selectedCompany, selectedOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const navigate=useNavigate();
   // A API define o modo efetivo da organização; nunca confiar somente no cache do login.
   const unifiedStatus=useQuery({
     queryKey:["unified-pdv-status",selectedOrganization?.id,selectedCompany?.id],
@@ -284,6 +286,11 @@ export default function PdvPage() {
     queryKey: ["pdv-commands", selectedOrganization?.id],
     queryFn: async () => (await api.get("/pdv/comandas")).data.dados || [],
   });
+  const quotesQuery=useQuery({
+    queryKey:["pdv-quotes",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(selectedCompany?.id&&hasPermission("financeiro.visualizar")),
+    queryFn:async()=>(await api.get("/pdv/orcamentos")).data.dados||[],retry:false
+  });
   const unifiedDraftListQuery=useQuery({
     queryKey:["pdv-unified-order-list",selectedOrganization?.id,selectedCompany?.id],
     enabled:Boolean(intelligentPreference&&selectedCompany?.id),
@@ -330,6 +337,7 @@ export default function PdvPage() {
     queryClient.invalidateQueries({ queryKey: ["pdv-cash"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-sales"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-commands"] });
+    queryClient.invalidateQueries({ queryKey: ["pdv-quotes"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-unified-order-list"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-command-detail"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-items"] });
@@ -599,13 +607,15 @@ export default function PdvPage() {
 
       {tab === "COMANDAS" && !commandDetailId ? <PdvOrdersHome
         commands={commands} drafts={intelligentPreference?(unifiedDraftListQuery.data||[]):[]}
-        sales={sales} clients={clients} intelligent={showIntelligentSale}
+        sales={sales} quotes={quotesQuery.data||[]} clients={clients} intelligent={showIntelligentSale}
         openSession={openSession} companyName={selectedCompany?.nomeFantasia}
         isLoading={commandsQuery.isLoading||salesQuery.isLoading||(intelligentPreference&&unifiedDraftListQuery.isLoading)}
         creating={createCommandMutation.isPending} error={commandError}
+        quotesError={!hasPermission("financeiro.visualizar")?"O acesso aos orçamentos exige permissão financeiro.visualizar.":quotesQuery.isError?getApiErrorMessage(quotesQuery.error):""}
         onOpenCommand={order=>{setCommandDetailId(order.id);setCommandAttachClientId("");setCommandCloseError("");}}
         onOpenDraft={draft=>{setUnifiedDraftToOpen(draft.id);setUnifiedInitialClient(null);setTab("VENDA");}}
         onOpenSale={sale=>setSaleDetailId(sale.id)}
+        onOpenQuote={quote=>navigate(`/clientes/${quote.cliente?.id}`)}
         onCash={()=>setTab("CAIXA")}
         onCreate={({clienteId:customerId,petId})=>{
           setCommandError("");
