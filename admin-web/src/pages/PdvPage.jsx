@@ -27,6 +27,7 @@ import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
 import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
+import {normalizePdvQuantity,stepPdvQuantity} from "../lib/pdvQuantity.js";
 import "../pdv.css";
 
 const paymentLabels = {
@@ -94,15 +95,15 @@ function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
         ) : null}
       </div>
       <div className="pdv-quantity">
-        <button type="button" onClick={() => onUpdate({ quantidade: Math.max(0.001, round(line.quantidade - 1)) })}><Minus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item.tipo,line.quantidade,-1) })}><Minus size={13} /></button>
         <input
           type="number"
-          min="0.001"
-          step="0.001"
+          min={line.item.tipo === "SERVICO" ? 1 : 0.001}
+          step={line.item.tipo === "SERVICO" ? 1 : 0.001}
           value={line.quantidade}
-          onChange={(event) => onUpdate({ quantidade: Math.max(0.001, Number(event.target.value) || 1) })}
+          onChange={(event) => onUpdate({ quantidade: normalizePdvQuantity(line.item.tipo,event.target.value,line.quantidade) })}
         />
-        <button type="button" onClick={() => onUpdate({ quantidade: round(line.quantidade + 1) })}><Plus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item.tipo,line.quantidade,1) })}><Plus size={13} /></button>
       </div>
       {canDiscount ? (
         <label className="pdv-line-discount">
@@ -208,7 +209,7 @@ export default function PdvPage() {
   const intelligentCheckoutEnabled=unifiedStatus.data?.checkoutUnificadoDisponivel===true;
   const [individualFallback,setIndividualFallback]=useState(false);
   const showIntelligentSale=intelligentPreference&&!(individualFallback&&!intelligentCheckoutEnabled);
-  const [tab, setTab] = useState("VENDA");
+  const [tab, setTab] = useState("COMANDAS");
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
@@ -464,7 +465,7 @@ export default function PdvPage() {
   }
 
   function updateCart(index, patch) {
-    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch, quantidade: patch.quantidade === undefined ? line.quantidade : normalizePdvQuantity(line.item.tipo,patch.quantidade,line.quantidade) } : line));
   }
 
   function removeCart(index) {
