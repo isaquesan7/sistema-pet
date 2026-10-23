@@ -247,7 +247,7 @@ export default function PdvPage() {
   useEffect(()=>{
     setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
-    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);
+    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setCommandPetId("");setCommandQuantity(1);
     setCashModal(null);setCommandModal(false);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
@@ -405,7 +405,7 @@ export default function PdvPage() {
       const item = catalog.find((entry) => entry.id === commandItemId);
       return (await api.post(`/pdv/comandas/${commandDetailId}/itens`, {
         itemCatalogoId: commandItemId,
-        petId: item?.tipo === "SERVICO" && item.servico?.exigePet ? (commandPetId || null) : null,
+        petId: item?.tipo === "SERVICO" ? (commandPetId || null) : null,
         quantidade: commandQuantity,
         desconto: 0,
       })).data;
@@ -672,7 +672,16 @@ export default function PdvPage() {
         </div>
         {commandDetailQuery.isLoading ? <div className="loading-state">Carregando...</div> : commandDetail ? <div className="pdv-command-detail">
           <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
-          <div className="pdv-command-add"><select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{serviceNeedsTutorAndPet(selectedCommandItem) ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => {setCommandCloseError("");addCommandItemMutation.mutate();}} disabled={!commandItemId || addCommandItemMutation.isPending}><Plus size={15} /> Lançar</button></div>
+          <div className="pdv-command-add"><select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandQuantity(1); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{serviceNeedsTutorAndPet(selectedCommandItem) ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<label className="pdv-command-quantity">Qtd.
+    <input className="form-control" aria-label="Quantidade a lançar na comanda" type="number"
+      min={selectedCommandItem?.tipo==="SERVICO"?"1":"0.001"}
+      step={selectedCommandItem?.tipo==="SERVICO"?"1":"0.001"}
+      value={commandQuantity} onChange={event=>setCommandQuantity(sanitizePdvQuantity(selectedCommandItem,event.target.value,commandQuantity))}/>
+   </label>
+   <button className="primary-button" type="button" onClick={() => {setCommandCloseError("");addCommandItemMutation.mutate();}}
+    disabled={!commandItemId || addCommandItemMutation.isPending ||
+     (serviceNeedsTutorAndPet(selectedCommandItem)&&(!commandClient?.id||!commandPetId))}>
+    <Plus size={15} /> Lançar</button></div>
           <InlineNotice tone="error">{commandCloseError}</InlineNotice>
           <div className="table-scroll"><table className="pdv-command-items"><thead><tr><th>CNPJ</th><th>Item</th><th>Pet</th><th>Qtd.</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{commandDetail.itens.map((item) => <tr key={item.id}><td>{item.empresa?.nomeFantasia}</td><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorTotal)}</td><td>{item.status}</td><td>{item.empresaId === selectedCompany?.id && item.status === "ATIVO" ? <button className="icon-button table-action" type="button" onClick={() => removeCommandItemMutation.mutate(item.id)}><Trash2 size={14} /></button> : null}</td></tr>)}</tbody></table></div>
           {currentCompanyCommandItems.length ? <div className="pdv-command-close"><div><span>Fechar itens de <strong>{selectedCompany?.nomeFantasia}</strong></span><b>{formatCurrency(currentCompanyCommandTotal)}</b></div>{openSession ? <><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments} />{commandPayments.length === 1 && money(commandPayments[0].valor) !== currentCompanyCommandTotal ? <button className="ghost-button" type="button" onClick={() => setCommandPayments([{ ...commandPayments[0], valor: currentCompanyCommandTotal }])}>Preencher pagamento</button> : null}<button className="primary-button" type="button" disabled={closeCommandMutation.isPending} onClick={() => closeCommandMutation.mutate()}>Fechar este CNPJ · {formatCurrency(currentCompanyCommandTotal)}</button></> : <InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}</div> : <InlineNotice>Não há itens pendentes do CNPJ atualmente selecionado.</InlineNotice>}
