@@ -215,6 +215,7 @@ export async function listarComandas(req, res, next) {
   try {
     const dados = await service.listarComandas({
       organizacaoId: req.organizacao.id,
+      empresaId: req.empresa.id,
       busca: req.query.busca?.trim(),
       status: req.query.status || undefined,
     });
@@ -225,21 +226,21 @@ export async function listarComandas(req, res, next) {
 export async function criarComanda(req, res, next) {
   try {
     const dados = parse(comandaSchema, req.body, res); if (!dados) return;
-    const comanda = await service.criarComanda({ organizacaoId: req.organizacao.id, dados });
+    const comanda = await service.criarComanda({ organizacaoId: req.organizacao.id, empresaId: req.empresa.id, dados });
     return res.status(201).json({ success: true, comanda });
   } catch (error) { mapError(error, res, next); }
 }
 
 export async function buscarComanda(req, res, next) {
   try {
-    return res.json({ success: true, comanda: await service.buscarComanda({ organizacaoId: req.organizacao.id, id: req.params.id }) });
+    return res.json({ success: true, comanda: await service.buscarComanda({ organizacaoId: req.organizacao.id, empresaId: req.empresa.id, id: req.params.id }) });
   } catch (error) { mapError(error, res, next); }
 }
 
 export async function atribuirTutorComanda(req,res,next){
  try{
   const dados=parse(atribuirClienteComandaSchema,req.body,res);if(!dados)return;
-  const comanda=await service.atribuirTutorComanda({organizacaoId:req.organizacao.id,id:req.params.id,clienteId:dados.clienteId});
+  const comanda=await service.atribuirTutorComanda({organizacaoId:req.organizacao.id,empresaId:req.empresa.id,id:req.params.id,clienteId:dados.clienteId});
   return res.json({success:true,comanda});
  }catch(error){mapError(error,res,next);}
 }
