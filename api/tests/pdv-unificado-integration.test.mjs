@@ -933,7 +933,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // Insufficient stock cannot finalize ANY company nor consume a declaration.
  const depleted=await salvarRascunho({...args,itens:[
   {empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:25},
-  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:1}
+  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:1,petId:ids.pet}
  ]});
  const shortage={...args,id:depleted.id,versao:1};
  await reservarOperacoesFechamento(shortage);
