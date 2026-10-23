@@ -62,11 +62,13 @@ async function prepararItens(tx, { empresaId, organizacaoId, clienteId, itens })
     const quantidade = number(entrada.quantidade);
     const desconto = roundMoney(number(entrada.desconto));
     if (quantidade <= 0 || desconto < 0) throw new Error("VALORES_INVALIDOS");
-
-    const pet = await validarPet(tx, organizacaoId, entrada.petId, clienteId);
-    if (item.tipo === "SERVICO" && item.servico?.exigePet && !pet) {
-      throw new Error("PET_OBRIGATORIO_SERVICO");
+    // Serviços são atos indivisíveis: 1, 2, 3... Produto a granel preserva frações.
+    if (item.tipo === "SERVICO" && (!Number.isInteger(quantidade) || quantidade < 1)) {
+      throw new Error("QUANTIDADE_SERVICO_INTEIRA");
     }
+    if (item.tipo === "SERVICO" && !clienteId) throw new Error("CLIENTE_OBRIGATORIO_SERVICO");
+    const pet = await validarPet(tx, organizacaoId, entrada.petId, clienteId);
+    if (item.tipo === "SERVICO" && !pet) throw new Error("PET_OBRIGATORIO_SERVICO");
 
     const bruto = roundMoney(number(item.precoVenda) * quantidade);
     if (desconto > bruto) throw new Error("DESCONTO_INVALIDO");
@@ -691,7 +693,7 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
 export async function listarComandas({ organizacaoId, busca, status }) {
   return prisma.comanda.findMany({
     where: {
-      cliente: { organizacaoId },
+      organizacaoId,
       rascunhoUnificado: false,
       ...(status ? { status } : {}),
       ...(busca ? {
@@ -720,9 +722,9 @@ export async function listarComandas({ organizacaoId, busca, status }) {
 
 export async function criarComanda({ organizacaoId, dados }) {
   return prisma.$transaction(async (tx) => {
-    await validarCliente(tx, organizacaoId, dados.clienteId, true);
+    await validarCliente(tx, organizacaoId, dados.clienteId, false);
     return tx.comanda.create({
-      data: { clienteId: dados.clienteId, observacoes: dados.observacoes || null },
+      data: { organizacaoId, clienteId: dados.clienteId || null, observacoes: dados.observacoes || null },
       include: { cliente: true },
     });
   });
@@ -730,7 +732,7 @@ export async function criarComanda({ organizacaoId, dados }) {
 
 export async function buscarComanda({ organizacaoId, id }) {
   const comanda = await prisma.comanda.findFirst({
-    where: { id, cliente: { organizacaoId }, rascunhoUnificado: false },
+    where: { id, organizacaoId, rascunhoUnificado: false },
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
@@ -754,7 +756,7 @@ export async function buscarComanda({ organizacaoId, id }) {
 export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId, dados }) {
   return prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, cliente: { organizacaoId } },
+      where: { id: comandaId, organizacaoId },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
     if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
@@ -793,7 +795,7 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
         comandaId,
         empresaId,
         status: "ATIVO",
-        comanda: { cliente: { organizacaoId } },
+        comanda: { organizacaoId },
       },
     });
     if (!item) throw new Error("ITEM_COMANDA_NAO_ENCONTRADO");
@@ -806,7 +808,7 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
 export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId, comandaId, dados }) {
   const venda = await prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, cliente: { organizacaoId } },
+      where: { id: comandaId, organizacaoId },
       include: {
         itens: {
           where: { empresaId, status: "ATIVO" },
@@ -821,6 +823,15 @@ export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId
     if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     if (!comanda.itens.length) throw new Error("COMANDA_SEM_ITENS_EMPRESA");
 
+    // Valide também linhas antigas antes da conversão transacional em venda.
+    for (const line of comanda.itens) {
+      const qtd=number(line.quantidade);
+      if (line.itemCatalogo.tipo==="SERVICO") {
+        if (!Number.isInteger(qtd) || qtd<1) throw new Error("QUANTIDADE_SERVICO_INTEIRA");
+        if (!comanda.clienteId) throw new Error("CLIENTE_OBRIGATORIO_SERVICO");
+        if (!line.pet?.id || line.pet.clienteId!==comanda.clienteId) throw new Error("PET_OBRIGATORIO_SERVICO");
+      }
+    }
     const preparados = comanda.itens.map((item) => ({
       item: item.itemCatalogo,
       pet: item.pet,
