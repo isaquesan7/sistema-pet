@@ -235,6 +235,7 @@ export default function PdvPage() {
   const [commandQuantity,setCommandQuantity]=useState(1);
   const [unifiedDraftToOpen,setUnifiedDraftToOpen]=useState(null);
   const [unifiedInitialClient,setUnifiedInitialClient]=useState(null);
+  const [unifiedInitialPet,setUnifiedInitialPet]=useState(null);
   const [commandPetId, setCommandPetId] = useState("");
   const [commandPayments, setCommandPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
   const [commandCloseError, setCommandCloseError] = useState("");
@@ -250,7 +251,7 @@ export default function PdvPage() {
   useEffect(()=>{
     setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
-    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setCommandAttachClientId("");setCommandPetId("");setCommandQuantity(1);
+    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);setCommandAttachClientId("");setCommandPetId("");setCommandQuantity(1);
     setCashModal(null);setCommandModal(false);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
@@ -555,13 +556,13 @@ export default function PdvPage() {
         ))}
       </nav>
 
-      {tab === "VENDA" && <button type="button" className="ghost-button pdv-order-back" onClick={()=>{setTab("COMANDAS");setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);invalidatePdv();}}>← Voltar às comandas</button>}
+      {tab === "VENDA" && <button type="button" className="ghost-button pdv-order-back" onClick={()=>{setTab("COMANDAS");setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);invalidatePdv();}}>← Voltar às comandas</button>}
       {tab === "VENDA" ? unifiedStatus.isPending ? (
         <section className="panel loading-state">Conferindo o modo de PDV da organização...</section>
       ) : unifiedStatus.isError ? (
         <section className="panel"><InlineNotice tone="error">Não foi possível consultar a configuração de PDV. Por segurança, o fechamento fica indisponível até atualizar.</InlineNotice><button className="ghost-button" type="button" onClick={()=>unifiedStatus.refetch()}>Tentar novamente</button></section>
       ) : showIntelligentSale ? (
-        <UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} />
+        <UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} initialPetId={unifiedInitialPet} />
       ) : (
         <PdvSaleLayout
           searchControl={<label className="search-box pdv-search"><Search size={17}/><input
@@ -612,8 +613,8 @@ export default function PdvPage() {
         isLoading={commandsQuery.isLoading||salesQuery.isLoading||(intelligentPreference&&unifiedDraftListQuery.isLoading)}
         creating={createCommandMutation.isPending} error={commandError}
         quotesError={!hasPermission("financeiro.visualizar")?"O acesso aos orçamentos exige permissão financeiro.visualizar.":quotesQuery.isError?getApiErrorMessage(quotesQuery.error):""}
-        onOpenCommand={order=>{setCommandDetailId(order.id);setCommandAttachClientId("");setCommandCloseError("");}}
-        onOpenDraft={draft=>{setUnifiedDraftToOpen(draft.id);setUnifiedInitialClient(null);setTab("VENDA");}}
+        onOpenCommand={order=>{setCommandDetailId(order.id);setCommandAttachClientId("");setCommandPetId("");setCommandCloseError("");}}
+        onOpenDraft={draft=>{setUnifiedDraftToOpen(draft.id);setUnifiedInitialClient(null);setUnifiedInitialPet(null);setTab("VENDA");}}
         onOpenSale={sale=>setSaleDetailId(sale.id)}
         onOpenQuote={quote=>navigate(`/clientes/${quote.cliente?.id}`)}
         onCash={()=>setTab("CAIXA")}
@@ -621,7 +622,7 @@ export default function PdvPage() {
           setCommandError("");
           setCommandPetId(petId||"");
           if(showIntelligentSale){
-            setUnifiedDraftToOpen(null);setUnifiedInitialClient(customerId||"");
+            setUnifiedDraftToOpen(null);setUnifiedInitialClient(customerId||"");setUnifiedInitialPet(petId||null);
             setTab("VENDA");
           }else{
             setCommandClientId(customerId||"");
@@ -682,7 +683,7 @@ export default function PdvPage() {
 
       {tab==="COMANDAS"&&commandDetailId?<section className="pdv-order-workspace">
         <div className="pdv-order-workspace__top">
-          <button className="ghost-button" type="button" onClick={()=>{setCommandDetailId(null);invalidatePdv();}}>← Voltar às comandas</button>
+          <button className="ghost-button" type="button" onClick={()=>{setCommandDetailId(null);setCommandPetId("");invalidatePdv();}}>← Voltar às comandas</button>
           <div><small>ORDEM EM ATENDIMENTO</small><h2>{commandDetail?`Comanda #${commandDetail.numero}`:"Carregando comanda..."}</h2>
           <p>{commandDetail?.cliente?.nome||"Consumidor não identificado"} · {selectedCompany?.nomeFantasia||"Empresa atual"}</p></div>
         </div>
@@ -695,7 +696,7 @@ export default function PdvPage() {
             <button className="ghost-button" type="button" disabled={!commandAttachClientId||assignCommandClientMutation.isPending} onClick={()=>{setCommandCloseError("");assignCommandClientMutation.mutate();}}>Vincular tutor</button>
           </div>}
           <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
-          <div className="pdv-command-add"><select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandQuantity(1); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{serviceNeedsTutorAndPet(selectedCommandItem) ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<label className="pdv-command-quantity">Qtd.
+          <div className="pdv-command-add"><select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandQuantity(1); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{serviceNeedsTutorAndPet(selectedCommandItem) ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<label className="pdv-command-quantity">Qtd.
     <input className="form-control" aria-label="Quantidade a lançar na comanda" type="number"
       min={selectedCommandItem?.tipo==="SERVICO"?"1":"0.001"}
       step={selectedCommandItem?.tipo==="SERVICO"?"1":"0.001"}
