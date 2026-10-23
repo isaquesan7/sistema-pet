@@ -9,6 +9,7 @@ import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGram
 import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewManualReceipt} from "../lib/unifiedManualAllocation.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvPaymentPending,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
+import {normalizePdvQuantity,stepPdvQuantity} from "../lib/pdvQuantity.js";
 import "../clients.css";
 export default function UnifiedPdvPreviewPage(){
  const {selectedOrganization}=useAuth();
@@ -126,11 +127,11 @@ function UnifiedPdvWorkspace(){
       </div>
      </div>:<div className="pdv-quantity">
       <button type="button" aria-label={`Diminuir quantidade de ${row.nome}`} disabled={isReserved}
-       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Math.max(0.001,Number(row.quantidade)-1)}));setLocalChanges(true);preview.reset();}}><Minus size={13}/></button>
-      <input type="number" min="0.001" max="10000" step="0.001" aria-label={`Quantidade de ${row.nome}`} value={row.quantidade} disabled={isReserved}
-       onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(e.target.value)}));setLocalChanges(true);preview.reset();}}/>
+       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:stepPdvQuantity(row.tipo,row.quantidade,-1)}));setLocalChanges(true);preview.reset();}}><Minus size={13}/></button>
+      <input type="number" min={row.tipo==="SERVICO"?1:0.001} max="10000" step={row.tipo==="SERVICO"?1:0.001} aria-label={`Quantidade de ${row.nome}`} value={row.quantidade} disabled={isReserved}
+       onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:normalizePdvQuantity(row.tipo,e.target.value,row.quantidade)}));setLocalChanges(true);preview.reset();}}/>
       <button type="button" aria-label={`Aumentar quantidade de ${row.nome}`} disabled={isReserved}
-       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(row.quantidade)+1}));setLocalChanges(true);preview.reset();}}><Plus size={13}/></button>
+       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:stepPdvQuantity(row.tipo,row.quantidade,1)}));setLocalChanges(true);preview.reset();}}><Plus size={13}/></button>
      </div>}
      {row.tipo==="SERVICO"&&<label className="pdv-unified-line__pet">
       <span>{row.exigePet?"Pet obrigatório":"Pet (opcional)"}</span>
