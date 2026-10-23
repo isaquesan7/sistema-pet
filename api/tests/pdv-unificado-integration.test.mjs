@@ -57,12 +57,14 @@ import {prepararFluxoFiscalSomenteSandbox,registrarEventoFiscalSimuladoSomenteSa
  diagnosticarFluxoFiscalSomenteSandbox}
  from "../src/modules/fiscal/fiscal-unificado-protocolo-ci-sandbox.service.js";
 const suffix=Date.now().toString(36);
-const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:null,it1:"i1"+suffix,it2:"i2"+suffix};
+const ids={org:"org"+suffix,other:"other"+suffix,client:"cli"+suffix,user:"usr"+suffix,co1:"c1"+suffix,co2:"c2"+suffix,pet:"pet"+suffix,it1:"i1"+suffix,it2:"i2"+suffix};
 test("cross-company saving respects prices, access, rollback and version",async()=>{
  await prisma.organizacao.create({data:{id:ids.org,slug:"test-"+suffix,nome:"Organização CI"}});
  await prisma.organizacao.create({data:{id:ids.other,slug:"outside-"+suffix,nome:"Outra organização"}});
  await prisma.usuario.create({data:{id:ids.user,nome:"Tester",email:suffix+"@ci.invalid",senhaHash:"not-a-login"}});
  await prisma.cliente.create({data:{id:ids.client,organizacaoId:ids.org,nome:"Tutor de teste"}});
+ const baseSpecie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino base CI"}});
+ await prisma.pet.create({data:{id:ids.pet,clienteId:ids.client,especieId:baseSpecie.id,nome:"Pet do serviço CI"}});
  await prisma.empresa.createMany({data:[
   {id:ids.co1,organizacaoId:ids.org,cnpj:"99999999999999",nomeFantasia:"Loja",razaoSocial:"Loja CI",tipo:"LOJA_CONSULTORIO"},
   {id:ids.co2,organizacaoId:ids.org,cnpj:"88888888888888",nomeFantasia:"Estética",razaoSocial:"Estética CI",tipo:"BANHO_TOSA"}
@@ -79,7 +81,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  ]});
  const args={organizacaoId:ids.org,usuarioId:ids.user,empresaId:ids.co1,clienteId:ids.client,itens:[
   {empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:1},
-  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:2}
+  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:2,petId:ids.pet}
  ]};
  const calculated=await simularComanda(args);
  assert.equal(calculated.total,"320.00");
@@ -932,7 +934,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  // Insufficient stock cannot finalize ANY company nor consume a declaration.
  const depleted=await salvarRascunho({...args,itens:[
   {empresaId:ids.co1,itemCatalogoId:ids.it1,quantidade:25},
-  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:1}
+  {empresaId:ids.co2,itemCatalogoId:ids.it2,quantidade:1,petId:ids.pet}
  ]});
  const shortage={...args,id:depleted.id,versao:1};
  await reservarOperacoesFechamento(shortage);
@@ -2671,7 +2673,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
   await travarUnidadesProdutos(tx,[raceItem.id]);
   writerAcquired.liberar();
   await writerGate.promise;
-  const cart=await tx.comanda.create({data:{clienteId:ids.client,rascunhoUnificado:true}});
+  const cart=await tx.comanda.create({data:{organizacaoId:ids.org,clienteId:ids.client,rascunhoUnificado:true}});
   await tx.comandaItem.create({data:{comandaId:cart.id,empresaId:ids.co1,
    itemCatalogoId:raceItem.id,descricao:"Ração concorrente CI",quantidade:"0.333",
    valorUnitario:"15.00",valorTotal:"5.00"}});
