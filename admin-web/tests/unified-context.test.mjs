@@ -41,7 +41,7 @@ test("operator search clears stale tutor selection; reservation prevents editing
  assert.match(page,/function UnifiedPdvWorkspace\(\{openDraftId,initialClientId\}\)/);
  assert.match(page,/key=\{selectedOrganization\?\.id\|\|"sem-organizacao"\}/);
  assert.ok(page.includes('setClientSearch(value);setClientId("");setSelectedClient(null)'));
- assert.match(page,/setSelectedClient\(saved\.cliente\)/);
+ assert.match(page,/setSelectedClient\(saved\.cliente\|\|null\)/);
  assert.ok(page.includes('setClientSearch(value);setClientId("");setSelectedClient(null)'));
  assert.match(page,/search=\{clientSearch\} onSearch=\{value=>/);
  assert.match(page,/value=\{clientId\} disabled=\{isReserved\}/);
