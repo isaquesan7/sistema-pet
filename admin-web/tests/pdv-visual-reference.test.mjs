@@ -56,4 +56,5 @@ test("troca de CNPJ da mesma organizacao preserva comanda e descarta valores tem
  assert.match(page,/setCommandItemId\(""\)/);
  assert.match(page,/setCommandPayments\(\[\{forma:"PIX",valor:0,parcelas:1\}\]\)/);
  assert.match(page,/queryKey: \["pdv-command-detail", selectedOrganization\?\.id, selectedCompany\?\.id, commandDetailId\]/);
+ assert.match(page,/queryKey: \["pdv-commands", selectedOrganization\?\.id, selectedCompany\?\.id\]/);
 });
