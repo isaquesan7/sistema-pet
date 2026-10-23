@@ -7,8 +7,8 @@ const source=p=>readFileSync(new URL(p,import.meta.url),"utf8");
 const routes=source("../src/modules/pdv/pdv.routes.js");
 const controller=source("../src/modules/pdv/pdv.controller.js");
 const svc=source("../src/modules/pdv/pdv.service.js");
-const page=source("../../../admin-web/src/pages/PdvPage.jsx");
-const home=source("../../../admin-web/src/components/PdvOrdersHome.jsx");
+const page=source("../../admin-web/src/pages/PdvPage.jsx");
+const home=source("../../admin-web/src/components/PdvOrdersHome.jsx");
 
 test("vincular tutor usa organizacao E empresa da sessao, sem troca apos atribuir",()=>{
  assert.match(routes,/router\.patch\("\/comandas\/:id\/tutor", exigirPermissao\("pdv\.acessar"\), controller\.atribuirTutorComanda\)/);
