@@ -20,7 +20,7 @@ export function listOrderRows({commands=[],drafts=[],sales=[],filter="ABERTAS",s
  const normalized=String(search).trim().toLocaleLowerCase("pt-BR");
  const rows=[
   ...commands.map(order=>({kind:"COMANDA",order,status:order.status,
-   date:order.createdAt||order.updatedAt,number:order.numero,client:order.cliente?.nome||"Consumidor não identificado",
+   date:(["FECHADA","CANCELADA"].includes(order.status)?order.fechadaEm||order.updatedAt:order.createdAt),number:order.numero,client:order.cliente?.nome||"Consumidor não identificado",
    pet:[...new Set((order.itens||[]).map(i=>i.pet?.nome).filter(Boolean))].join(", ")||"—",
    company:[...new Set((order.itens||[]).map(i=>i.empresa?.nomeFantasia).filter(Boolean))].join(" + ")||"—",
    total:(order.itens||[]).reduce((sum,i)=>sum+Number(i.valorTotal||0),0),
