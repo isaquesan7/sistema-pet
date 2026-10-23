@@ -30,7 +30,7 @@ test("continua usando os mesmos fluxos de venda, comandas, caixa e cancelamento"
   'if (!openSession) return setSaleError','if(missingPet)return setSaleError',
   'hasPermission("pdv.aplicar_desconto")','hasPermission("pdv.cancelar_venda")',
   'onClick={finalizeSale}','<PaymentEditor payments={payments} total={total} onChange={setPayments}/>',
-  '<UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} />'
+  '<UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} initialPetId={unifiedInitialPet} />'
  ])assert.ok(page.includes(marker),`Fluxo ausente: ${marker}`);
 });
 
