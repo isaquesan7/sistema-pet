@@ -82,7 +82,7 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
    await tx.comandaItem.deleteMany({where:{comandaId:id,status:"ATIVO"}});
    comanda=await tx.comanda.findUnique({where:{id}});
   }else{
-   comanda=await tx.comanda.create({data:{organizacaoId:args.organizacaoId,clienteId:args.clienteId||null,rascunhoUnificado:true,status:"ABERTA"}});
+   comanda=await tx.comanda.create({data:{organizacaoId:args.organizacaoId,empresaOrigemId:args.empresaId,clienteId:args.clienteId||null,rascunhoUnificado:true,status:"ABERTA"}});
   }
   const linhas=previa.empresas.flatMap(g=>g.itens.map(l=>({
     comandaId:comanda.id,empresaId:l.empresaId,itemCatalogoId:l.itemCatalogoId,petId:l.petId,
