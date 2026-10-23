@@ -9,7 +9,7 @@ const shared=readFileSync(new URL("../src/components/PdvSaleLayout.jsx",import.m
 
 test("PDV tradicional apresenta caixa, catalogo, carrinho e pagamentos de forma clara",()=>{
  for(const marker of [
-  'import "../pdv.css";','className="pdv-hero"','className="pdv-hero__chips"',
+  'import "../pdv.css";','pdv-hero--order-mode','className="pdv-hero__chips"',
   'className="pdv-unified-shortcut"','className="pdv-summary-grid"',
   '<nav className="pdv-tabs"','aria-pressed={tab === value}',
   '<PdvSaleLayout','<PdvProductCard','<PdvEmptyCart',
