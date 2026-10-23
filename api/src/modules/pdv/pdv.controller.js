@@ -221,6 +221,19 @@ export async function criarComanda(req, res, next) {
   } catch (error) { mapError(error, res, next); }
 }
 
+export async function atualizarClienteComanda(req, res, next) {
+  try {
+    const dados = parse(comandaSchema, req.body, res); if (!dados) return;
+    if (!Object.hasOwn(dados,"clienteId")) {
+      return res.status(400).json({success:false,message:"Informe o tutor a vincular à comanda."});
+    }
+    const comanda = await service.atualizarClienteComanda({
+      organizacaoId:req.organizacao.id,id:req.params.id,clienteId:dados.clienteId
+    });
+    return res.json({success:true,comanda});
+  } catch (error) { mapError(error,res,next); }
+}
+
 export async function buscarComanda(req, res, next) {
   try {
     return res.json({ success: true, comanda: await service.buscarComanda({ organizacaoId: req.organizacao.id, id: req.params.id }) });
