@@ -48,3 +48,12 @@ test("o design usa a identidade PointVet e layouts compactos/responsivos",()=>{
  assert.match(css,/@media\(max-width:620px\)/);
  for(const source of [home,page,css])assert.doesNotMatch(source,/LOOPVET|LOOPVET.COM|#3479d6/i);
 });
+
+test("troca de CNPJ da mesma organizacao preserva comanda e descarta valores temporarios",()=>{
+ assert.match(page,/previousOrganizationIdRef\.current===nextOrganizationId/);
+ assert.match(page,/hasPermission\("pdv\.acessar"\)/);
+ assert.match(page,/if\(!keepOrder\)\{setCommandDetailId\(null\)/);
+ assert.match(page,/setCommandItemId\(""\)/);
+ assert.match(page,/setCommandPayments\(\[\{forma:"PIX",valor:0,parcelas:1\}\]\)/);
+ assert.match(page,/queryKey: \["pdv-command-detail", selectedOrganization\?\.id, selectedCompany\?\.id, commandDetailId\]/);
+});
