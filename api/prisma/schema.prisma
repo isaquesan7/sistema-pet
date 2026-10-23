@@ -470,6 +470,7 @@ model Organizacao {
   fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
   usuarios        UsuarioOrganizacao[]
   clientes        Cliente[]
+  comandas        Comanda[]
   orcamentosCliente OrcamentoCliente[]
   movimentosCredito CreditoClienteMovimento[]
   contasCliente   ContaCliente[]
@@ -1394,7 +1395,9 @@ model Comanda {
   id     String @id @default(cuid())
   numero Int    @unique @default(autoincrement())
 
-  clienteId String
+  // Isolamento por organização também nas comandas sem tutor.
+  organizacaoId String
+  clienteId String?
 
   status StatusComanda @default(ABERTA)
   // Rascunhos multiempresa não podem ser faturados pelo PDV legado.
@@ -1408,7 +1411,8 @@ model Comanda {
 
   fechadaEm DateTime?
 
-  cliente Cliente @relation(fields: [clienteId], references: [id])
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
 
   itens  ComandaItem[]
   vendas Venda[]
@@ -1417,6 +1421,7 @@ model Comanda {
   atendimentosClinicos AtendimentoClinico[]
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
+  @@index([organizacaoId])
   @@index([clienteId])
   @@index([status])
   @@index([createdAt])
