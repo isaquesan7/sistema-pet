@@ -63,6 +63,7 @@ async function garantirComanda(tx, atendimento) {
 
   const comanda = await tx.comanda.create({
     data: {
+      organizacaoId: atendimento.organizacaoId,
       clienteId: atendimento.clienteId,
       observacoes: `Comanda do atendimento clínico ${atendimento.id}`,
     },
