@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -201,6 +201,7 @@ export default function PdvPage() {
   const { selectedCompany, selectedOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const navigate=useNavigate();
+  const previousOrganizationIdRef=useRef(null);
   // A API define o modo efetivo da organização; nunca confiar somente no cache do login.
   const unifiedStatus=useQuery({
     queryKey:["unified-pdv-status",selectedOrganization?.id,selectedCompany?.id],
@@ -247,11 +248,18 @@ export default function PdvPage() {
   const [saleDetailId, setSaleDetailId] = useState(null);
   const [cancelSale, setCancelSale] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
-  // Não carregar o carrinho de uma empresa para outra ao trocar o seletor global.
+  // Trocar CNPJ da MESMA organizacao pode manter a comanda; valores e itens
+  // selecionados de uma empresa jamais migram para o caixa de outra.
   useEffect(()=>{
+    const nextOrganizationId=selectedOrganization?.id||null;
+    const keepOrder=Boolean(nextOrganizationId)&&previousOrganizationIdRef.current===nextOrganizationId
+      &&Boolean(selectedCompany?.id)&&hasPermission("pdv.acessar");
+    previousOrganizationIdRef.current=nextOrganizationId;
     setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
-    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);setCommandAttachClientId("");setCommandPetId("");setCommandQuantity(1);
+    setCommandItemId("");setCommandQuantity(1);setCommandPayments([{forma:"PIX",valor:0,parcelas:1}]);
+    if(!keepOrder){setCommandDetailId(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);}
+    setSaleDetailId(null);setCancelSale(null);setCommandAttachClientId("");setCommandPetId("");
     setCashModal(null);setCommandModal(false);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
@@ -302,8 +310,8 @@ export default function PdvPage() {
     queryFn: async () => (await api.get("/pdv/pacotes-pendentes")).data.dados || [],
   });
   const commandDetailQuery = useQuery({
-    queryKey: ["pdv-command-detail", commandDetailId],
-    enabled: Boolean(commandDetailId),
+    queryKey: ["pdv-command-detail", selectedOrganization?.id, selectedCompany?.id, commandDetailId],
+    enabled: Boolean(commandDetailId&&selectedCompany?.id&&hasPermission("pdv.acessar")),
     queryFn: async () => (await api.get(`/pdv/comandas/${commandDetailId}`)).data.comanda,
   });
   const saleDetailQuery = useQuery({
