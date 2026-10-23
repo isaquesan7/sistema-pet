@@ -1,5 +1,6 @@
 /** PDV Unificado: preparação e fechamento manual restrito por autorização do servidor. */
-import {useRef,useState} from "react";
+import {useEffect,useRef,useState} from "react";
+import {sanitizePdvQuantity,stepPdvQuantity} from "../lib/pdvQuantity.js";
 import {useQuery,useMutation,useQueryClient} from "@tanstack/react-query";
 import {Plus,Minus,Trash2,ShieldCheck,Search} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
@@ -10,16 +11,17 @@ import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewM
 import {useAuth} from "../context/AuthContext.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvPaymentPending,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
 import "../clients.css";
-export default function UnifiedPdvPreviewPage(){
+export default function UnifiedPdvPreviewPage({openDraftId=null,initialClientId=null}){
  const {selectedOrganization}=useAuth();
- return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"}/>;
+ return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"} openDraftId={openDraftId} initialClientId={initialClientId}/>;
 }
-function UnifiedPdvWorkspace(){
+function UnifiedPdvWorkspace({openDraftId,initialClientId}){
  const {selectedOrganization,selectedCompany,hasPermission}=useAuth();
  const scopedKey=(name,...details)=>unifiedScopedQueryKey(name,selectedOrganization?.id,selectedCompany?.id,...details);
  const [motivoCancelar,setMotivoCancelar]=useState("Revisão da comanda");
  const queryClient=useQueryClient();
  const [draft,setDraft]=useState(null);
+ const restoredId=useRef(null);
  const [savedNotice,setSavedNotice]=useState("");
  const [localChanges,setLocalChanges]=useState(false);
  const [clientSearch,setClientSearch]=useState(""),[clientId,setClientId]=useState("");
@@ -35,7 +37,9 @@ function UnifiedPdvWorkspace(){
  const manualCheckoutEnabled=Boolean(eligibility.data?.checkoutUnificadoDisponivel);
  const manualReversalEnabled=Boolean(eligibility.data?.estornoUnificadoDisponivel);
  const clients=useQuery({queryKey:scopedKey("unified-clients",clientSearch),enabled,queryFn:async()=>(await api.get("/clientes",{params:{busca:clientSearch,limite:30}})).data.dados||[]});
+ useEffect(()=>{if(initialClientId){setClientId(initialClientId);setClientSearch("");}},[initialClientId]);
  const clientDetails=useQuery({queryKey:scopedKey("unified-client-pets",clientId),enabled:enabled&&Boolean(clientId),queryFn:async()=>(await api.get(`/clientes/${clientId}`)).data.cliente});
+ useEffect(()=>{if(clientDetails.data?.id===clientId)setSelectedClient(clientDetails.data);},[clientDetails.data,clientId]);
  const catalog=useQuery({queryKey:scopedKey("unified-catalog",search),enabled,queryFn:async()=>(await api.get("/pdv-unificado/catalogo",{params:{busca:search}})).data.dados||[]});
  const draftList=useQuery({queryKey:scopedKey("unified-drafts"),enabled,queryFn:async()=>(await api.get("/pdv-unificado/rascunhos")).data.dados||[]});
  const completedList=useQuery({queryKey:scopedKey("unified-completed"),enabled:manualReversalEnabled&&hasPermission("pdv.cancelar_venda"),queryFn:async()=>(await api.get("/pdv-unificado/rascunhos-concluidos")).data.dados||[]});
@@ -56,6 +60,12 @@ function UnifiedPdvWorkspace(){
    setLocalChanges(false);setClientId(saved.cliente.id);setSelectedClient(saved.cliente);setClientSearch(saved.cliente.nome);setDraft({id:saved.id,versao:saved.versaoRascunho,status:saved.status});setSavedNotice("");
    setLines(rehydrateUnifiedDraft(saved));preview.reset();save.reset();
  }
+ useEffect(()=>{
+  if(!openDraftId||restoredId.current===openDraftId)return;
+  const saved=(draftList.data||[]).find(x=>x.id===openDraftId);
+  if(!saved)return;
+  restoredId.current=openDraftId;reopen(saved);
+ },[openDraftId,draftList.data]);
  function add(item){const key=`nova:${++nextLineId.current}`;setLocalChanges(true);setSavedNotice("");setLines(rows=>addUnifiedCatalogItem(rows,item,key));preview.reset();}
  function editBulk(row,raw){
   const parsed=row.modoGranel==="VALOR"?bulkFromAmount(raw,row.preco,row.unidade):bulkFromGrams(raw,row.unidade);
@@ -93,7 +103,7 @@ function UnifiedPdvWorkspace(){
     customerControl={<PdvCustomerPicker
      clients={visibleUnifiedClients(clients.data,selectedClient)}
      label="Cliente"
-     emptyLabel="Selecione um cliente ativo"
+     emptyLabel="Consumidor não identificado"
      value={clientId} disabled={isReserved}
      search={clientSearch} onSearch={value=>{
       setClientSearch(value);setClientId("");setSelectedClient(null);
@@ -126,14 +136,14 @@ function UnifiedPdvWorkspace(){
       </div>
      </div>:<div className="pdv-quantity">
       <button type="button" aria-label={`Diminuir quantidade de ${row.nome}`} disabled={isReserved}
-       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Math.max(0.001,Number(row.quantidade)-1)}));setLocalChanges(true);preview.reset();}}><Minus size={13}/></button>
-      <input type="number" min="0.001" max="10000" step="0.001" aria-label={`Quantidade de ${row.nome}`} value={row.quantidade} disabled={isReserved}
-       onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(e.target.value)}));setLocalChanges(true);preview.reset();}}/>
+       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:stepPdvQuantity(row,row.quantidade,-1)}));setLocalChanges(true);preview.reset();}}><Minus size={13}/></button>
+      <input type="number" min={row.tipo==="SERVICO"?"1":"0.001"} max="10000" step={row.tipo==="SERVICO"?"1":"0.001"} aria-label={`Quantidade de ${row.nome}`} value={row.quantidade} disabled={isReserved}
+       onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:sanitizePdvQuantity(row,e.target.value,row.quantidade)}));setLocalChanges(true);preview.reset();}}/>
       <button type="button" aria-label={`Aumentar quantidade de ${row.nome}`} disabled={isReserved}
-       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:Number(row.quantidade)+1}));setLocalChanges(true);preview.reset();}}><Plus size={13}/></button>
+       onClick={()=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{quantidade:stepPdvQuantity(row,row.quantidade,1)}));setLocalChanges(true);preview.reset();}}><Plus size={13}/></button>
      </div>}
      {row.tipo==="SERVICO"&&<label className="pdv-unified-line__pet">
-      <span>{row.exigePet?"Pet obrigatório":"Pet (opcional)"}</span>
+      <span>Pet obrigatório</span>
       <select className="form-control pdv-line-pet" value={row.petId||""} disabled={isReserved}
        onChange={e=>{setLines(ls=>updateUnifiedLine(ls,row.lineKey,{petId:e.target.value}));setLocalChanges(true);preview.reset();}}>
        <option value="">Selecione o pet</option>
@@ -145,7 +155,7 @@ function UnifiedPdvWorkspace(){
       disabled={isReserved} onClick={()=>{setLines(ls=>removeUnifiedLine(ls,row.lineKey));setLocalChanges(true);preview.reset();}}>
       <Trash2 size={15}/>
      </button>
-    </div>):<PdvEmptyCart description="Selecione um tutor e adicione itens do catálogo para iniciar a comanda."/>}
+    </div>):<PdvEmptyCart description="Adicione produtos ou serviços à comanda. Tutor e pet são obrigatórios para serviços."/>}
     totalsContent={<PdvTotals subtotal={!lines.length?0:hasValidEstimate?estimatedCents/100:null}
      total={!lines.length?0:hasValidEstimate?estimatedCents/100:null} formatMoney={formatCurrency}
      discount={0} addition={0} canDiscount={false}
@@ -170,10 +180,10 @@ function UnifiedPdvWorkspace(){
        ?"Finalize pela conferência de pagamentos por CNPJ após salvar e reservar a comanda. Este botão não dispara um fechamento sem a confirmação individual de cada empresa."
        :"Fechamento multiempresa ainda não habilitado pela API. Use a validação abaixo, sem cobrança."}/>
      <button className="ghost-button" type="button"
-      disabled={!clientId||!lines.length||hasBulkErrors||preview.isPending||isReserved}
+      disabled={!lines.length||hasBulkErrors||preview.isPending||isReserved||lines.some(r=>r.tipo==="SERVICO"&&(!clientId||!r.petId))}
       onClick={()=>preview.mutate()}><ShieldCheck size={17}/> Validar e calcular sem cobrar</button>
      <button className="ghost-button" type="button"
-      disabled={!clientId||!lines.length||hasBulkErrors||save.isPending||isReserved}
+      disabled={!lines.length||hasBulkErrors||save.isPending||isReserved||lines.some(r=>r.tipo==="SERVICO"&&(!clientId||!r.petId))}
       onClick={()=>{setSavedNotice("");save.mutate();}}>
       {save.isPending?"Salvando...":draft?"Atualizar rascunho":"Salvar rascunho"}
      </button>
