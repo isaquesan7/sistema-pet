@@ -181,3 +181,17 @@
 .pdv-page .pdv-command-quantity input{min-height:38px}
 @media(max-width:1000px){.pdv-page .pdv-orders-home{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-orders-home__side{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.pdv-page .pdv-orders-home__side{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-orders-home__list{padding:13px}.pdv-page .pdv-orders-home__title h2{font-size:18px}.pdv-page .pdv-command-workspace__heading h2{font-size:18px}}
+
+/* M.5.71 — comanda aberta: lançamento à esquerda, painel do tutor e resumo por CNPJ à direita. */
+.pdv-page .pdv-command-workspace .pdv-command-detail{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(280px,.9fr);align-items:start;column-gap:18px;row-gap:14px}
+.pdv-page .pdv-command-workspace .pdv-command-add{grid-column:1;grid-row:1;min-width:0}
+.pdv-page .pdv-command-workspace .pdv-command-detail>.table-scroll{grid-column:1;grid-row:2/6;min-height:310px;background:#fff;border:1px solid #e1e6f1;border-radius:13px;padding:12px}
+.pdv-page .pdv-command-workspace .pdv-command-client-area{grid-column:2;grid-row:1;border:1px solid #e2e6f2;border-radius:12px;background:#fff;padding:15px}
+.pdv-page .pdv-command-client-area label{display:grid;gap:8px;color:#475673;font-size:12px;font-weight:750}
+.pdv-page .pdv-command-client-area select{min-height:43px}
+.pdv-page .pdv-command-workspace .pdv-command-companies{grid-column:2;grid-row:2;display:flex;flex-wrap:wrap;gap:8px;background:#fff;padding:15px;border:1px solid #e2e6f2;border-radius:12px}
+.pdv-page .pdv-command-workspace .pdv-command-companies>div{min-width:0;flex:1 1 100%;padding:10px 11px;background:#f8f9fd;border-radius:9px;display:grid;gap:5px}
+.pdv-page .pdv-command-workspace .pdv-command-close{grid-column:2;grid-row:3;border:1px solid #dddff2;background:#fff;border-radius:12px;padding:16px;display:grid;gap:13px;min-width:0}
+.pdv-page .pdv-command-workspace .pdv-command-close>.primary-button{width:100%;justify-content:center;min-height:45px}
+.pdv-page .pdv-command-workspace .pdv-command-detail>.alert{grid-column:1}
+@media(max-width:1100px){.pdv-page .pdv-command-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-command-workspace .pdv-command-detail>*{grid-column:1!important;grid-row:auto!important}.pdv-page .pdv-command-workspace .pdv-command-detail>.table-scroll{min-height:180px}}
