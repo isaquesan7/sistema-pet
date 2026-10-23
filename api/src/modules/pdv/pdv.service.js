@@ -753,6 +753,22 @@ export async function buscarComanda({ organizacaoId, id }) {
   return comanda;
 }
 
+/** Comanda de produtos inicialmente anônima pode ganhar tutor uma única vez.
+ * O vínculo não pode ser trocado depois: protege pets e histórico financeiro. */
+export async function atribuirTutorComanda({organizacaoId,id,clienteId}){
+ return prisma.$transaction(async tx=>{
+  await validarCliente(tx,organizacaoId,clienteId,true);
+  const updated=await tx.comanda.updateMany({where:{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:{in:["ABERTA","PARCIALMENTE_FECHADA"]}},data:{clienteId}});
+  if(updated.count!==1){
+   const existing=await tx.comanda.findFirst({where:{id,organizacaoId,rascunhoUnificado:false},select:{id:true,clienteId:true,status:true}});
+   if(!existing)throw new Error("COMANDA_NAO_ENCONTRADA");
+   if(["FECHADA","CANCELADA"].includes(existing.status))throw new Error("COMANDA_FECHADA");
+   throw new Error("COMANDA_TUTOR_IMUTAVEL");
+  }
+  return tx.comanda.findUnique({where:{id},include:{cliente:{include:{pets:{where:{ativo:true},select:{id:true,nome:true}}}}}});
+ });
+}
+
 export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId, dados }) {
   return prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
