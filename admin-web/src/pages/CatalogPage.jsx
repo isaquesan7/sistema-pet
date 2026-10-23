@@ -528,7 +528,7 @@ export default function CatalogPage() {
             <div className="form-section">
               <div className="form-section__heading"><strong>Produto e estoque</strong><span>Configurações operacionais do produto.</span></div>
               <div className="form-grid form-grid--3">
-                <FormField label="Unidade">
+                <FormField label="Unidade" hint={editing?"Após saldo, lote ou histórico de venda, a unidade não pode ser alterada. Para ração a granel, o preço por quilograma exige unidade Quilograma.":"Para ração a granel vendida a R$/kg, selecione Quilograma."}>
                   <select className="form-control" value={form.produto.unidade} onChange={(e) => updateNested("produto", "unidade", e.target.value)}>
                     {unitOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>

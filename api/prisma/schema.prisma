@@ -371,6 +371,8 @@ enum OrigemConciliacaoFinanceira {
   PAGAMENTO_VENDA
   BAIXA_TITULO
   TRANSACAO_ONLINE
+  REPASSE_CARTAO_MANUAL_UNIFICADO
+  ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO
 }
 
 enum DirecaoFinanceira {
@@ -463,8 +465,14 @@ model Organizacao {
   faturasSaaS    FaturaSaaS[]
 
   empresas        Empresa[]
+  entidadesFiscais EntidadeFiscal[]
+  unidadesOperacionais UnidadeOperacional[]
+  fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
   usuarios        UsuarioOrganizacao[]
   clientes        Cliente[]
+  comandas        Comanda[]
+  orcamentosCliente OrcamentoCliente[]
+  movimentosCredito CreditoClienteMovimento[]
   contasCliente   ContaCliente[]
   sessoesCliente  SessaoCliente[]
   transacoesOnline TransacaoOnline[]
@@ -502,6 +510,7 @@ model ConfiguracaoOrganizacao {
   timezone String @default("America/Sao_Paulo")
   locale   String @default("pt-BR")
   moeda    String @default("BRL")
+  pdvUnificadoHabilitado Boolean @default(false)
 
   // Fase 16 — governança de dados e retenção.
   lgpdContatoEmail             String?
@@ -577,6 +586,8 @@ model Empresa {
   entradasEstoque      EntradaEstoque[]
   inventariosEstoque   InventarioEstoque[]
   comandaItens         ComandaItem[]
+  operacoesUnificadas  ReservaOperacaoUnificada[]
+  recebedorPspUnificado RecebedorPspUnificado?
   caixas               Caixa[]
   vendas               Venda[]
 
@@ -589,6 +600,8 @@ model Empresa {
   pacotesCliente PacoteCliente[]
 
   configuracaoFiscal ConfiguracaoFiscalEmpresa?
+  unidadeOperacionalLegada UnidadeOperacional?
+  fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
   documentosFiscais DocumentoFiscal[]
   atendimentosClinicos AtendimentoClinico[]
   agendamentosBanhoTosa AgendamentoBanhoTosa[]
@@ -596,10 +609,14 @@ model Empresa {
   transacoesOnline      TransacaoOnline[]
   contasFinanceiras     ContaFinanceira[]
   titulosFinanceiros    TituloFinanceiro[]
+  orcamentosCliente OrcamentoCliente[]
+  movimentosCredito CreditoClienteMovimento[]
   conciliacoesFinanceiras ConciliacaoFinanceira[]
   auditorias        Auditoria[]
   arquivos           ArquivoPetRise[]
 
+  // Composite identity for sandbox operational-unit tenant FKs.
+  @@unique([organizacaoId,id])
   @@index([organizacaoId])
   @@map("empresas")
 }
@@ -635,6 +652,16 @@ model Usuario {
   entradasEstoque      EntradaEstoque[]
   inventariosEstoque   InventarioEstoque[]
   vendas               Venda[]
+  reservasUnificadasCriadas ReservaFechamentoUnificado[] @relation("ReservaCriadaPor")
+  reservasUnificadasCanceladas ReservaFechamentoUnificado[] @relation("ReservaCanceladaPor")
+  preparacoesUnificadas CriacaoPreparacaoUnificada[]
+  intencoesUnificadasCriadas IntencaoAutorizacaoUnificada[]
+  recebimentosManuaisUnificadosCriados RegistroRecebimentoManualUnificado[]
+  estornosUnificadosRealizados EstornoFechamentoManualUnificado[]
+  conversoesOrcamentoPdv ConversaoOrcamentoPdv[]
+  registrosCreditoCausal CreditoClienteMovimento[] @relation("CreditoOperadorCausal")
+  fluxosFiscaisCiCriados FluxoFiscalUnificadoCi[] @relation("FluxoFiscalCiCriadoPor")
+  eventosFluxoFiscalCi EventoFluxoFiscalUnificadoCi[] @relation("EventoFluxoFiscalCiResponsavel")
 
   alteracaoEmailPendente AlteracaoEmailPendente?
   sessoesCaixaAbertas  SessaoCaixa[] @relation("SessaoCaixaAbertura")
@@ -794,6 +821,8 @@ model Cliente {
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
   transacoesOnline      TransacaoOnline[]
   titulosFinanceiros    TituloFinanceiro[]
+  orcamentosCliente OrcamentoCliente[]
+  movimentosCredito CreditoClienteMovimento[]
   arquivos              ArquivoPetRise[]
   solicitacoesLGPD      SolicitacaoLGPD[]
 
@@ -1024,6 +1053,7 @@ model ItemCatalogo {
   fiscalConfig    ConfiguracaoFiscalItem?
 
   comandaItens ComandaItem[]
+  conversoesOrcamentoItens ConversaoOrcamentoPdvItem[]
   vendaItens   VendaItem[]
 
   pacoteModeloItens  PacoteModeloItem[]
@@ -1365,9 +1395,14 @@ model Comanda {
   id     String @id @default(cuid())
   numero Int    @unique @default(autoincrement())
 
-  clienteId String
+  // Isolamento por organização também nas comandas sem tutor.
+  organizacaoId String
+  clienteId String?
 
   status StatusComanda @default(ABERTA)
+  // Rascunhos multiempresa não podem ser faturados pelo PDV legado.
+  rascunhoUnificado Boolean @default(false)
+  versaoRascunho Int @default(1)
 
   observacoes String? @db.Text
 
@@ -1376,17 +1411,431 @@ model Comanda {
 
   fechadaEm DateTime?
 
-  cliente Cliente @relation(fields: [clienteId], references: [id])
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
 
   itens  ComandaItem[]
   vendas Venda[]
+  reservasFechamento ReservaFechamentoUnificado[]
+  conversaoOrcamentoPdv ConversaoOrcamentoPdv?
   atendimentosClinicos AtendimentoClinico[]
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
+  @@index([organizacaoId])
   @@index([clienteId])
   @@index([status])
   @@index([createdAt])
   @@map("comandas")
+}
+
+// Preparação de fechamento segregado por empresa. Sem criação automática de vendas.
+enum StatusReservaFechamentoUnificado {
+  RESERVADA
+  CANCELADA
+}
+
+enum StatusReservaOperacaoUnificada {
+  RESERVADA
+  VENDA_RASCUNHO
+  CANCELADA
+  CONCLUIDA
+  ESTORNADA
+}
+
+enum StatusPreparacaoExecucaoUnificada {
+  PREPARADA
+  INVALIDADA
+}
+
+model ReservaFechamentoUnificado {
+  id              String @id @default(cuid())
+  comandaId       String
+  versaoRascunho  Int
+  valorTotal      Decimal @db.Decimal(12, 2)
+  status          StatusReservaFechamentoUnificado @default(RESERVADA)
+  canceladaEm     DateTime?
+  motivoCancelamento String? @db.Text
+  criadoPorId     String
+  canceladoPorId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  comanda         Comanda @relation(fields: [comandaId], references: [id], onDelete: Restrict)
+  criadoPor       Usuario @relation("ReservaCriadaPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
+  canceladoPor    Usuario? @relation("ReservaCanceladaPor", fields: [canceladoPorId], references: [id], onDelete: Restrict)
+  operacoes       ReservaOperacaoUnificada[]
+  preparacao      CriacaoPreparacaoUnificada?
+  recebimentoManual RegistroRecebimentoManualUnificado?
+  estornoManual EstornoFechamentoManualUnificado?
+
+  @@unique([comandaId, versaoRascunho])
+  @@index([status])
+  @@map("reservas_fechamento_unificado")
+}
+
+model ReservaOperacaoUnificada {
+  id                String @id @default(cuid())
+  reservaId         String
+  empresaId         String
+  chaveIdempotencia String @unique
+  valorTotal        Decimal @db.Decimal(12, 2)
+  status            StatusReservaOperacaoUnificada @default(RESERVADA)
+  vendaId           String? @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reserva           ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  empresa           Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  venda             Venda? @relation(fields: [vendaId], references: [id], onDelete: Restrict)
+  intencoesAutorizacao IntencaoAutorizacaoUnificada[]
+  recebimentosManuais LinhaRecebimentoManualUnificado[]
+
+  @@unique([reservaId, empresaId])
+  @@index([empresaId, status])
+  @@map("reservas_operacoes_unificadas")
+}
+
+// Snapshot imutável da preparação da venda; sem Venda, Pagamento ou fiscal.
+model CriacaoPreparacaoUnificada {
+  id             String @id @default(cuid())
+  reservaId      String @unique
+  criadoPorId    String
+  fingerprint    String
+  snapshot       Json
+  status         StatusPreparacaoExecucaoUnificada @default(PREPARADA)
+  invalidadaEm   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reserva        ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  criadoPor      Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([fingerprint])
+  @@index([status])
+  @@map("preparacoes_execucao_unificada")
+}
+
+// M.2 — declaração MANUAL do atendente, sem Pagamento nem baixa de caixa.
+// Uma declaração por reserva e linhas únicas por operação/índice.
+enum StatusRegistroRecebimentoManualUnificado {
+  REGISTRADO
+}
+
+// M.3A — futuras parcelas a receber, nunca repasse já conciliado.
+enum StatusParcelaRecebivelManualUnificado {
+  AGUARDANDO_REPASSE
+  CONCILIADA
+  ESTORNADA
+}
+
+model RegistroRecebimentoManualUnificado {
+  id                String @id @default(cuid())
+  reservaId         String @unique
+  criadoPorId       String
+  fingerprint       String
+  status            StatusRegistroRecebimentoManualUnificado @default(REGISTRADO)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reserva           ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  criadoPor         Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+  linhas            LinhaRecebimentoManualUnificado[]
+
+  @@index([createdAt])
+  @@map("registros_recebimento_manual_unificado")
+}
+
+model LinhaRecebimentoManualUnificado {
+  id               String @id @default(cuid())
+  registroId       String
+  operacaoId       String
+  indice           Int
+  sessaoCaixaId    String
+  forma            FormaPagamento
+  valor            Decimal @db.Decimal(12,2)
+  parcelas         Int @default(1)
+  referencia       String? @db.VarChar(120)
+  // M.3A: vínculo unívoco futuro com pagamento efetivado no sandbox.
+  pagamentoId      String? @unique
+  confirmadoEm     DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  registro         RegistroRecebimentoManualUnificado @relation(fields: [registroId], references: [id], onDelete: Restrict)
+  operacao         ReservaOperacaoUnificada @relation(fields: [operacaoId], references: [id], onDelete: Restrict)
+  sessaoCaixa      SessaoCaixa @relation(fields: [sessaoCaixaId], references: [id], onDelete: Restrict)
+  pagamento        Pagamento? @relation(fields: [pagamentoId], references: [id], onDelete: Restrict)
+  parcelasRecebiveis ParcelaRecebivelManualUnificado[]
+
+  @@unique([operacaoId, indice])
+  @@index([registroId])
+  @@index([sessaoCaixaId])
+  @@map("linhas_recebimento_manual_unificado")
+}
+
+// M.3A — cada parcela tem identidade e saldo individual por linha de cartão;
+// vencimento não é presumido: sem acordo de prazo informado, permanece nulo.
+// O registro de parcelas será feito só no fechamento atômico posterior.
+model ParcelaRecebivelManualUnificado {
+  id             String @id @default(cuid())
+  linhaId        String
+  indice         Int
+  quantidadeTotal Int
+  valor          Decimal @db.Decimal(12,2)
+  status         StatusParcelaRecebivelManualUnificado @default(AGUARDANDO_REPASSE)
+  vencimentoEm   DateTime? @db.Date
+  conciliadoEm   DateTime?
+  createdAt      DateTime @default(now())
+
+  linha LinhaRecebimentoManualUnificado @relation(fields: [linhaId], references: [id], onDelete: Restrict)
+
+  @@unique([linhaId, indice])
+  @@index([status])
+  @@map("parcelas_recebiveis_manual_unificado")
+}
+
+// M.5.10 — pré-baixa de cartão APENAS EM CI. Não gera saldo ou baixa contábil.
+// Únicos: fingerprint, referência por empresa e parcela em TODO o ledger.
+model PreparacaoBaixaCartaoManualUnificada {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  comandaId String
+  usuarioId String
+  contaFinanceiraId String
+  referenciaExtrato String @db.VarChar(120)
+  fingerprint String @unique
+  tipo String @db.VarChar(24)
+  dataCredito DateTime @db.Date
+  bruto Decimal @db.Decimal(12,2)
+  tarifaCartao Decimal @db.Decimal(12,2)
+  descontoAntecipacao Decimal @db.Decimal(12,2)
+  liquidoDeclarado Decimal @db.Decimal(12,2)
+  status String @default("PREPARADA_SEM_BAIXA") @db.VarChar(32)
+  snapshot Json
+  createdAt DateTime @default(now())
+  parcelas ParcelaPreBaixaCartaoManualUnificada[]
+  parecerDocumental ParecerPreBaixaCartaoManualUnificada?
+  devolucoesExternas DevolucaoClienteManualUnificada[]
+
+  @@unique([empresaId, referenciaExtrato])
+  @@index([organizacaoId, empresaId, comandaId])
+  @@map("preparacoes_baixa_cartao_manual_unificada")
+}
+// M.5.22 — declarações manuais de devoluções ao CLIENTE, só CI.
+// Ledger próprio; NÃO é reembolso bancário executado ou saldo financeiro.
+model DevolucaoClienteManualUnificada {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  comandaId String
+  preparacaoId String
+  conciliacaoOrigemId String
+  usuarioId String
+  referenciaExterna String @db.VarChar(120)
+  valorBruto Decimal @db.Decimal(12,2)
+  motivo String @db.VarChar(500)
+  confirmacaoHumanaExterna Boolean
+  codigoRevisao String @db.VarChar(64)
+  fingerprint String @unique @db.VarChar(64)
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+  parecerExternoCi ParecerDevolucaoExternaCi?
+
+  @@unique([empresaId, referenciaExterna])
+  @@index([organizacaoId,empresaId,preparacaoId])
+  @@index([empresaId,comandaId])
+  @@map("devolucoes_cliente_manual_unificada")
+}
+
+// M.5.28 — ONLY CI: reviewer-supplied metadata of an external document.
+// No file, verified payment, automatic refund, fiscal effect or public write.
+model ParecerDevolucaoExternaCi {
+  id String @id @default(cuid())
+  devolucaoId String @unique
+  organizacaoId String
+  empresaId String
+  comandaId String
+  conferenteId String
+  evidenciaReferencia String @db.VarChar(120)
+  evidenciaSha256 String @db.VarChar(64)
+  codigoDossie String @db.VarChar(64)
+  fingerprint String @unique @db.VarChar(64)
+  status String @default("CONFERENCIA_DOCUMENTAL_DECLARADA_CI") @db.VarChar(50)
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  devolucao DevolucaoClienteManualUnificada @relation(fields:[devolucaoId],references:[id],onDelete:Restrict)
+
+  @@index([organizacaoId,empresaId,comandaId])
+  @@map("pareceres_devolucao_externa_ci")
+}
+
+// M.5.11 — segunda conferencia DOCUMENTAL, nunca prova bancaria ou baixa.
+// Um unico parecer interno por pre-baixa, com trilha independente da criacao.
+model ParecerPreBaixaCartaoManualUnificada {
+  id String @id @default(cuid())
+  preparacaoId String @unique
+  organizacaoId String
+  empresaId String
+  conferenteId String
+  evidenciaReferencia String @db.VarChar(120)
+  evidenciaSha256 String @db.VarChar(64)
+  fingerprint String @unique
+  status String @default("CONFERENCIA_DOCUMENTAL_DECLARADA") @db.VarChar(40)
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+
+  @@index([organizacaoId, empresaId, createdAt])
+  @@map("pareceres_pre_baixa_cartao_manual_unificada")
+}
+
+model ParcelaPreBaixaCartaoManualUnificada {
+  id String @id @default(cuid())
+  preparacaoId String
+  parcelaId String @unique
+  createdAt DateTime @default(now())
+  preparacao PreparacaoBaixaCartaoManualUnificada @relation(fields:[preparacaoId],references:[id],onDelete:Restrict)
+
+  @@unique([preparacaoId, parcelaId])
+  @@map("parcelas_pre_baixa_cartao_manual_unificada")
+}
+
+// M.3C — um estorno MANUAL integral por reserva, auditado e imutável.
+// Sem integração de provedor, confirmação externa é declaração humana.
+model EstornoFechamentoManualUnificado {
+  id String @id @default(cuid())
+  reservaId String @unique
+  usuarioId String
+  motivo String @db.VarChar(500)
+  referenciaExterna String? @db.VarChar(120)
+  confirmouDevolucaoExterna Boolean
+  fingerprint String
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  reserva ReservaFechamentoUnificado @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@map("estornos_fechamento_manual_unificado")
+}
+
+// 20.2.4B — fila de preparação para futuro gateway. NÃO representa cobrança.
+enum StatusIntencaoAutorizacaoUnificada {
+  PREPARADA_SANDBOX
+  CONFIRMADA_SIMULADA
+  RECUSADA_SIMULADA
+  INDETERMINADA_SIMULADA
+}
+
+enum StatusOutboxAutorizacaoUnificada {
+  PENDENTE
+  EM_SIMULACAO
+  CONCLUIDO_SIMULADO
+  REVISAO_MANUAL
+}
+
+enum ResultadoEventoAutorizacaoSimulada {
+  CONFIRMADA
+  RECUSADA
+  INDETERMINADA
+}
+
+model IntencaoAutorizacaoUnificada {
+  id                 String @id @default(cuid())
+  operacaoId         String
+  criadoPorId        String
+  indice             Int
+  forma              FormaPagamento
+  valor              Decimal @db.Decimal(12,2)
+  sessaoCaixaId      String
+  chaveIdempotencia  String @unique
+  status             StatusIntencaoAutorizacaoUnificada @default(PREPARADA_SANDBOX)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  operacao           ReservaOperacaoUnificada @relation(fields: [operacaoId], references: [id], onDelete: Restrict)
+  evidenciasConsulta EvidenciaConsultaPspSimulada[]
+  criadoPor          Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+  outbox             OutboxAutorizacaoUnificada?
+  eventos            EventoAutorizacaoSimulada[]
+
+  @@unique([operacaoId, indice])
+  @@index([status])
+  @@map("intencoes_autorizacao_unificada")
+}
+
+// Fase 20.2.4B.2B.2: registro técnico desligado por padrão.
+// Não representa credencial, conta bancária validada ou habilitação de checkout.
+model RecebedorPspUnificado {
+  id                    String @id @default(cuid())
+  empresaId             String @unique
+  cnpj                  String
+  provedor              String @default("SIMULADOR_CI")
+  referenciaExterna     String
+  ativo                 Boolean @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  empresa               Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  evidenciasConsulta    EvidenciaConsultaPspSimulada[]
+
+  @@index([cnpj])
+  @@map("recebedores_psp_unificados")
+}
+
+// Prova de correlação do MOCK, não evidência de liquidação financeira real.
+// Cada consulta é persistida sem executar/reenviar pagamento.
+model EvidenciaConsultaPspSimulada {
+  id                    String @id @default(cuid())
+  intencaoId            String
+  recebedorId           String
+  chaveConsulta         String @unique
+  referenciaTransacao   String
+  resultado             ResultadoEventoAutorizacaoSimulada
+  createdAt             DateTime @default(now())
+
+  intencao              IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
+  recebedor             RecebedorPspUnificado @relation(fields: [recebedorId], references: [id], onDelete: Restrict)
+
+  @@index([intencaoId, createdAt])
+  @@map("evidencias_consulta_psp_simulada")
+}
+
+model OutboxAutorizacaoUnificada {
+  id                String @id @default(cuid())
+  intencaoId        String @unique
+  status            StatusOutboxAutorizacaoUnificada @default(PENDENTE)
+  tentativas        Int @default(0)
+  tokenExecucao     String?
+  ultimaTentativaEm DateTime?
+  leaseExpiraEm     DateTime?
+  motivoRevisao     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  intencao          IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([status, leaseExpiraEm])
+  @@map("outbox_autorizacao_unificada")
+}
+
+model EventoAutorizacaoSimulada {
+  id           String @id @default(cuid())
+  intencaoId   String
+  chaveEvento  String @unique
+  resultado    ResultadoEventoAutorizacaoSimulada
+  createdAt    DateTime @default(now())
+
+  intencao     IntencaoAutorizacaoUnificada @relation(fields: [intencaoId], references: [id], onDelete: Restrict)
+
+  @@index([intencaoId])
+  @@map("eventos_autorizacao_simulada")
 }
 
 model ComandaItem {
@@ -1478,6 +1927,7 @@ model SessaoCaixa {
   pagamentos    Pagamento[]
   movimentacoes MovimentacaoCaixa[]
   baixasFinanceiras BaixaFinanceira[]
+  linhasRecebimentoManualUnificado LinhaRecebimentoManualUnificado[]
 
   @@index([caixaId])
   @@index([usuarioAberturaId])
@@ -1518,8 +1968,11 @@ model Venda {
   pagamentos        Pagamento[]
   pacotesCliente    PacoteCliente[]
   documentosFiscais DocumentoFiscal[]
+  fluxosFiscaisUnificadosCi FluxoFiscalUnificadoCi[]
+  operacaoUnificada ReservaOperacaoUnificada?
   titulosFinanceiros TituloFinanceiro[]
 
+  @@unique([empresaId,id])
   @@index([empresaId])
   @@index([comandaId])
   @@index([clienteId])
@@ -1582,6 +2035,7 @@ model Pagamento {
   venda       Venda        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
   sessaoCaixa SessaoCaixa? @relation(fields: [sessaoCaixaId], references: [id])
   tituloFinanceiro TituloFinanceiro?
+  linhaRecebimentoManualUnificado LinhaRecebimentoManualUnificado?
 
   @@index([vendaId])
   @@index([sessaoCaixaId])
@@ -2604,6 +3058,9 @@ model ConciliacaoFinanceira {
   contaFinanceira ContaFinanceira @relation(fields: [contaFinanceiraId], references: [id], onDelete: Restrict)
   usuario         Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 
+  creditoPrePago CreditoClienteMovimento? @relation("CreditoEntradaConciliada")
+  creditoDevolvido CreditoClienteMovimento? @relation("CreditoDevolucaoConciliada")
+
   @@unique([origem, origemId])
   @@index([empresaId, dataMovimento])
   @@index([contaFinanceiraId, dataMovimento])
@@ -2985,4 +3442,244 @@ model AlteracaoEmailPendente {
   createdAt DateTime @default(now())
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   @@map("alteracoes_email_pendentes")
+}
+
+/**
+ * Client quotes are commercial proposals, not invoices or receivables.
+ * Amounts and approval remain separate from actual sales.
+ */
+enum StatusOrcamentoCliente {
+  RASCUNHO
+  ENVIADO
+  APROVADO
+  REJEITADO
+  CANCELADO
+  EXPIRADO
+}
+model OrcamentoCliente {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  clienteId String
+  numero Int @unique @default(autoincrement())
+  status StatusOrcamentoCliente @default(RASCUNHO)
+  validade DateTime? @db.Date
+  observacoes String? @db.Text
+  subtotal Decimal @default(0) @db.Decimal(12,2)
+  desconto Decimal @default(0) @db.Decimal(12,2)
+  total Decimal @default(0) @db.Decimal(12,2)
+  aprovadoEm DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organizacao Organizacao @relation(fields:[organizacaoId], references:[id],onDelete:Restrict)
+  empresa Empresa @relation(fields:[empresaId], references:[id],onDelete:Restrict)
+  cliente Cliente @relation(fields:[clienteId], references:[id],onDelete:Restrict)
+  itens OrcamentoClienteItem[]
+  conversaoPdv ConversaoOrcamentoPdv?
+  @@index([organizacaoId,clienteId,status])
+  @@index([empresaId,createdAt])
+  @@map("orcamentos_clientes")
+}
+model OrcamentoClienteItem {
+  id String @id @default(cuid())
+  orcamentoId String
+  petId String?
+  descricao String
+  quantidade Decimal @db.Decimal(12,3)
+  valorUnitario Decimal @db.Decimal(12,2)
+  total Decimal @db.Decimal(12,2)
+  orcamento OrcamentoCliente @relation(fields:[orcamentoId],references:[id],onDelete:Cascade)
+  conversaoItem ConversaoOrcamentoPdvItem?
+  @@index([orcamentoId])
+  @@map("orcamentos_cliente_itens")
+}
+
+/**
+ * Append-only prepaid credit ledger. Money cannot be altered by editing
+ * a customer profile; debit/credit entries are not a cash receipt by themselves.
+ */
+enum TipoCreditoClienteMovimento {
+  ENTRADA
+  UTILIZACAO
+  ESTORNO
+}
+model CreditoClienteMovimento {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  clienteId String
+  tipo TipoCreditoClienteMovimento
+  valor Decimal @db.Decimal(12,2)
+  referenciaId String?
+  motivo String?
+  idempotencia String? @unique
+  // M.4B.2: optional for retrocompatibility. Only CI sandbox records them.
+  solicitacaoFingerprint String?
+  conciliacaoId String? @unique
+  // M.4B.3: return of original credit requires a DISTINCT outbound reconciliation.
+  devolucaoConciliacaoId String? @unique
+  reverteMovimentoId String? @unique
+  responsavelId String?
+  evidencia Json?
+  createdAt DateTime @default(now())
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  empresa Empresa @relation(fields:[empresaId],references:[id],onDelete:Restrict)
+  cliente Cliente @relation(fields:[clienteId],references:[id],onDelete:Restrict)
+  conciliacao ConciliacaoFinanceira? @relation("CreditoEntradaConciliada",fields:[conciliacaoId],references:[id],onDelete:Restrict)
+  devolucaoConciliacao ConciliacaoFinanceira? @relation("CreditoDevolucaoConciliada",fields:[devolucaoConciliacaoId],references:[id],onDelete:Restrict)
+  responsavel Usuario? @relation("CreditoOperadorCausal",fields:[responsavelId],references:[id],onDelete:Restrict)
+  reverteMovimento CreditoClienteMovimento? @relation("CreditoEstornoCausal",fields:[reverteMovimentoId],references:[id],onDelete:Restrict)
+  estornoCausal CreditoClienteMovimento? @relation("CreditoEstornoCausal")
+  @@index([organizacaoId,clienteId,createdAt])
+  @@map("creditos_cliente_movimentos")
+}
+
+// PointVet M.4B — quote-to-unified-draft transition. Unique quote+draft makes
+// conversion idempotent; item mapping and actor remain immutable audit evidence.
+// Sandbox-only service; no sale or fiscal document is issued by this model.
+model ConversaoOrcamentoPdv {
+  id String @id @default(cuid())
+  orcamentoId String @unique
+  comandaId String @unique
+  organizacaoId String
+  empresaId String
+  clienteId String
+  usuarioId String
+  fingerprint String
+  snapshot Json
+  createdAt DateTime @default(now())
+
+  orcamento OrcamentoCliente @relation(fields:[orcamentoId],references:[id],onDelete:Restrict)
+  comanda Comanda @relation(fields:[comandaId],references:[id],onDelete:Restrict)
+  usuario Usuario @relation(fields:[usuarioId],references:[id],onDelete:Restrict)
+  itens ConversaoOrcamentoPdvItem[]
+
+  @@index([organizacaoId,empresaId,clienteId])
+  @@map("conversoes_orcamento_pdv")
+}
+
+model ConversaoOrcamentoPdvItem {
+  id String @id @default(cuid())
+  conversaoId String
+  orcamentoItemId String @unique
+  itemCatalogoId String
+  quantidade Decimal @db.Decimal(12,3)
+  valorUnitario Decimal @db.Decimal(12,2)
+  valorTotal Decimal @db.Decimal(12,2)
+
+  conversao ConversaoOrcamentoPdv @relation(fields:[conversaoId],references:[id],onDelete:Restrict)
+  orcamentoItem OrcamentoClienteItem @relation(fields:[orcamentoItemId],references:[id],onDelete:Restrict)
+  itemCatalogo ItemCatalogo @relation(fields:[itemCatalogoId],references:[id],onDelete:Restrict)
+
+  @@index([conversaoId])
+  @@index([itemCatalogoId])
+  @@map("conversoes_orcamento_pdv_itens")
+}
+
+
+// PointVet M.4C.1 — additive future issuer/unit topology. The existing Empresa
+// remains the operational + fiscal boundary in all production flows. No route
+// or sales/fiscal module reads these models until reviewed migration and rollout.
+// Never drop Empresa.cnpj @unique to introduce more operational locations.
+model EntidadeFiscal {
+  id String @id @default(cuid())
+  organizacaoId String
+  cnpj String
+  razaoSocial String
+  ativo Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  unidades UnidadeOperacional[]
+
+  @@unique([organizacaoId,cnpj])
+  @@unique([organizacaoId,id])
+  @@index([organizacaoId,ativo])
+  @@map("entidades_fiscais")
+}
+
+model UnidadeOperacional {
+  id String @id @default(cuid())
+  organizacaoId String
+  entidadeFiscalId String
+  codigo String
+  nome String
+  // Optional 1:1 transitional pointer to legacy Empresa. Other units of the
+  // same legal CNPJ have no operational writes until a separate migration.
+  empresaLegadaId String? @unique
+  ativa Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  // DB-enforced cross-tenant segregation: a unit cannot point to another
+  // organization's issuer or legacy company.
+  entidadeFiscal EntidadeFiscal @relation(fields:[organizacaoId,entidadeFiscalId],references:[organizacaoId,id],onDelete:Restrict)
+  empresaLegada Empresa? @relation(fields:[organizacaoId,empresaLegadaId],references:[organizacaoId,id],onDelete:Restrict)
+
+  @@unique([entidadeFiscalId,codigo])
+  @@unique([organizacaoId,empresaLegadaId])
+  @@index([organizacaoId,ativa])
+  @@map("unidades_operacionais")
+}
+
+
+// PointVet M.4D.1 — sandbox-only protocol: no real fiscal Document, XML,
+// SEFAZ/municipal gateway, emission or cancellation is ever written here.
+// CI/test triple guards live in service code and are not deployment flags.
+model FluxoFiscalUnificadoCi {
+  id String @id @default(cuid())
+  organizacaoId String
+  empresaId String
+  vendaId String
+  criadoPorId String
+  classe String @db.VarChar(12)
+  tipoDocumento String @db.VarChar(6)
+  estado String @default("PREPARADA_CI") @db.VarChar(40)
+  pedidoFingerprint String @unique
+  snapshotFingerprint String
+  snapshot Json
+  // M.4D.2: legacy CI flows without hashes remain UNTRUSTED (no backfill).
+  integridadeRaiz String?
+  integridadeCabeca String?
+  integridadeContador Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields:[organizacaoId],references:[id],onDelete:Restrict)
+  empresa Empresa @relation(fields:[organizacaoId,empresaId],references:[organizacaoId,id],onDelete:Restrict)
+  venda Venda @relation(fields:[empresaId,vendaId],references:[empresaId,id],onDelete:Restrict)
+  criadoPor Usuario @relation("FluxoFiscalCiCriadoPor",fields:[criadoPorId],references:[id],onDelete:Restrict)
+  eventos EventoFluxoFiscalUnificadoCi[]
+
+  @@unique([vendaId,classe])
+  @@index([organizacaoId,empresaId,estado])
+  @@map("fluxos_fiscais_unificados_ci")
+}
+
+// Events record simulated observations only, never a real fiscal protocol.
+// No API routes; test database receives append-only diagnostic rows.
+model EventoFluxoFiscalUnificadoCi {
+  id String @id @default(cuid())
+  fluxoId String
+  usuarioId String
+  chaveEvento String @db.VarChar(120)
+  eventoFingerprint String
+  tipo String @db.VarChar(50)
+  estadoAnterior String @db.VarChar(40)
+  estadoPosterior String @db.VarChar(40)
+  evidencia Json
+  sequencia Int?
+  hashAnterior String?
+  hashEvento String?
+  createdAt DateTime @default(now())
+
+  fluxo FluxoFiscalUnificadoCi @relation(fields:[fluxoId],references:[id],onDelete:Restrict)
+  usuario Usuario @relation("EventoFluxoFiscalCiResponsavel",fields:[usuarioId],references:[id],onDelete:Restrict)
+
+  @@unique([fluxoId,chaveEvento])
+  @@unique([fluxoId,sequencia])
+  @@index([fluxoId,createdAt])
+  @@map("eventos_fluxo_fiscal_unificado_ci")
 }

@@ -31,6 +31,7 @@ router.post("/vendas/:id/cancelar", exigirPermissao("pdv.cancelar_venda"), contr
 router.get("/comandas", exigirPermissao("pdv.acessar"), controller.listarComandas);
 router.post("/comandas", exigirPermissao("pdv.acessar"), controller.criarComanda);
 router.get("/comandas/:id", exigirPermissao("pdv.acessar"), controller.buscarComanda);
+router.patch("/comandas/:id/cliente", exigirPermissao("pdv.acessar"), controller.atualizarClienteComanda);
 router.post("/comandas/:id/itens", exigirPermissao("pdv.acessar"), controller.adicionarItemComanda);
 router.delete("/comandas/:id/itens/:itemId", exigirPermissao("pdv.acessar"), controller.cancelarItemComanda);
 router.post("/comandas/:id/fechar", exigirPermissao("pdv.acessar"), controller.fecharComanda);

@@ -31,7 +31,9 @@ function mapError(error, res, next) {
     CLIENTE_OBRIGATORIO_CREDITO: [400, "Para vender no fiado, selecione o cliente responsável pela conta."],
     CLIENTE_NAO_ENCONTRADO: [404, "Cliente não encontrado nesta organização."],
     PET_NAO_ENCONTRADO: [404, "Pet não encontrado ou não pertence ao cliente selecionado."],
-    PET_OBRIGATORIO_SERVICO: [400, "Este serviço exige um pet vinculado."],
+    PET_OBRIGATORIO_SERVICO: [400, "Para lançar um serviço, selecione o tutor e o pet."],
+    CLIENTE_OBRIGATORIO_SERVICO: [400, "Para lançar um serviço, selecione o tutor e o pet."],
+    QUANTIDADE_SERVICO_INTEIRA: [400, "Serviços aceitam apenas quantidades inteiras, a partir de 1."],
     ITEM_NAO_ENCONTRADO: [404, "Um dos produtos/serviços não foi encontrado nesta empresa."],
     VALORES_INVALIDOS: [400, "Quantidade ou valores inválidos."],
     DESCONTO_INVALIDO: [400, "O desconto informado é inválido."],
@@ -42,10 +44,12 @@ function mapError(error, res, next) {
     CAIXA_JA_EXISTE: [409, "Já existe um caixa com este nome nesta empresa."],
     VENDA_NAO_ENCONTRADA: [404, "Venda não encontrada."],
     VENDA_NAO_CANCELAVEL: [409, "Esta venda não pode mais ser cancelada."],
+    VENDA_UNIFICADA_EXIGE_ESTORNO_INTEGRAL: [409, "Venda de comanda multiempresa: o cancelamento individual está bloqueado. Solicite o estorno integral e auditado do fechamento unificado."],
     VENDA_POSSUI_RECEBIMENTO_FIADO: [409, "Esta venda possui recebimento de fiado já registrado. Regularize o recebimento no Financeiro antes de cancelar."],
     VENDA_POSSUI_DOCUMENTO_FISCAL: [409, "Esta venda possui documento fiscal autorizado. Cancele o documento no módulo Fiscal antes de cancelar a venda."],
     COMANDA_NAO_ENCONTRADA: [404, "Comanda não encontrada."],
     COMANDA_FECHADA: [409, "Esta comanda está fechada ou cancelada."],
+    COMANDA_RASCUNHO_UNIFICADO: [409, "Rascunho multiempresa: o fechamento só estará disponível após homologação."],
     ITEM_COMANDA_NAO_ENCONTRADO: [404, "Item ativo da comanda não encontrado para esta empresa."],
     COMANDA_SEM_ITENS_EMPRESA: [409, "A comanda não possui itens pendentes do CNPJ selecionado."],
     PACOTE_NAO_ENCONTRADO_PDV: [404, "Pacote pendente de recebimento não encontrado neste CNPJ."],
@@ -215,6 +219,19 @@ export async function criarComanda(req, res, next) {
     const comanda = await service.criarComanda({ organizacaoId: req.organizacao.id, dados });
     return res.status(201).json({ success: true, comanda });
   } catch (error) { mapError(error, res, next); }
+}
+
+export async function atualizarClienteComanda(req, res, next) {
+  try {
+    const dados = parse(comandaSchema, req.body, res); if (!dados) return;
+    if (!Object.hasOwn(dados,"clienteId")) {
+      return res.status(400).json({success:false,message:"Informe o tutor a vincular à comanda."});
+    }
+    const comanda = await service.atualizarClienteComanda({
+      organizacaoId:req.organizacao.id,id:req.params.id,clienteId:dados.clienteId
+    });
+    return res.json({success:true,comanda});
+  } catch (error) { mapError(error,res,next); }
 }
 
 export async function buscarComanda(req, res, next) {

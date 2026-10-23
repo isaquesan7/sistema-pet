@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma.js";
+import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 
 function n(value) {
   const parsed = Number(value ?? 0);
@@ -45,6 +46,7 @@ async function validarClientePet(tx, { organizacaoId, clienteId, petId }) {
 
 async function validarItem(tx, { empresaId, organizacaoId, itemCatalogoId }) {
   if (!itemCatalogoId) return null;
+  await travarUnidadesProdutos(tx, [itemCatalogoId]);
   const item = await tx.itemCatalogo.findFirst({
     where: { id: itemCatalogoId, empresaId, ativo: true, empresa: { organizacaoId } },
     include: { produto: { include: { estoque: true, lotes: true } }, servico: true },
@@ -61,6 +63,7 @@ async function garantirComanda(tx, atendimento) {
 
   const comanda = await tx.comanda.create({
     data: {
+      organizacaoId: atendimento.organizacaoId,
       clienteId: atendimento.clienteId,
       observacoes: `Comanda do atendimento clínico ${atendimento.id}`,
     },

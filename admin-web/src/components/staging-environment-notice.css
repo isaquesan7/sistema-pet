@@ -1,0 +1,14 @@
+.pv-stage-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 16px;
+  border: 1px solid #eecb73;
+  background: #fff3cf;
+  color: #70500b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pv-stage-notice > svg { flex: none; margin-top: 1px; }
+.pv-stage-notice strong { display: inline; font-weight: 850; margin-right: 4px; }
+.login-card > .pv-stage-notice { border-radius: 10px; }

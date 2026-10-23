@@ -174,8 +174,11 @@ export async function selecionarEmpresa(req, res, next) {
     req.vinculoEmpresa = vinculo;
     req.vinculoOrganizacao = vinculoOrganizacao;
     req.assinaturaSaaS = organizacao.assinaturaSaaS;
-    req.permissoes =
-      vinculo.cargo?.permissoes.map((item) => item.permissao.codigo) || [];
+    // M.5.64: desativar o cargo revoga imediatamente suas permissões,
+    // inclusive quando o usuário permanece com sessão JWT válida.
+    req.permissoes = vinculo.cargo?.ativo
+      ? vinculo.cargo.permissoes.map((item) => item.permissao.codigo)
+      : [];
     req.modulosHabilitados = organizacao.modulos
       .filter((item) => item.habilitado && item.contratado)
       .map((item) => item.modulo);

@@ -49,6 +49,7 @@ export default function App() {
             <Route path="pets" element={<PetsPage />} />
             <Route path="catalogo" element={<CatalogPage />} />
             <Route path="pdv" element={<PdvPage />} />
+            <Route path="pdv/unificado/simulacao" element={<Navigate to="/pdv" replace />} />
             <Route path="estoque" element={<StockPage />} />
             <Route path="consultorio" element={<ConsultorioPage />} />
             <Route path="banho-e-tosa" element={<BanhoTosaPage />} />

@@ -1,0 +1,465 @@
+/** PDV Unificado: prévias seguras e checkout manual explícito por organização/CNPJ. */
+import {Router} from "express";
+import {z} from "zod";
+import prisma from "../../config/prisma.js";
+import {conferenciaAlocacaoSchema,conferirAlocacaoFechamento,diagnosticarRecuperacaoFechamento,listarCaixasDisponiveisUnificados,prepararExecucaoUnificada,consultarPreparacaoUnificada} from "./pdv-unificado-preparacao.service.js";
+import {previewSchema,buscarCatalogo,simularComanda,salvarRascunho,listarRascunhos,listarEstornosUnificados,conferirPreFechamento,planejarFechamento,reservarOperacoesFechamento,consultarReservaFechamento,cancelarReservaFechamento} from "./pdv-unificado.service.js";
+import {autenticarUsuario,selecionarEmpresa,exigirModulo,exigirPermissao} from "../../middlewares/auth.middleware.js";
+import {consultarRecebiveisCartaoLeituraM57,listarComandasRecebiveisCartaoLeituraM57} from "./pdv-unificado-recebiveis-leitura.service.js";
+import {listarHistoricoRepasseCartaoM514,consultarConferenciaManualM515} from "./pdv-unificado-repasse-historico.service.js";
+import {consultarEtapasRepassesM516} from "./pdv-unificado-fluxo-operacional.service.js";
+import {discriminarTarifasAntecipacoesM520} from "./pdv-unificado-discriminacao-tarifas.contract.js";
+import {planejarDevolucaoAposRepasseM521} from "./pdv-unificado-estorno-pos-repasse.contract.js";
+import {consultarHistoricoDevolucoesM523} from "./pdv-unificado-devolucoes-historico.service.js";
+import {consultarDiagnosticoDevolucoesM524} from "./pdv-unificado-diagnostico-devolucoes.service.js";
+import {consultarDossieDevolucoesM527} from "./pdv-unificado-dossie-devolucoes.service.js";
+import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
+import {recebimentoManualSchema} from "./pdv-unificado-recebimento-manual.contract.js";
+import {checkoutManualHabilitado,estornoManualHabilitado,fecharVendaManualUnificada,estornarVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
+const r=Router();
+r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
+r.get("/disponibilidade",async(req,res,next)=>{
+ try{
+  // M.5.63: a mesma fonte viva de cargos/permissões usada pelo middleware,
+  // sempre limitada ao usuário autenticado e à organização selecionada.
+  const access=await prisma.usuarioEmpresa.findMany({
+   where:{usuarioId:req.usuario.id,ativo:true,empresa:{ativo:true,organizacaoId:req.organizacao.id}},
+   select:{empresaId:true,empresa:{select:{id:true,nomeFantasia:true,cnpj:true,tipo:true}},
+    cargo:{select:{ativo:true,permissoes:{select:{permissao:{select:{codigo:true}}}}}}}
+  });
+  const pdvHabilitado=Boolean(req.organizacao.configuracao?.pdvUnificadoHabilitado);
+  const checkoutHabilitado=checkoutManualHabilitado(req.organizacao,req.empresa.id);
+  const estornoHabilitado=estornoManualHabilitado(req.organizacao,req.empresa.id);
+  res.set("Cache-Control","no-store");
+  return res.json({success:true,dados:{
+   preferenciaUnificado:pdvHabilitado,checkoutUnificadoDisponivel:checkoutHabilitado,
+   estornoUnificadoDisponivel:estornoHabilitado,
+   modoEfetivo:checkoutHabilitado?"UNIFICADO_MANUAL":"INDIVIDUAL",
+   empresasAcessiveis:access.map(v=>v.empresa),
+   contextoAcesso:{organizacaoId:req.organizacao.id,empresaId:req.empresa.id},
+   // Evidência de homologação; não concede acesso nem substitui os gates das rotas.
+   perfilAcesso:{papelOrganizacao:req.vinculoOrganizacao.papel,superAdmin:Boolean(req.usuario.superAdmin)},
+   permissoesEmpresas:access.map(v=>{
+    const permissoes=new Set(v.cargo?.ativo?v.cargo.permissoes.map(p=>p.permissao.codigo):[]);
+    return {id:v.empresa.id,nomeFantasia:v.empresa.nomeFantasia,cnpj:v.empresa.cnpj,
+     pdvAcessar:permissoes.has("pdv.acessar"),pdvCancelarVenda:permissoes.has("pdv.cancelar_venda")};
+   }),
+   aviso:checkoutHabilitado?
+    "Fechamento manual restrito à organização autorizada, sem fiscal ou integração física.":
+    "O PDV individual permanece em uso até a homologação do fechamento multiempresa."
+  }});
+ }catch(error){next(error);}
+});
+/**
+ * M.5.7 — somente consulta. As rotas NÃO fazem fechamento de venda,
+ * reconciliação de caixa, movimentação financeira ou emissão fiscal.
+ * Dois níveis de acesso: pdv.acessar (global), financeiro.gerenciar (local).
+ */
+function erroRecebiveisM57(error,res,next){
+ const codes={
+  M57_SEM_ACESSO_FINANCEIRO:[403,"Acesso financeiro negado."],
+  M57_PREFERENCIA_DESATIVADA:[403,"PDV unificado desativado nesta organização."],
+  M57_COMANDA_NAO_ENCONTRADA:[404,"Comanda não encontrada."],
+  M57_CONTEXTO_INVALIDO:[400,"Parâmetros inválidos."]
+ };
+ if(error?.message?.startsWith("M524_"))return res.status(409).json({success:false,message:"Não foi possível reconciliar os dados internos das devoluções. Solicite revisão financeira."});
+ if(error?.message?.startsWith("M527_"))return res.status(409).json({success:false,message:"Dossiê de conferência indisponível por inconsistência. Revalide os registros financeiros."});
+ if(error?.message?.startsWith("M523_")||error?.message?.startsWith("M522_"))return res.status(409).json({success:false,message:"Histórico de devoluções incompleto ou inconsistente. Solicite revisão financeira."});
+ if(error?.message?.startsWith("M521_"))return res.status(409).json({success:false,message:"Devolução simulada indisponível por inconsistência. Solicite revisão financeira."});
+ if(error?.message?.startsWith("M520_"))return res.status(409).json({success:false,message:"Composição dos repasses inválida. Solicite revisão financeira."});
+ if(error?.message?.startsWith("M517_"))return res.status(409).json({
+  success:false,message:"Simulação manual indisponível. Dados incompletos ou inconsistentes."
+ });
+ if(error?.message?.startsWith("M516_"))return res.status(409).json({
+  success:false,message:"Fluxo manual inconsistente ou incompleto. Encaminhe à revisão financeira."
+ });
+ if(error?.message?.startsWith("M515_"))return res.status(409).json({
+  success:false,message:"Histórico financeiro incompleto ou divergente. Solicite revisão financeira."
+ });
+ if(error?.message?.startsWith("M56_"))return res.status(409).json({
+  success:false,message:"Inconsistência de recebíveis identificada. Encaminhe à revisão financeira."
+ });
+ const entry=codes[error?.message];
+ return entry?res.status(entry[0]).json({success:false,message:entry[1]}):next(error);
+}
+r.get("/recebiveis-cartao/comandas",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const dados=await listarComandasRecebiveisCartaoLeituraM57({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,usuarioId:req.usuario.id
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+/**
+ * M.5.15 — one read-only, financially separated manual confirmation overview.
+ * Never accepts POST/PUT/DELETE, cannot book cash or do actual checkout.
+ */
+/**
+ * M.5.16: read-only status of preparacao / documentary check /
+ * human internal repasse / correction. Not a bank attestation endpoint.
+ */
+/**
+ * M.5.17 — authenticated GET-only simulation plan. No user-supplied
+ * financial mutations; no POST and no exposure of sandbox write services.
+ */
+r.get("/recebiveis-cartao/comandas/:comandaId/simulacao-manual",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const fluxo=await consultarEtapasRepassesM516({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  const dados=planejarIntencoesManuaisM517({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   comandaId:id.data,fluxo
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+/**
+ * M.5.20 — accounting-safe BREAKDOWN, strictly GET / read-only.
+ * Charges are declared retentions, not recognized paid expenses.
+ */
+/**
+ * M.5.21 — customer-refund RISK PLAN after a manual card repasse.
+ * GET only, no mutation. M.5.14 is internal reversal, NOT refund.
+ */
+/**
+ * M.5.23 — authorized GET of manual declarations and gross not recorded.
+ * No writes, refunds, reconciliation, customer cash or bank connection.
+ */
+/**
+ * M.5.24 — GET ONLY: documentary, fee-recovery and fiscal review gaps.
+ * Neither the result nor the HTTP route can authorize a real refund.
+ */
+r.get("/recebiveis-cartao/comandas/:comandaId/diagnostico-devolucoes",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await consultarDiagnosticoDevolucoesM524({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+/** M.5.27 — readonly checklist by declaration, never document attestation. */
+r.get("/recebiveis-cartao/comandas/:comandaId/dossie-devolucoes",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await consultarDossieDevolucoesM527({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId/devolucoes-historico",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await consultarHistoricoDevolucoesM523({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId/devolucao-previa",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const fluxo=await consultarEtapasRepassesM516({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  const dados=planejarDevolucaoAposRepasseM521({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   comandaId:id.data,fluxo
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId/discriminacao",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const fluxo=await consultarEtapasRepassesM516({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  const dados=discriminarTarifasAntecipacoesM520({
+   empresaId:req.empresa.id,comandaId:id.data,fluxo
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId/etapas",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,
+   message:"Identificador inválido."});
+  const dados=await consultarEtapasRepassesM516({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId/conferencia",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const parsed=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!parsed.success)return res.status(400).json({
+   success:false,message:"Identificador inválido."
+  });
+  const dados=await consultarConferenciaManualM515({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:parsed.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId/lancamentos",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const parsed=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+   .safeParse(req.params.comandaId);
+  if(!parsed.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await listarHistoricoRepasseCartaoM514({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:parsed.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/recebiveis-cartao/comandas/:comandaId",
+ exigirModulo("FINANCEIRO"),exigirPermissao("financeiro.gerenciar"),
+ async(req,res,next)=>{try{
+  if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)
+   return res.status(403).json({success:false,message:"PDV unificado desativado."});
+  const id=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/).safeParse(req.params.comandaId);
+  if(!id.success)return res.status(400).json({success:false,message:"Identificador inválido."});
+  const dados=await consultarRecebiveisCartaoLeituraM57({
+   organizacaoId:req.organizacao.id,empresaId:req.empresa.id,
+   usuarioId:req.usuario.id,comandaId:id.data
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(e){erroRecebiveisM57(e,res,next);}
+});
+r.get("/catalogo",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"Preferência de PDV unificado desativada."});
+ const dados=await buscarCatalogo({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,busca:String(req.query.busca||"").slice(0,100)});
+ return res.json({success:true,dados});
+}catch(e){next(e);}});
+r.post("/simulacao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"Preferência de PDV unificado desativada."});
+ const parsed=previewSchema.safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Itens inválidos.",errors:parsed.error.flatten().fieldErrors});
+ const dados=await simularComanda({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,...parsed.data});
+ return res.json({success:true,dados});
+}catch(e){
+ const messages={CLIENTE_NAO_ENCONTRADO:"Cliente não encontrado.",EMPRESA_SEM_ACESSO:"Você não tem acesso à empresa de um dos itens.",PET_INVALIDO:"Pet não pertence ao cliente.",ITEM_INVALIDO:"Produto ou serviço não encontrado nesta empresa.",PET_OBRIGATORIO:"Este serviço exige um pet.",QUANTIDADE_INVALIDA:"Quantidade deve respeitar a unidade de estoque e a precisão de gramas inteiros.",TOTAL_GRANEL_ZERADO:"A porção vendida não pode gerar total de R$ 0,00. Ajuste o peso ou o preço."};
+ if(messages[e.message])return res.status(400).json({success:false,message:messages[e.message]});
+ next(e);
+}});
+
+function erroRascunho(e,res,next){
+ const errors={CLIENTE_NAO_ENCONTRADO:[404,"Cliente não encontrado."],EMPRESA_SEM_ACESSO:[403,"Acesso negado a uma das empresas."],PET_INVALIDO:[400,"Pet não pertence ao tutor."],ITEM_INVALIDO:[400,"Item inválido para a empresa."],PET_OBRIGATORIO:[400,"Selecione o pet para este serviço."],QUANTIDADE_INVALIDA:[400,"Quantidade inválida: respeite gramas inteiros para produtos a granel."],TOTAL_GRANEL_ZERADO:[400,"A porção vendida não pode gerar total de R$ 0,00. Ajuste o peso ou o preço."],RASCUNHO_NAO_ENCONTRADO:[404,"Rascunho não encontrado."],RASCUNHO_BLOQUEADO:[409,"Rascunho não pode ser modificado."],RASCUNHO_DESATUALIZADO:[409,"A comanda foi alterada. Recarregue antes de salvar."],RASCUNHO_CLIENTE_IMUTAVEL:[409,"Não é permitido trocar o tutor deste rascunho."],RASCUNHO_RESERVADO:[409,"Comanda reservada para fechamento. Cancele a reserva antes de editar."],RESERVA_NAO_ENCONTRADA:[404,"Reserva não encontrada."],RESERVA_CANCELADA:[409,"Reserva cancelada. Atualize a comanda para gerar nova revisão."],RESERVA_NAO_EDITAVEL:[409,"Reserva não pode ser modificada."],PREPARACAO_INVALIDADA:[409,"A preparação foi invalidada com o cancelamento da reserva."],PREPARACAO_DIVERGENTE:[409,"Já existe uma preparação diferente para esta reserva. Não altere a alocação sem nova revisão."],RESERVA_PLANO_DIVERGENTE:[409,"Valores e itens da reserva divergem do plano atualizado."],ALOCACAO_COM_PENDENCIAS:[409,"Revise os caixas e valores alocados antes de preparar a execução."],CANCELAMENTO_SEM_PERMISSAO:[403,"O cancelamento exige permissão em todas as empresas participantes."],PRE_FECHAMENTO_COM_PENDENCIAS:[409,"Existem pendências na comanda. Revise antes de reservar."]};
+ if(e.code==="P2002")return res.status(409).json({success:false,message:"Esta reserva já existe. Recarregue a comanda."});
+ if(e.code==="P2034")return res.status(409).json({success:false,message:"Conflito simultâneo. Recarregue e tente novamente."});
+ const result=errors[e.message];return result?res.status(result[0]).json({success:false,message:result[1]}):next(e);
+}
+r.get("/rascunhos",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id})});
+}catch(e){next(e);}});
+// Recuperação de vendas concluídas para estorno integral pela UI. Não depende
+// do checkout se a contingência de estorno foi expressamente autorizada.
+r.get("/rascunhos-concluidos",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!estornoManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({success:false,message:"Estorno manual desativado."});
+ return res.json({success:true,dados:await listarRascunhos({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,somenteConcluidas:true})});
+}catch(e){next(e);}});
+// Histórico de estornos já executados: leitura fiscalmente neutra, inclusive
+// com kill switch OFF. Nunca autoriza novo pagamento, venda ou estorno.
+r.get("/rascunhos-estornados",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ return res.json({success:true,dados:await listarEstornosUnificados({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id})});
+}catch(e){next(e);}});
+r.post("/rascunhos",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=previewSchema.safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Itens inválidos.",errors:parsed.error.flatten().fieldErrors});
+ return res.status(201).json({success:true,dados:await salvarRascunho({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,...parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.put("/rascunhos/:id",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=previewSchema.extend({versao:z.number().int().positive()}).safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Rascunho ou revisão inválida."});
+ const {versao,...dados}=parsed.data;
+ return res.json({success:true,dados:await salvarRascunho({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,...dados},{id:req.params.id,versao})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/pre-fechamento",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const versao=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!versao.success)return res.status(400).json({success:false,message:"Informe a versão do rascunho."});
+ return res.json({success:true,dados:await conferirPreFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:versao.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/plano-fechamento",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const versao=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!versao.success)return res.status(400).json({success:false,message:"Informe a versão do rascunho."});
+ return res.json({success:true,dados:await planejarFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:versao.data})});
+}catch(e){
+ if(e.message==="PRE_FECHAMENTO_COM_PENDENCIAS")return res.status(409).json({success:false,message:"Há pendências no pré-fechamento. Revise os itens antes de planejar as operações."});
+ erroRascunho(e,res,next);
+}});
+r.get("/rascunhos/:id/reserva",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const versao=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!versao.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await consultarReservaFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:versao.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.post("/rascunhos/:id/reservar",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const dados=z.object({versao:z.number().int().positive()}).strict().safeParse(req.body);
+ if(!dados.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ const reserva=await reservarOperacoesFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:dados.data.versao});
+ return res.status(reserva.reutilizada?200:201).json({success:true,dados:reserva});
+}catch(e){erroRascunho(e,res,next);}});
+r.post("/rascunhos/:id/cancelar-reserva",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const dados=z.object({versao:z.number().int().positive(),motivo:z.string().trim().min(5).max(250)}).strict().safeParse(req.body);
+ if(!dados.success)return res.status(400).json({success:false,message:"Versão ou motivo inválido."});
+ const reserva=await cancelarReservaFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,...dados.data});
+ return res.json({success:true,dados:reserva});
+}catch(e){erroRascunho(e,res,next);}});
+/** Pré-conferência e diagnóstico permanecem sem efeitos financeiros. */
+r.post("/rascunhos/:id/conferencia-alocacao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=conferenciaAlocacaoSchema.safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Alocação financeira inválida.",errors:parsed.error.flatten().fieldErrors});
+ return res.json({success:true,dados:await conferirAlocacaoFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,dados:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/diagnostico-recuperacao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await diagnosticarRecuperacaoFechamento({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/caixas-disponiveis",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await listarCaixasDisponiveisUnificados({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.get("/rascunhos/:id/preparacao-execucao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=z.coerce.number().int().positive().safeParse(req.query.versao);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Informe uma versão válida."});
+ return res.json({success:true,dados:await consultarPreparacaoUnificada({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,versao:parsed.data})});
+}catch(e){erroRascunho(e,res,next);}});
+r.post("/rascunhos/:id/preparacao-execucao",async(req,res,next)=>{try{
+ if(!req.organizacao.configuracao?.pdvUnificadoHabilitado)return res.status(403).json({success:false,message:"PDV unificado desativado."});
+ const parsed=conferenciaAlocacaoSchema.safeParse(req.body);
+ if(!parsed.success)return res.status(400).json({success:false,message:"Alocações inválidas.",errors:parsed.error.flatten().fieldErrors});
+ const result=await prepararExecucaoUnificada({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,id:req.params.id,dados:parsed.data});
+ return res.status(result.reutilizada?200:201).json({success:true,dados:result});
+}catch(e){erroRascunho(e,res,next);}});
+/** Checkout MANUAL efetivo: desligado por padrão, sem provedor fiscal/hardware.
+ * Em uma transação, persiste declaração, vendas, pagamentos e estoque.
+ */
+r.post("/rascunhos/:id/fechar-manual",async(req,res,next)=>{try{
+ if(!checkoutManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({
+  success:false,message:"Fechamento manual unificado ainda não autorizado para esta organização."
+ });
+ const identificador=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+  .safeParse(req.params.id);
+ const parsed=recebimentoManualSchema.safeParse(req.body);
+ if(!identificador.success||!parsed.success)return res.status(400).json({
+  success:false,message:"Confirmação manual ou comanda inválida."
+ });
+ const result=await fecharVendaManualUnificada({
+  organizacao:req.organizacao,organizacaoId:req.organizacao.id,
+  usuarioId:req.usuario.id,empresaId:req.empresa.id,id:identificador.data,dados:parsed.data
+ });
+ return res.set("Cache-Control","no-store").status(result.reutilizada?200:201)
+  .json({success:true,dados:result});
+}catch(error){
+ const acesso=["EMPRESA_SEM_ACESSO","EMPRESA_FORA_DO_PILOTO_MANUAL","CHECKOUT_MANUAL_DESATIVADO"];
+ const invalido=["RECEBIMENTO_NAO_CONFIRMADO","REGISTRO_MANUAL_INVALIDO"];
+ if(acesso.includes(error.message))return res.status(403).json({success:false,message:"Acesso ao fechamento negado."});
+ if(invalido.includes(error.message))return res.status(400).json({success:false,message:"Confirme cada recebimento manual com valores corretos."});
+ if(/^(M3_|REGISTRO_MANUAL_DIVERGENTE|RESERVA_|PREPARACAO_|RASCUNHO_|PLANO_|CAIXA_|SOMA_|PRE_FECHAMENTO_|EMPRESA_FORA_)/.test(error.message))
+  return res.status(409).json({success:false,message:"Os dados do fechamento mudaram ou estão inconsistentes. Revise a comanda e os caixas."});
+ erroRascunho(error,res,next);
+}});
+/** Estorno integral manual do checkout de gestão: confirmação humana de
+ * devolução fora do sistema, nunca refund automatizado ou emissão fiscal. */
+r.post("/rascunhos/:id/estornar-manual",exigirPermissao("pdv.cancelar_venda"),async(req,res,next)=>{try{
+ if(!estornoManualHabilitado(req.organizacao,req.empresa.id))return res.status(403).json({
+  success:false,message:"Estorno manual unificado ainda não autorizado para esta organização."
+ });
+ const identificador=z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/)
+  .safeParse(req.params.id);
+ const parsed=z.object({
+  versao:z.number().int().positive(),motivo:z.string().trim().min(10).max(500),
+  referenciaExterna:z.string().trim().max(120).nullable().optional(),
+  confirmouDevolucaoExterna:z.literal(true)
+ }).strict().safeParse(req.body);
+ if(!identificador.success||!parsed.success)return res.status(400).json({
+  success:false,message:"Informe motivo (mínimo 10 caracteres) e confirme a devolução externa já realizada."
+ });
+ const result=await estornarVendaManualUnificada({
+  organizacao:req.organizacao,organizacaoId:req.organizacao.id,
+  usuarioId:req.usuario.id,empresaId:req.empresa.id,id:identificador.data,dados:parsed.data
+ });
+ return res.set("Cache-Control","no-store").status(result.reutilizada?200:201)
+  .json({success:true,dados:result});
+}catch(error){
+ if(["EMPRESA_SEM_ACESSO","EMPRESA_FORA_DO_PILOTO_MANUAL","CHECKOUT_MANUAL_DESATIVADO","ESTORNO_MANUAL_DESATIVADO",
+  "M3C_SEM_PERMISSAO_ESTORNO","M3C_USUARIO_INATIVO"].includes(error.message))
+  return res.status(403).json({success:false,message:"Estorno negado: confira o acesso a todos os CNPJs."});
+ if(/^(M3C_|RASCUNHO_|RESERVA_|PREPARACAO_)/.test(error.message))
+  return res.status(409).json({success:false,message:"Estorno integral indisponível: confira a comanda, os caixas abertos e as pendências financeiras. Se houve conciliação ou fechamento de caixa, solicite revisão."});
+ erroRascunho(error,res,next);
+}});
+export default r;

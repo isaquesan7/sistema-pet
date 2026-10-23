@@ -1,5 +1,6 @@
 import prisma from "../../config/prisma.js";
 import { calcularPrecificacao } from "../catalogo/catalogo.service.js";
+import {travarUnidadesProdutos,validarQuantidadeNaUnidade} from "../catalogo/catalogo-unidade.service.js";
 
 const n = (v) => Number(v ?? 0);
 const round = (v, c = 3) => Math.round((n(v) + Number.EPSILON) * 10 ** c) / 10 ** c;
@@ -7,6 +8,7 @@ const dateOnly = (v) => (v ? new Date(`${v}T00:00:00.000Z`) : null);
 const cleanDoc = (v) => (v ? String(v).replace(/\D/g, "") || null : null);
 
 async function produtoDaEmpresa(tx, empresaId, itemCatalogoId) {
+  await travarUnidadesProdutos(tx, [itemCatalogoId]);
   const item = await tx.itemCatalogo.findFirst({
     where: { id: itemCatalogoId, empresaId, tipo: "PRODUTO" },
     include: { produto: { include: { estoque: true, lotes: true } } },
@@ -17,6 +19,7 @@ async function produtoDaEmpresa(tx, empresaId, itemCatalogoId) {
 }
 
 async function aplicarMovimento(tx, { empresaId, produto, usuarioId, tipo, quantidade, loteId = null, origemTipo, origemId, custoUnitario, observacao }) {
+  validarQuantidadeNaUnidade(produto.unidade, quantidade);
   const saldo = await tx.estoqueSaldo.findUnique({ where: { produtoId: produto.id } });
   const anterior = n(saldo?.quantidade);
   const deltaPositivo = ["ENTRADA", "AJUSTE_POSITIVO", "DEVOLUCAO_CLIENTE", "CANCELAMENTO"].includes(tipo);
@@ -118,6 +121,7 @@ export async function listarEntradas(empresaId) {
 
 export async function criarEntrada({ empresaId, organizacaoId, usuarioId, dados }) {
   return prisma.$transaction(async (tx) => {
+    await travarUnidadesProdutos(tx, dados.itens.map((linha) => linha.itemCatalogoId));
     if (dados.fornecedorId) {
       const f = await tx.fornecedor.findFirst({ where: { id: dados.fornecedorId, organizacaoId, ativo: true } });
       if (!f) throw new Error("FORNECEDOR_NAO_ENCONTRADO");
@@ -232,6 +236,11 @@ export async function criarInventario({ empresaId, usuarioId, dados }) {
   return prisma.$transaction(async (tx) => {
     const aberto = await tx.inventarioEstoque.findFirst({ where: { empresaId, status: "ABERTO" } });
     if (aberto) throw new Error("INVENTARIO_JA_ABERTO");
+    const ids = await tx.itemCatalogo.findMany({
+      where: { empresaId, tipo: "PRODUTO", ativo: true, produto: { controlaEstoque: true } },
+      select: { id: true },
+    });
+    await travarUnidadesProdutos(tx, ids.map((item) => item.id));
     const inventario = await tx.inventarioEstoque.create({ data: { empresaId, usuarioId, descricao: dados.descricao || null, observacao: dados.observacao || null } });
     const produtos = await tx.itemCatalogo.findMany({ where: { empresaId, tipo: "PRODUTO", ativo: true, produto: { controlaEstoque: true } }, include: { produto: { include: { estoque: true, lotes: true } } } });
     for (const item of produtos) {
@@ -257,6 +266,8 @@ export async function contarInventario({ empresaId, id, itemId, quantidadeContad
   return prisma.$transaction(async (tx) => {
     const inv = await tx.inventarioEstoque.findFirst({ where: { id, empresaId, status: "ABERTO" } }); if (!inv) throw new Error("INVENTARIO_NAO_ABERTO");
     const item = await tx.inventarioEstoqueItem.findFirst({ where: { id: itemId, inventarioId: id } }); if (!item) throw new Error("ITEM_INVENTARIO_NAO_ENCONTRADO");
+    const produto = await tx.produto.findUnique({ where: { id: item.produtoId }, select: { unidade: true } });
+    validarQuantidadeNaUnidade(produto?.unidade, quantidadeContada, { permitirZero: true });
     return tx.inventarioEstoqueItem.update({ where: { id: item.id }, data: { quantidadeContada, diferenca: round(quantidadeContada - n(item.saldoSistema)) } });
   });
 }

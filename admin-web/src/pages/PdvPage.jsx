@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownCircle,
@@ -25,6 +25,11 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
+import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
+import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
+import {normalizePdvQuantity,stepPdvQuantity,isValidPdvQuantity} from "../lib/pdvQuantity.js";
+import PdvOrdersHome from "../components/PdvOrdersHome.jsx";
+import "../pdv.css";
 
 const paymentLabels = {
   DINHEIRO: "Dinheiro",
@@ -72,7 +77,7 @@ function commandStatusLabel(status) {
 }
 
 function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
-  const needsPet = line.item.tipo === "SERVICO" && line.item.servico?.exigePet;
+  const needsPet = line.item.tipo === "SERVICO";
   const pets = client?.pets || [];
   return (
     <div className="pdv-cart-line">
@@ -91,15 +96,15 @@ function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
         ) : null}
       </div>
       <div className="pdv-quantity">
-        <button type="button" onClick={() => onUpdate({ quantidade: Math.max(0.001, round(line.quantidade - 1)) })}><Minus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item.tipo,line.quantidade,-1) })}><Minus size={13} /></button>
         <input
           type="number"
-          min="0.001"
-          step="0.001"
+          min={line.item.tipo === "SERVICO" ? 1 : 0.001}
+          step={line.item.tipo === "SERVICO" ? 1 : 0.001}
           value={line.quantidade}
-          onChange={(event) => onUpdate({ quantidade: Math.max(0.001, Number(event.target.value) || 1) })}
+          onChange={(event) => onUpdate({ quantidade: normalizePdvQuantity(line.item.tipo,event.target.value,line.quantidade) })}
         />
-        <button type="button" onClick={() => onUpdate({ quantidade: round(line.quantidade + 1) })}><Plus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item.tipo,line.quantidade,1) })}><Plus size={13} /></button>
       </div>
       {canDiscount ? (
         <label className="pdv-line-discount">
@@ -138,18 +143,12 @@ function PaymentEditor({ payments, total, onChange }) {
   }
 
   return (
-    <div className="pdv-payments">
-      <div className="pdv-payments__heading">
-        <div>
-          <strong>Pagamentos</strong>
-          <span>Você pode dividir o valor entre várias formas.</span>
-        </div>
-        <button className="ghost-button" type="button" onClick={add}><Plus size={14} /> Adicionar</button>
-      </div>
+    <PdvPaymentSection action={<button className="ghost-button" type="button" onClick={add}><Plus size={14} /> Adicionar</button>}>
+      <div className="pdv-payment-labels" aria-hidden="true"><span>Forma de pagamento</span><span>Valor (R$)</span><span>Parcelas / vencimento</span><span></span></div>
       <div className="pdv-payment-list">
         {payments.map((payment, index) => (
           <div className="pdv-payment-row" key={`${payment.forma}-${index}`}>
-            <select className="form-control" value={payment.forma} onChange={(event) => {
+            <select className="form-control" aria-label={`Forma de pagamento ${index+1}`} value={payment.forma} onChange={(event) => {
               const forma = event.target.value;
               update(index, { forma, ...(forma === "CREDITO_CLIENTE" && !payment.vencimentoEm ? { vencimentoEm: datePlusDays(30) } : {}) });
             }}>
@@ -158,6 +157,7 @@ function PaymentEditor({ payments, total, onChange }) {
             <input
               className="form-control"
               type="number"
+              aria-label={`Valor do pagamento ${index+1} em reais`}
               min="0.01"
               step="0.01"
               value={payment.valor}
@@ -168,6 +168,7 @@ function PaymentEditor({ payments, total, onChange }) {
                 className="form-control"
                 type="number"
                 min="1"
+                aria-label={`Parcelas do pagamento ${index+1}`}
                 max="36"
                 value={payment.parcelas || 1}
                 onChange={(event) => update(index, { parcelas: Math.max(1, Number(event.target.value) || 1) })}
@@ -177,12 +178,13 @@ function PaymentEditor({ payments, total, onChange }) {
               <input
                 className="form-control"
                 type="date"
+                aria-label={`Vencimento do crédito do cliente no pagamento ${index+1}`}
                 value={payment.vencimentoEm || datePlusDays(30)}
                 onChange={(event) => update(index, { vencimentoEm: event.target.value })}
                 title="Vencimento do fiado"
               />
             ) : <span className="pdv-payment-spacer" />}
-            <button type="button" className="icon-button table-action" onClick={() => remove(index)} disabled={payments.length === 1}><XCircle size={15} /></button>
+            <button type="button" className="icon-button table-action" aria-label={`Remover forma de pagamento ${index+1}`} onClick={() => remove(index)} disabled={payments.length === 1}><XCircle size={15} /></button>
           </div>
         ))}
       </div>
@@ -190,17 +192,58 @@ function PaymentEditor({ payments, total, onChange }) {
         <span>Informado {formatCurrency(paid)}</span>
         <strong>{Math.abs(remaining) < 0.01 ? "Pagamento completo" : `Falta ${formatCurrency(remaining)}`}</strong>
       </div>
-    </div>
+    </PdvPaymentSection>
   );
+}
+
+/** Editor de comanda na tela principal; reaproveita as mutações transacionais existentes. */
+function PdvCommandWorkspaceBody({
+ command,selectedCompany,clients,updateCommandClientMutation,catalog,selectedCommandItem,commandItemId,setCommandItemId,
+ commandPetId,setCommandPetId,commandQuantity,setCommandQuantity,addCommandItemMutation,removeCommandItemMutation,
+ closeCommandMutation,commandPayments,setCommandPayments,currentCompanyCommandItems,
+ currentCompanyCommandTotal,openSession,commandCloseError
+}){
+ const commandDetail=command;
+ const commandClient=command.cliente;
+ return (<div className="pdv-command-detail">
+          <div className="pdv-command-client-area">
+            <label>Cliente da comanda (obrigatório para serviços)
+              <select className="form-control" value={command.clienteId||""}
+                disabled={updateCommandClientMutation.isPending||["FECHADA","CANCELADA"].includes(command.status)}
+                onChange={e=>updateCommandClientMutation.mutate(e.target.value||null)}>
+                <option value="">Consumidor não identificado</option>
+                {clients.map(client=><option value={client.id} key={client.id}>{client.nome}</option>)}
+              </select>
+            </label>
+            {updateCommandClientMutation.isError&&<InlineNotice tone="error">{getApiErrorMessage(updateCommandClientMutation.error)}</InlineNotice>}
+          </div>
+          <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
+          <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select><label className="pdv-command-quantity">Qtd.<input className="form-control" type="number" min={selectedCommandItem?.tipo==="SERVICO"?1:0.001} step={selectedCommandItem?.tipo==="SERVICO"?1:0.001} value={commandQuantity} onChange={e=>setCommandQuantity(normalizePdvQuantity(selectedCommandItem?.tipo||"PRODUTO",e.target.value,commandQuantity))}/></label>{selectedCommandItem?.tipo === "SERVICO" ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending || !isValidPdvQuantity(selectedCommandItem?.tipo,commandQuantity) || (selectedCommandItem?.tipo==="SERVICO"&&(!commandClient||!commandPetId))}><Plus size={15} /> Lançar</button></div>
+          <InlineNotice tone="error">{commandCloseError}</InlineNotice>
+          <div className="table-scroll"><table className="pdv-command-items"><thead><tr><th>CNPJ</th><th>Item</th><th>Pet</th><th>Qtd.</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{commandDetail.itens.map((item) => <tr key={item.id}><td>{item.empresa?.nomeFantasia}</td><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorTotal)}</td><td>{item.status}</td><td>{item.empresaId === selectedCompany?.id && item.status === "ATIVO" ? <button className="icon-button table-action" type="button" onClick={() => removeCommandItemMutation.mutate(item.id)}><Trash2 size={14} /></button> : null}</td></tr>)}</tbody></table></div>
+          {currentCompanyCommandItems.length ? <div className="pdv-command-close"><div><span>Fechar itens de <strong>{selectedCompany?.nomeFantasia}</strong></span><b>{formatCurrency(currentCompanyCommandTotal)}</b></div>{openSession ? <><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments} />{commandPayments.length === 1 && money(commandPayments[0].valor) !== currentCompanyCommandTotal ? <button className="ghost-button" type="button" onClick={() => setCommandPayments([{ ...commandPayments[0], valor: currentCompanyCommandTotal }])}>Preencher pagamento</button> : null}<button className="primary-button" type="button" disabled={closeCommandMutation.isPending} onClick={() => closeCommandMutation.mutate()}>Fechar este CNPJ · {formatCurrency(currentCompanyCommandTotal)}</button></> : <InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}</div> : <InlineNotice>Não há itens pendentes do CNPJ atualmente selecionado.</InlineNotice>}
+        </div>);
 }
 
 export default function PdvPage() {
   const { selectedCompany, selectedOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState("VENDA");
+  // A API define o modo efetivo da organização; nunca confiar somente no cache do login.
+  const unifiedStatus=useQuery({
+    queryKey:["unified-pdv-status",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(selectedOrganization?.id&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados,
+    retry:false,
+  });
+  const intelligentPreference=unifiedStatus.data?.preferenciaUnificado===true;
+  const intelligentCheckoutEnabled=unifiedStatus.data?.checkoutUnificadoDisponivel===true;
+  const [individualFallback,setIndividualFallback]=useState(false);
+  const showIntelligentSale=intelligentPreference&&!(individualFallback&&!intelligentCheckoutEnabled);
+  const [tab, setTab] = useState("COMANDAS");
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
+  const [clientSearch,setClientSearch]=useState("");
   const [saleDiscount, setSaleDiscount] = useState(0);
   const [saleAddition, setSaleAddition] = useState(0);
   const [payments, setPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
@@ -216,6 +259,7 @@ export default function PdvPage() {
   const [commandDetailId, setCommandDetailId] = useState(null);
   const [commandItemId, setCommandItemId] = useState("");
   const [commandPetId, setCommandPetId] = useState("");
+  const [commandQuantity,setCommandQuantity]=useState(1);
   const [commandPayments, setCommandPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
   const [commandCloseError, setCommandCloseError] = useState("");
 
@@ -226,6 +270,13 @@ export default function PdvPage() {
   const [saleDetailId, setSaleDetailId] = useState(null);
   const [cancelSale, setCancelSale] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  // Não carregar o carrinho de uma empresa para outra ao trocar o seletor global.
+  useEffect(()=>{
+    setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
+    setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
+    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);
+    setCashModal(null);setCommandModal(false);setPackageReceive(null);
+  },[selectedOrganization?.id,selectedCompany?.id]);
 
   const canDiscount = hasPermission("pdv.aplicar_desconto");
   const canCancel = hasPermission("pdv.cancelar_venda");
@@ -358,15 +409,22 @@ export default function PdvPage() {
   });
 
   const createCommandMutation = useMutation({
-    mutationFn: async () => (await api.post("/pdv/comandas", { clienteId: commandClientId })).data.comanda,
+    mutationFn: async (requestedClientId) => (await api.post("/pdv/comandas", { clienteId: (requestedClientId ?? commandClientId) || null })).data.comanda,
     onSuccess: (comanda) => {
       setCommandModal(false);
       setCommandClientId("");
       setCommandError("");
       setCommandDetailId(comanda.id);
+      setTab("COMANDAS");
       invalidatePdv();
     },
     onError: (error) => setCommandError(getApiErrorMessage(error)),
+  });
+
+  const updateCommandClientMutation = useMutation({
+    mutationFn: async clienteId => (await api.patch(`/pdv/comandas/${commandDetailId}/cliente`,{clienteId})).data.comanda,
+    onSuccess:()=>{setCommandPetId("");invalidatePdv();},
+    onError:()=>{},
   });
 
   const addCommandItemMutation = useMutation({
@@ -375,13 +433,14 @@ export default function PdvPage() {
       return (await api.post(`/pdv/comandas/${commandDetailId}/itens`, {
         itemCatalogoId: commandItemId,
         petId: item?.tipo === "SERVICO" && item.servico?.exigePet ? (commandPetId || null) : null,
-        quantidade: 1,
+        quantidade: normalizePdvQuantity(item?.tipo||"PRODUTO",commandQuantity,1),
         desconto: 0,
       })).data;
     },
     onSuccess: () => {
       setCommandItemId("");
       setCommandPetId("");
+      setCommandQuantity(1);
       invalidatePdv();
     },
     onError: (error) => setCommandCloseError(getApiErrorMessage(error)),
@@ -445,7 +504,7 @@ export default function PdvPage() {
   }
 
   function updateCart(index, patch) {
-    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch, quantidade: patch.quantidade === undefined ? line.quantidade : normalizePdvQuantity(line.item.tipo,patch.quantidade,line.quantidade) } : line));
   }
 
   function removeCart(index) {
@@ -467,7 +526,9 @@ export default function PdvPage() {
     setSaleError("");
     if (!openSession) return setSaleError("Abra um caixa antes de finalizar a venda.");
     if (!cart.length) return setSaleError("Adicione pelo menos um produto ou serviço.");
-    const missingPet = cart.some((line) => line.item.tipo === "SERVICO" && line.item.servico?.exigePet && !line.petId);
+    if (cart.some((line) => !isValidPdvQuantity(line.item.tipo,line.quantidade))) return setSaleError("Serviços exigem quantidades inteiras a partir de 1. Confira também as quantidades dos produtos.");
+    if (cart.some((line) => line.item.tipo === "SERVICO") && !clientId) return setSaleError("Selecione um tutor para os serviços.");
+    const missingPet = cart.some((line) => line.item.tipo === "SERVICO" && !line.petId);
     if (missingPet) return setSaleError("Selecione o pet dos serviços que exigem vínculo.");
     saleMutation.mutate();
   }
@@ -477,98 +538,118 @@ export default function PdvPage() {
 
   return (
     <div className="page-stack pdv-page">
-      <section className="page-heading page-heading--hero">
-        <div>
-          <span className="page-kicker">Operação comercial</span>
+      <header className="pdv-hero" aria-label="Painel do ponto de venda">
+        <div className="pdv-hero__copy">
+          <span className="pdv-hero__eyebrow">POINTVET <span aria-hidden="true">/</span> ATENDIMENTO</span>
           <h1>PDV e Comandas</h1>
-          <p>Venda, receba e acompanhe comandas mantendo cada CNPJ financeiro separado.</p>
+          <p>{intelligentPreference?"Um único atendimento para produtos e serviços das empresas autorizadas. Vendas e caixas separados por CNPJ.":"Venda, comandas e caixa da empresa selecionada. Recebimentos manuais, sem conexão bancária."}</p>
+          <div className="pdv-hero__chips"><span>{selectedCompany?.nomeFantasia || "Empresa selecionada"}</span><span>{intelligentPreference?"PDV Inteligente":"PDV por empresa"}</span><span>Financeiro por CNPJ</span></div>
         </div>
-        <div className={`pdv-session-badge ${openSession ? "pdv-session-badge--open" : ""}`}>
-          <Store size={18} />
-          <div><span>Caixa</span><strong>{openSession ? `${openSession.caixa?.nome} aberto` : "Fechado"}</strong></div>
+        <div className={`pdv-session-badge ${openSession ? "pdv-session-badge--open" : ""}`} role="status">
+          <Store size={21} />
+          <div><span>CAIXA DO CNPJ</span><strong>{openSession ? openSession.caixa?.nome || "Caixa aberto" : "Caixa fechado"}</strong><small>{openSession ? "Pronto para registrar vendas" : "Abra o caixa para finalizar vendas"}</small></div>
         </div>
-      </section>
-
+      </header>
+      {intelligentPreference&&!intelligentCheckoutEnabled&&<section className="pdv-unified-shortcut" aria-label="Situação do fechamento inteligente">
+        <div><span>LIBERAÇÃO OPERACIONAL</span><h2>Fechamento multiempresa ainda restrito</h2><p>O catálogo inteligente e a comanda integrada estão disponíveis. Enquanto o checkout por CNPJ não for autorizado na API, você pode registrar uma venda individual pelo fluxo anterior, nesta mesma tela. Salve qualquer rascunho antes de alternar o modo temporário.</p></div>
+        <button className="ghost-button" type="button" onClick={()=>setIndividualFallback(value=>!value)}>{individualFallback?"Voltar à comanda inteligente":"Venda individual temporária"} <Plus size={15}/></button>
+      </section>}
       <section className="pdv-summary-grid">
-        <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
-        <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje</span><strong>{summary.vendasHoje || 0}</strong></div></div>
+        <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje (CNPJ atual)</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
+        <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje (CNPJ atual)</span><strong>{summary.vendasHoje || 0}</strong></div></div>
         <div className="pdv-summary-card"><WalletCards size={19} /><div><span>Comandas pendentes</span><strong>{summary.comandasAbertas || 0}</strong></div></div>
         <div className="pdv-summary-card"><Banknote size={19} /><div><span>Saldo inicial</span><strong>{formatCurrency(openSession?.valorAbertura || 0)}</strong></div></div>
       </section>
 
-      <div className="pdv-tabs">
-        {[ ["VENDA", ShoppingCart, "Venda rápida"], ["COMANDAS", WalletCards, "Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
-          <button className={tab === value ? "active" : ""} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
+      <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
+        {[ ["VENDA", ShoppingCart, "Venda"], ["COMANDAS", WalletCards, intelligentPreference?"Comandas por CNPJ":"Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
+          <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
-      </div>
+      </nav>
 
-      {tab === "VENDA" ? (
-        <section className="pdv-sale-layout">
-          <div className="panel pdv-catalog-panel">
-            <div className="panel__heading"><div><span>Catálogo do CNPJ</span><h2>Produtos e serviços</h2></div><Boxes size={18} /></div>
-            <label className="search-box pdv-search"><Search size={17} /><input value={itemSearch} onChange={(event) => setItemSearch(event.target.value)} placeholder="Nome, SKU ou código de barras..." /></label>
-            <div className="pdv-product-grid">
-              {catalog.map((item) => (
-                <button className="pdv-product-card" type="button" onClick={() => addToCart(item)} key={item.id}>
-                  <span className={`badge ${item.tipo === "PRODUTO" ? "badge--muted" : "badge--success"}`}>{item.tipo === "PRODUTO" ? "Produto" : "Serviço"}</span>
-                  <strong>{item.nome}</strong>
-                  <small>{item.categoria?.nome || "Sem categoria"}</small>
-                  <b>{formatCurrency(item.precoVenda)}</b>
-                  {item.tipo === "PRODUTO" && item.produto?.controlaEstoque ? <em>Estoque: {money(item.produto?.estoque?.quantidade)}</em> : null}
-                </button>
-              ))}
-              {!catalog.length ? <div className="mini-empty pdv-grid-empty">Nenhum item encontrado.</div> : null}
-            </div>
-          </div>
-
-          <div className="panel pdv-cart-panel">
-            <div className="panel__heading"><div><span>Venda atual</span><h2>Carrinho</h2></div><ShoppingCart size={18} /></div>
-            <FormField label="Cliente (opcional, obrigatório para serviços com pet)">
-              <select className="form-control" value={clientId} onChange={(event) => changeClient(event.target.value)}>
-                <option value="">Consumidor não identificado</option>
-                {clients.map((client) => <option value={client.id} key={client.id}>{client.nome}</option>)}
-              </select>
-            </FormField>
-
-            <div className="pdv-cart-list">
-              {cart.length ? cart.map((line, index) => (
-                <CartLine key={`${line.item.id}-${index}`} line={line} client={selectedClient} canDiscount={canDiscount} onUpdate={(patch) => updateCart(index, patch)} onRemove={() => removeCart(index)} />
-              )) : <div className="mini-empty">Clique em um produto ou serviço para adicioná-lo.</div>}
-            </div>
-
-            <div className="pdv-totals">
-              <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
-              {canDiscount ? <div><span>Desconto geral</span><input type="number" min="0" step="0.01" value={saleDiscount} onChange={(event) => { const value = Number(event.target.value) || 0; setSaleDiscount(value); setTimeout(() => useSinglePaymentTotal(round(subtotal - value + saleAddition)), 0); }} /></div> : null}
-              <div><span>Acréscimo</span><input type="number" min="0" step="0.01" value={saleAddition} onChange={(event) => { const value = Number(event.target.value) || 0; setSaleAddition(value); setTimeout(() => useSinglePaymentTotal(round(subtotal - saleDiscount + value)), 0); }} /></div>
-              <div className="pdv-total-final"><span>Total</span><strong>{formatCurrency(total)}</strong></div>
-            </div>
-
-            <PaymentEditor payments={payments} total={total} onChange={setPayments} />
-            {payments.length === 1 && money(payments[0].valor) !== total ? <button className="ghost-button pdv-fill-payment" type="button" onClick={() => setPayments([{ ...payments[0], valor: total }])}>Preencher pagamento com {formatCurrency(total)}</button> : null}
+      {tab === "VENDA" ? unifiedStatus.isPending ? (
+        <section className="panel loading-state">Conferindo o modo de PDV da organização...</section>
+      ) : unifiedStatus.isError ? (
+        <section className="panel"><InlineNotice tone="error">Não foi possível consultar a configuração de PDV. Por segurança, o fechamento fica indisponível até atualizar.</InlineNotice><button className="ghost-button" type="button" onClick={()=>unifiedStatus.refetch()}>Tentar novamente</button></section>
+      ) : showIntelligentSale ? (
+        <UnifiedPdvPreviewPage />
+      ) : (
+        <PdvSaleLayout
+          searchControl={<label className="search-box pdv-search"><Search size={17}/><input
+            aria-label="Buscar produto, SKU ou código de barras" value={itemSearch}
+            onChange={(event)=>setItemSearch(event.target.value)}
+            placeholder="Nome do produto ou serviço..."/></label>}
+          catalogContent={<>
+            {catalog.map(item=><PdvProductCard key={item.id}
+              item={{...item,valorFormatado:formatCurrency(item.precoVenda)}}
+              onAdd={addToCart}
+              extra={item.tipo==="PRODUTO"&&item.produto?.controlaEstoque?`Estoque: ${money(item.produto?.estoque?.quantidade)}`:null}/>)}
+            {itemsQuery.isLoading&&<div className="mini-empty pdv-grid-empty">Buscando produtos...</div>}
+            {!itemsQuery.isLoading&&!catalog.length&&<div className="mini-empty pdv-grid-empty">Nenhum item encontrado. Experimente outro termo de busca.</div>}
+          </>}
+          cartCount={cart.length}
+          customerControl={<PdvCustomerPicker
+            clients={clients.filter(client=>!clientSearch||client.nome?.toLowerCase().includes(clientSearch.toLowerCase())||client.id===clientId)}
+            value={clientId} onChange={changeClient}
+            search={clientSearch} onSearch={setClientSearch}
+          />}
+          cartContent={cart.length?cart.map((line,index)=><CartLine
+            key={`${line.item.id}-${index}`} line={line} client={selectedClient}
+            canDiscount={canDiscount} onUpdate={patch=>updateCart(index,patch)}
+            onRemove={()=>removeCart(index)}/>):<PdvEmptyCart/>}
+          totalsContent={<PdvTotals subtotal={subtotal} total={total} formatMoney={formatCurrency}
+            discount={saleDiscount} addition={saleAddition} canDiscount={canDiscount}
+            onDiscountChange={canDiscount?value=>{setSaleDiscount(value);setTimeout(()=>useSinglePaymentTotal(round(subtotal-value+saleAddition)),0);}:undefined}
+            onAdditionChange={value=>{setSaleAddition(value);setTimeout(()=>useSinglePaymentTotal(round(subtotal-saleDiscount+value)),0);}}
+          />}
+          paymentsContent={<>
+            <PaymentEditor payments={payments} total={total} onChange={setPayments}/>
+            {payments.length===1&&money(payments[0].valor)!==total&&<button className="ghost-button pdv-fill-payment" type="button"
+              onClick={()=>setPayments([{...payments[0],valor:total}])}>Preencher pagamento com {formatCurrency(total)}</button>}
+          </>}
+          noticesContent={<>
             <InlineNotice tone="error">{saleError}</InlineNotice>
-            {!openSession ? <InlineNotice>O caixa está fechado. Abra uma sessão na aba Caixa para vender.</InlineNotice> : null}
-            <button className="primary-button primary-button--large" type="button" onClick={finalizeSale} disabled={saleMutation.isPending || !openSession}>{saleMutation.isPending ? "Finalizando..." : `Finalizar venda · ${formatCurrency(total)}`}</button>
-          </div>
-        </section>
+            {!openSession&&<InlineNotice>O caixa está fechado. Abra uma sessão na aba Caixa para vender.</InlineNotice>}
+          </>}
+          actionsContent={<PdvCheckoutButton total={total} formatMoney={formatCurrency}
+            onClick={finalizeSale} pending={saleMutation.isPending} disabled={!openSession}/>}
+        />
       ) : null}
 
       {tab === "COMANDAS" ? (
-        <section className="panel table-panel">
-          <div className="toolbar">
-            <div><strong className="table-main-text">Comandas da organização</strong><div className="table-subtext">Uma comanda pode reunir itens dos diferentes CNPJs; cada CNPJ fecha sua própria venda.</div></div>
-            <button className="primary-button" type="button" onClick={() => setCommandModal(true)}><Plus size={16} /> Nova comanda</button>
-          </div>
-          <div className="table-scroll">
-            <table className="pdv-command-table"><thead><tr><th>Nº</th><th>Cliente</th><th>Status</th><th>CNPJs envolvidos</th><th>Total</th><th>Ações</th></tr></thead>
-              <tbody>{commands.map((command) => {
-                const totalCommand = command.itens.reduce((sum, item) => sum + money(item.valorTotal), 0);
-                const companies = [...new Set(command.itens.map((item) => item.empresa?.nomeFantasia).filter(Boolean))];
-                return <tr key={command.id}><td>#{command.numero}</td><td><strong className="table-main-text">{command.cliente?.nome}</strong></td><td><span className="badge badge--muted">{commandStatusLabel(command.status)}</span></td><td>{companies.join(" + ") || "—"}</td><td>{formatCurrency(totalCommand)}</td><td><button className="icon-button table-action" type="button" onClick={() => setCommandDetailId(command.id)}><Eye size={15} /></button></td></tr>;
-              })}</tbody></table>
-          </div>
-        </section>
+        commandDetailId ? (
+          <section className="pdv-command-workspace">
+            <button className="ghost-button pdv-command-back" type="button" onClick={()=>setCommandDetailId(null)}>← Voltar às comandas</button>
+            <div className="pdv-command-workspace__heading">
+              <div><span className="pdv-eyebrow">COMANDA EM ATENDIMENTO</span><h2>{commandDetail?`Comanda #${commandDetail.numero}`:"Carregando comanda..."}</h2><p>{commandDetail?.cliente?.nome||"Consumidor não identificado"} · {selectedCompany?.nomeFantasia||"CNPJ selecionado"}</p></div>
+              <span className="badge badge--muted">{commandDetail?.status?commandStatusLabel(commandDetail.status):"Carregando"}</span>
+            </div>
+            {commandDetailQuery.isLoading?<div className="panel loading-state">Carregando comanda...</div>:commandDetail?(
+              <PdvCommandWorkspaceBody command={commandDetail} selectedCompany={selectedCompany}
+                clients={clients} updateCommandClientMutation={updateCommandClientMutation}
+                catalog={catalog} selectedCommandItem={selectedCommandItem}
+                commandItemId={commandItemId} setCommandItemId={setCommandItemId}
+                commandPetId={commandPetId} setCommandPetId={setCommandPetId}
+                commandQuantity={commandQuantity} setCommandQuantity={setCommandQuantity}
+                addCommandItemMutation={addCommandItemMutation}
+                removeCommandItemMutation={removeCommandItemMutation}
+                closeCommandMutation={closeCommandMutation}
+                commandPayments={commandPayments} setCommandPayments={setCommandPayments}
+                currentCompanyCommandItems={currentCompanyCommandItems}
+                currentCompanyCommandTotal={currentCompanyCommandTotal}
+                openSession={openSession} commandCloseError={commandCloseError}
+                onShowSale={setSaleDetailId}/>
+            ):<InlineNotice tone="error">Não foi possível localizar a comanda.</InlineNotice>}
+          </section>
+        ) : <PdvOrdersHome commands={commands} sales={sales} clients={clients} openSession={openSession}
+              selectedCompany={selectedCompany} onOpenCommand={setCommandDetailId}
+              onOpenSale={id=>{setSaleDetailId(id);setTab("HISTORICO");}}
+              onCreateCommand={id=>{setCommandError("");createCommandMutation.mutate(id);}}
+              creating={createCommandMutation.isPending} createError={commandError}
+              canQuoteView={hasPermission("financeiro.visualizar")}
+              canQuoteCreate={hasPermission("financeiro.gerenciar")}
+              onOpenCash={()=>setTab("CAIXA")}/>
       ) : null}
-
 
       {tab === "PACOTES" ? (
         <section className="panel table-panel">
@@ -616,20 +697,9 @@ export default function PdvPage() {
         {["SUPPLY", "WITHDRAW", "CLOSE"].includes(cashModal) ? <FormField label={cashModal === "CLOSE" ? "Observação" : "Descrição"}><textarea className="form-control form-control--textarea" value={cashForm.descricao} onChange={(event) => setCashForm((current) => ({ ...current, descricao: event.target.value }))} /></FormField> : null}
       </Modal>
 
-      <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={!commandClientId || createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
+      <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
         <InlineNotice tone="error">{commandError}</InlineNotice><FormField label="Cliente"><select className="form-control" value={commandClientId} onChange={(event) => setCommandClientId(event.target.value)}><option value="">Selecione...</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.nome}</option>)}</select></FormField>
       </Modal>
-
-      <Modal open={Boolean(commandDetailId)} title={commandDetail ? `Comanda #${commandDetail.numero}` : "Comanda"} subtitle={commandDetail?.cliente?.nome} onClose={() => setCommandDetailId(null)} size="lg">
-        {commandDetailQuery.isLoading ? <div className="loading-state">Carregando...</div> : commandDetail ? <div className="pdv-command-detail">
-          <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
-          <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{selectedCommandItem?.tipo === "SERVICO" && selectedCommandItem.servico?.exigePet ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending}><Plus size={15} /> Lançar</button></div>
-          <InlineNotice tone="error">{commandCloseError}</InlineNotice>
-          <div className="table-scroll"><table className="pdv-command-items"><thead><tr><th>CNPJ</th><th>Item</th><th>Pet</th><th>Qtd.</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{commandDetail.itens.map((item) => <tr key={item.id}><td>{item.empresa?.nomeFantasia}</td><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorTotal)}</td><td>{item.status}</td><td>{item.empresaId === selectedCompany?.id && item.status === "ATIVO" ? <button className="icon-button table-action" type="button" onClick={() => removeCommandItemMutation.mutate(item.id)}><Trash2 size={14} /></button> : null}</td></tr>)}</tbody></table></div>
-          {currentCompanyCommandItems.length ? <div className="pdv-command-close"><div><span>Fechar itens de <strong>{selectedCompany?.nomeFantasia}</strong></span><b>{formatCurrency(currentCompanyCommandTotal)}</b></div>{openSession ? <><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments} />{commandPayments.length === 1 && money(commandPayments[0].valor) !== currentCompanyCommandTotal ? <button className="ghost-button" type="button" onClick={() => setCommandPayments([{ ...commandPayments[0], valor: currentCompanyCommandTotal }])}>Preencher pagamento</button> : null}<button className="primary-button" type="button" disabled={closeCommandMutation.isPending} onClick={() => closeCommandMutation.mutate()}>Fechar este CNPJ · {formatCurrency(currentCompanyCommandTotal)}</button></> : <InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}</div> : <InlineNotice>Não há itens pendentes do CNPJ atualmente selecionado.</InlineNotice>}
-        </div> : null}
-      </Modal>
-
 
       <Modal open={Boolean(packageReceive)} title="Receber pacote" subtitle={packageReceive ? `${packageReceive.nome} · ${packageReceive.cliente?.nome}` : ""} onClose={() => setPackageReceive(null)} footer={<><button className="ghost-button" type="button" onClick={() => setPackageReceive(null)}>Cancelar</button><button className="primary-button" type="button" disabled={!openSession || receivePackageMutation.isPending} onClick={() => receivePackageMutation.mutate()}>Confirmar recebimento</button></>}>
         <InlineNotice tone="error">{packageError}</InlineNotice>

@@ -130,7 +130,9 @@ async function obterOuCriarComanda(tx, clienteId) {
     orderBy: { createdAt: "desc" },
   });
   if (aberta) return aberta;
-  return tx.comanda.create({ data: { clienteId, observacoes: "Comanda aberta pelo Banho e Tosa" } });
+  const tutor=await tx.cliente.findUnique({where:{id:clienteId},select:{organizacaoId:true}});
+  if(!tutor)throw new Error("CLIENTE_NAO_ENCONTRADO");
+  return tx.comanda.create({ data: { organizacaoId:tutor.organizacaoId,clienteId, observacoes: "Comanda aberta pelo Banho e Tosa" } });
 }
 
 async function consumirCreditoNoTx(tx, { empresaId, organizacaoId, usuarioId, clienteId, petId, itemCatalogoId, pacoteClienteItemId, quantidade, ordemItemId }) {

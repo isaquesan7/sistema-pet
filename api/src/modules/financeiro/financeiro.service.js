@@ -394,6 +394,11 @@ async function sourceForReconciliation(tx, { empresaId, origem, origemId }) {
   if (origem === "PAGAMENTO_VENDA") {
     const p = await tx.pagamento.findFirst({ where: { id: origemId, venda: { empresaId }, status: "APROVADO", forma: { not: "CREDITO_CLIENTE" } }, include: { venda: true } });
     if (!p) throw new Error("MOVIMENTO_NAO_ENCONTRADO");
+    // M.5.13: manual unified CREDIT installments must never be counted again
+    // as a full gross sale payment; their deposit ledger is per net repasse.
+    if(p.forma==="CARTAO_CREDITO"&&await tx.linhaRecebimentoManualUnificado.count({
+      where:{pagamentoId:p.id}
+    })) throw new Error("CARTAO_UNIFICADO_REPASSE_MANUAL_SEPARADO");
     return { direcao:"ENTRADA", valor:n(p.valor), data:p.pagoEm||p.createdAt, descricao:`Venda #${p.venda.numero} · ${p.forma}` };
   }
   if (origem === "BAIXA_TITULO") {
@@ -443,6 +448,11 @@ export async function desconciliar({ organizacaoId, empresaId, usuarioId, id }) 
   return prisma.$transaction(async(tx)=>{
     const atual=await tx.conciliacaoFinanceira.findFirst({where:{id,empresaId}});
     if(!atual) throw new Error("CONCILIACAO_NAO_ENCONTRADA");
+    // M.5.13: a manually attested card repasse is not safely reversible by
+    // the generic reconciliation-delete endpoint (would erase a cash entry).
+    // Exceptional corrections require a separately homologated compensation.
+    if(["REPASSE_CARTAO_MANUAL_UNIFICADO","ESTORNO_REPASSE_CARTAO_MANUAL_UNIFICADO"].includes(atual.origem))
+      throw new Error("REPASSE_CARTAO_MANUAL_EXIGE_REVISAO_FINANCEIRA");
     await tx.conciliacaoFinanceira.delete({where:{id}});
     await auditar(tx,{organizacaoId,empresaId,usuarioId,acao:"DESCONCILIAR",entidade:"CONCILIACAO_FINANCEIRA",entidadeId:id,dadosNovos:{origem:atual.origem,origemId:atual.origemId}});
     return atual;

@@ -1,0 +1,8 @@
+/** Read-only, auditable prepaid client balance until confirmed-payment integration is available. */
+import {useQuery} from "@tanstack/react-query";
+import api,{getApiErrorMessage} from "../lib/api.js";
+import {formatCurrency} from "../lib/formatters.js";
+export default function ClientCreditTab({clientId,companyId}){
+ const q=useQuery({queryKey:["client-credit",companyId,clientId],queryFn:async()=>(await api.get(`/clientes-financeiro/${clientId}/credito`)).data.dados});
+ return <div className="pv-client-credit"><div className="pv-client-finance-cards"><div><span>Saldo contábil em conferência</span><strong>{q.data?.saldoConfiavel?formatCurrency(q.data.saldo):"—"}</strong></div><div><span>Movimentações registradas</span><strong>{q.data?.movimentos?.length??"—"}</strong></div></div><p className="pv-dashboard-note">Crédito pré-pago não é fiado nem conta a receber. Esta tela é apenas consulta: uso no PDV, entradas e saques não estão habilitados. O saldo pode ficar indisponível quando houver lançamento ambíguo ou inconsistência.</p>{q.isLoading?<p>Consultando saldo...</p>:q.isError?<div className="alert alert--error">{getApiErrorMessage(q.error)}</div>:<div className="pv-detail-ledger">{q.data.movimentos.map(row=><div key={row.id}><strong>{({ENTRADA:"Crédito recebido",UTILIZACAO:"Crédito utilizado",ESTORNO:"Estorno"})[row.tipo]}</strong><span>{new Date(row.createdAt).toLocaleString("pt-BR")}</span><strong>{formatCurrency(row.valor)}</strong><small>{row.motivo||"Sem observações"}</small></div>)}{!q.data.movimentos.length&&<p className="pv-empty">Nenhuma movimentação registrada.</p>}</div>}</div>;
+}

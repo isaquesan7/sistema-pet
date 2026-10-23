@@ -6,6 +6,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Modal from "../components/Modal.jsx";
 import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
+import UnifiedRoleAcceptancePanel from "../components/UnifiedRoleAcceptancePanel.jsx";
+import {POINTVET_IS_STAGING} from "../lib/stagingEnvironment.js";
 
 const tabs = [
   ["marca", "Marca", Palette],
@@ -48,7 +50,7 @@ export default function SettingsPage() {
           <h1>Configurações</h1>
           <p>Personalize a organização e alimente os cadastros auxiliares do PointVet.</p>
         </div>
-        <div className="company-badge"><Building2 size={18} /><div><strong>{selectedCompany?.nomeFantasia}</strong><span>Configurações compartilhadas da organização</span></div></div>
+        <div className="company-badge"><Building2 size={18} /><div><strong>{selectedCompany?.nomeFantasia}</strong><span>Configurações compartilhadas da organização</span>{selectedOrganization?.id && <span>Identificador da organização (suporte): {selectedOrganization.id}</span>}</div></div>
       </section>
 
       <div className="settings-tabs" role="tablist">
@@ -66,9 +68,38 @@ export default function SettingsPage() {
       {activeTab === "especies" && <SpeciesSettings canManage={canManageAux} />}
       {activeTab === "racas" && <BreedsSettings canManage={canManageAux} />}
       {activeTab === "categorias" && <CategoriesSettings canManage={canManageCatalog} />}
-      {activeTab === "modulos" && <ModulesSettings canManage={canManageOrg} organizationId={selectedOrganization?.id} onModulesChanged={updateOrganizationModules} />}
+      {activeTab === "modulos" && <><ModulesSettings canManage={canManageOrg} organizationId={selectedOrganization?.id} onModulesChanged={updateOrganizationModules} /><UnifiedPdvPreference canManage={canManageOrg} organization={organizationQuery.data} onUpdated={(config)=>{
+        updateOrganizationConfig(selectedOrganization.id,config);
+        queryClient.invalidateQueries({queryKey:["organization"]});
+        queryClient.invalidateQueries({queryKey:["unified-pdv-status"]});
+        queryClient.invalidateQueries({queryKey:["unified-eligibility"]});
+      }}/>{POINTVET_IS_STAGING&&hasPermission("pdv.acessar")&&<PdvRoleAcceptanceSettings organizationId={selectedOrganization?.id} companyId={selectedCompany?.id}/>}</>}
     </div>
   );
+}
+
+/** Somente homologação: diagnóstico de autorização fora da frente de caixa.
+ * O servidor continua sendo a única fonte de RBAC; nenhuma mutação financeira.
+ */
+function PdvRoleAcceptanceSettings({organizationId,companyId}){
+ const [visible,setVisible]=useState(false);
+ const query=useQuery({
+  queryKey:["pdv-role-acceptance-settings",organizationId,companyId],
+  enabled:visible&&Boolean(organizationId&&companyId),
+  queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados,
+  retry:false,
+ });
+ return <section className="panel settings-section">
+  <div className="panel__heading"><div><span>Homologação · somente staging</span>
+   <h2>Perfis e permissões do PDV</h2>
+   <p>Área administrativa para conferir, sem conceder, acesso por CNPJ com contas independentes de atendente e supervisor.</p>
+  </div></div>
+  <button type="button" className="ghost-button" aria-expanded={visible}
+   onClick={()=>setVisible(v=>!v)}>{visible?"Ocultar diagnóstico":"Conferir permissões por CNPJ"}</button>
+  {visible&&<UnifiedRoleAcceptancePanel availability={!query.isFetching&&!query.isError?query.data:null}
+   refreshing={query.isFetching} errorMessage={query.isError?getApiErrorMessage(query.error):null}
+   onRefresh={()=>query.refetch()}/>}
+ </section>;
 }
 
 function BrandSettings({ organization, loading, canManage, onUpdated }) {
@@ -220,3 +251,20 @@ function SettingsRow({ title, meta, onEdit }) {
 }
 
 function MiniEmpty({ text }) { return <div className="mini-empty">{text}</div>; }
+
+/** A mesma tela /pdv alterna entre catálogo individual e inteligente, sem mudar gates financeiros. */
+function UnifiedPdvPreference({canManage,organization,onUpdated}){
+ const qc=useQueryClient();
+ const [error,setError]=useState("");
+ const mutation=useMutation({
+  mutationFn:async enabled=>(await api.patch("/organizacao/configuracao",{pdvUnificadoHabilitado:enabled})).data.configuracao,
+  onSuccess:config=>{setError("");onUpdated?.(config);qc.invalidateQueries({queryKey:["organization"]});},
+  onError:e=>setError(getApiErrorMessage(e))
+ });
+ const preferred=Boolean(organization?.configuracao?.pdvUnificadoHabilitado);
+ return <section className="panel settings-section"><div className="panel__heading"><div><span>PDV · Organização</span><h2>Modo de operação do PDV</h2><p>Uma única página para as vendas. Escolha quais empresas podem aparecer no catálogo; permissões, caixa e faturamento continuam separados.</p></div></div>
+ {error&&<div className="alert alert--error" role="alert">{error}</div>}
+ <label className="module-toggle"><div><strong>PDV Unificado Inteligente</strong><span>Reúne produtos e serviços dos CNPJs autorizados em uma comanda, com totais por empresa e fechamento protegido.</span></div><input type="checkbox" checked={preferred} disabled={!canManage||mutation.isPending||!organization} onChange={e=>mutation.mutate(e.target.checked)} aria-label="PDV Unificado Inteligente"/></label>
+ <p style={{fontSize:14,lineHeight:1.6,marginTop:12}}><strong>{preferred?"Selecionado: PDV Inteligente":"Selecionado: PDV por empresa"}.</strong> O catálogo muda na mesma página <strong>PDV</strong>. Esta preferência não libera pagamentos: o fechamento multiempresa depende de autorização independente na API, de caixas válidos e dos controles de segurança. Sem autorização, vendas individuais continuam disponíveis temporariamente.</p>
+ </section>;
+}

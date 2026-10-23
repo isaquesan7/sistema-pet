@@ -1,0 +1,15 @@
+# PointVet M.5.59: disposable synthetic database seeder ONLY.
+# Build context MUST be the repository root to include shared admin-web libs.
+# This is not an API/production Dockerfile.
+FROM node:22-bookworm-slim
+WORKDIR /pointvet
+COPY api/package.json api/package-lock.json ./api/
+RUN cd api && npm ci --include=dev
+COPY api ./api
+COPY admin-web/src/lib ./admin-web/src/lib
+WORKDIR /pointvet/api
+# Prisma generate parses its config at build time but never contacts this
+# intentionally nonexistent placeholder connection. Runtime gets Railway's
+# private disposable DATABASE_URL; no real password is baked into the image.
+RUN DATABASE_URL=postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder npm run build
+CMD ["node", "scripts/pointvet-m559-seed.mjs"]
