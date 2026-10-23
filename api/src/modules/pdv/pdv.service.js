@@ -695,7 +695,7 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
 export async function listarOrcamentosPdv({organizacaoId,empresaId}){
  const rows=await prisma.orcamentoCliente.findMany({
   where:{organizacaoId,empresaId},
-  include:{cliente:{select:{id:true,nome:true,cpfCnpj:true}},itens:{select:{id:true,descricao:true,petId:true,pet:{select:{nome:true}}}}},
+  include:{cliente:{select:{id:true,nome:true,cpfCnpj:true}},itens:{select:{id:true,descricao:true,petId:true}}},
   orderBy:{createdAt:"desc"},take:100
  });
  return rows.map(row=>({
