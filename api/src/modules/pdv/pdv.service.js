@@ -706,52 +706,66 @@ export async function listarOrcamentosPdv({organizacaoId,empresaId}){
  }));
 }
 
-export async function listarComandas({ organizacaoId, busca, status }) {
+/** Tenant scope alone is insufficient: an operator must see only commands whose
+ * originating company or authorized item/sale belongs to the selected CNPJ.
+ * The multi-company engine has its own separately authorized endpoints. */
+function escopoComandaEmpresa(empresaId) {
+  if (!empresaId) throw new Error("EMPRESA_NAO_INFORMADA");
+  return { OR: [
+    { empresaOrigemId: empresaId },
+    { itens: { some: { empresaId } } },
+    { vendas: { some: { empresaId } } },
+  ] };
+}
+
+export async function listarComandas({ organizacaoId, empresaId, busca, status }) {
   return prisma.comanda.findMany({
     where: {
       organizacaoId,
       rascunhoUnificado: false,
-      ...(status ? { status } : {}),
-      ...(busca ? {
-        OR: [
+      AND: [
+        escopoComandaEmpresa(empresaId),
+        ...(busca ? [{ OR: [
           { cliente: { nome: { contains: busca, mode: "insensitive" } } },
-          { itens: { some: { descricao: { contains: busca, mode: "insensitive" } } } },
-        ],
-      } : {}),
+          { itens: { some: { empresaId, descricao: { contains: busca, mode: "insensitive" } } } },
+        ] }] : []),
+      ],
+      ...(status ? { status } : {}),
     },
     orderBy: { updatedAt: "desc" },
     take: 100,
     include: {
       cliente: { select: { id: true, nome: true, cpfCnpj: true, telefone: true, whatsapp: true } },
       itens: {
-        where: { status: { not: "CANCELADO" } },
+        where: { empresaId, status: { not: "CANCELADO" } },
         include: {
           empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
           itemCatalogo: { select: { id: true, nome: true, tipo: true } },
           pet: { select: { id: true, nome: true } },
         },
       },
-      vendas: { select: { id: true, numero: true, empresaId: true, status: true, valorTotal: true } },
+      vendas: { where: { empresaId }, select: { id: true, numero: true, empresaId: true, status: true, valorTotal: true } },
     },
   });
 }
 
-export async function criarComanda({ organizacaoId, dados }) {
+export async function criarComanda({ organizacaoId, empresaId, dados }) {
   return prisma.$transaction(async (tx) => {
     await validarCliente(tx, organizacaoId, dados.clienteId, false);
     return tx.comanda.create({
-      data: { organizacaoId, clienteId: dados.clienteId || null, observacoes: dados.observacoes || null },
+      data: { organizacaoId, clienteId: dados.clienteId || null, empresaOrigemId: empresaId, observacoes: dados.observacoes || null },
       include: { cliente: true },
     });
   });
 }
 
-export async function buscarComanda({ organizacaoId, id }) {
+export async function buscarComanda({ organizacaoId, empresaId, id }) {
   const comanda = await prisma.comanda.findFirst({
-    where: { id, organizacaoId, rascunhoUnificado: false },
+    where: { id, organizacaoId, rascunhoUnificado: false, AND: [escopoComandaEmpresa(empresaId)] },
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
+        where: { empresaId },
         include: {
           empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
           itemCatalogo: { select: { id: true, nome: true, tipo: true, precoVenda: true } },
@@ -760,6 +774,7 @@ export async function buscarComanda({ organizacaoId, id }) {
         orderBy: { createdAt: "asc" },
       },
       vendas: {
+        where: { empresaId },
         include: { empresa: { select: { id: true, nomeFantasia: true } }, pagamentos: true },
         orderBy: { createdAt: "desc" },
       },
@@ -771,12 +786,12 @@ export async function buscarComanda({ organizacaoId, id }) {
 
 /** Comanda de produtos inicialmente anônima pode ganhar tutor uma única vez.
  * O vínculo não pode ser trocado depois: protege pets e histórico financeiro. */
-export async function atribuirTutorComanda({organizacaoId,id,clienteId}){
+export async function atribuirTutorComanda({organizacaoId,empresaId,id,clienteId}){
  return prisma.$transaction(async tx=>{
   await validarCliente(tx,organizacaoId,clienteId,true);
-  const updated=await tx.comanda.updateMany({where:{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:{in:["ABERTA","PARCIALMENTE_FECHADA"]}},data:{clienteId}});
+  const updated=await tx.comanda.updateMany({where:{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:{in:["ABERTA","PARCIALMENTE_FECHADA"]},AND:[escopoComandaEmpresa(empresaId)]},data:{clienteId}});
   if(updated.count!==1){
-   const existing=await tx.comanda.findFirst({where:{id,organizacaoId,rascunhoUnificado:false},select:{id:true,clienteId:true,status:true}});
+   const existing=await tx.comanda.findFirst({where:{id,organizacaoId,rascunhoUnificado:false,AND:[escopoComandaEmpresa(empresaId)]},select:{id:true,clienteId:true,status:true}});
    if(!existing)throw new Error("COMANDA_NAO_ENCONTRADA");
    if(["FECHADA","CANCELADA"].includes(existing.status))throw new Error("COMANDA_FECHADA");
    throw new Error("COMANDA_TUTOR_IMUTAVEL");
@@ -788,7 +803,7 @@ export async function atribuirTutorComanda({organizacaoId,id,clienteId}){
 export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId, dados }) {
   return prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, organizacaoId },
+      where: { id: comandaId, organizacaoId, AND: [escopoComandaEmpresa(empresaId)] },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
     if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
@@ -840,7 +855,7 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
 export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId, comandaId, dados }) {
   const venda = await prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, organizacaoId },
+      where: { id: comandaId, organizacaoId, AND: [escopoComandaEmpresa(empresaId)] },
       include: {
         itens: {
           where: { empresaId, status: "ATIVO" },
