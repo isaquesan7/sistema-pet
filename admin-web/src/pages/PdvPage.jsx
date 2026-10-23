@@ -28,6 +28,7 @@ import InlineNotice from "../components/InlineNotice.jsx";
 import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
 import {normalizePdvQuantity,stepPdvQuantity,isValidPdvQuantity} from "../lib/pdvQuantity.js";
+import PdvOrdersHome from "../components/PdvOrdersHome.jsx";
 import "../pdv.css";
 
 const paymentLabels = {
@@ -578,22 +579,35 @@ export default function PdvPage() {
       ) : null}
 
       {tab === "COMANDAS" ? (
-        <section className="panel table-panel">
-          <div className="toolbar">
-            <div><strong className="table-main-text">Comandas da organização</strong><div className="table-subtext">Histórico e operação individual por CNPJ. Para uma nova comanda multiempresa, use a aba Venda do PDV Inteligente; nunca feche uma comanda unificada pela rotina legada.</div></div>
-            <button className="primary-button" type="button" onClick={() => setCommandModal(true)}><Plus size={16} /> Nova comanda</button>
-          </div>
-          <div className="table-scroll">
-            <table className="pdv-command-table"><thead><tr><th>Nº</th><th>Cliente</th><th>Status</th><th>CNPJs envolvidos</th><th>Total</th><th>Ações</th></tr></thead>
-              <tbody>{commands.map((command) => {
-                const totalCommand = command.itens.reduce((sum, item) => sum + money(item.valorTotal), 0);
-                const companies = [...new Set(command.itens.map((item) => item.empresa?.nomeFantasia).filter(Boolean))];
-                return <tr key={command.id}><td>#{command.numero}</td><td><strong className="table-main-text">{command.cliente?.nome}</strong></td><td><span className="badge badge--muted">{commandStatusLabel(command.status)}</span></td><td>{companies.join(" + ") || "—"}</td><td>{formatCurrency(totalCommand)}</td><td><button className="icon-button table-action" type="button" onClick={() => setCommandDetailId(command.id)}><Eye size={15} /></button></td></tr>;
-              })}</tbody></table>
-          </div>
-        </section>
+        commandDetailId ? (
+          <section className="pdv-command-workspace">
+            <button className="ghost-button pdv-command-back" type="button" onClick={()=>setCommandDetailId(null)}>← Voltar às comandas</button>
+            <div className="pdv-command-workspace__heading">
+              <div><span className="pdv-eyebrow">COMANDA EM ATENDIMENTO</span><h2>{commandDetail?`Comanda #${commandDetail.numero}`:"Carregando comanda..."}</h2><p>{commandDetail?.cliente?.nome||"Consumidor não identificado"} · {selectedCompany?.nomeFantasia||"CNPJ selecionado"}</p></div>
+              <span className="badge badge--muted">{commandDetail?.status?commandStatusLabel(commandDetail.status):"Carregando"}</span>
+            </div>
+            {commandDetailQuery.isLoading?<div className="panel loading-state">Carregando comanda...</div>:commandDetail?(
+              <PdvCommandWorkspaceBody command={commandDetail} selectedCompany={selectedCompany}
+                catalog={catalog} selectedCommandItem={selectedCommandItem}
+                commandItemId={commandItemId} setCommandItemId={setCommandItemId}
+                commandPetId={commandPetId} setCommandPetId={setCommandPetId}
+                addCommandItemMutation={addCommandItemMutation}
+                removeCommandItemMutation={removeCommandItemMutation}
+                closeCommandMutation={closeCommandMutation}
+                commandPayments={commandPayments} setCommandPayments={setCommandPayments}
+                currentCompanyCommandItems={currentCompanyCommandItems}
+                currentCompanyCommandTotal={currentCompanyCommandTotal}
+                openSession={openSession} commandCloseError={commandCloseError}
+                onShowSale={setSaleDetailId}/>
+            ):<InlineNotice tone="error">Não foi possível localizar a comanda.</InlineNotice>}
+          </section>
+        ) : <PdvOrdersHome commands={commands} sales={sales} clients={clients} openSession={openSession}
+              selectedCompany={selectedCompany} onOpenCommand={setCommandDetailId}
+              onOpenSale={id=>{setSaleDetailId(id);setTab("HISTORICO");}}
+              onCreateCommand={id=>{setCommandClientId(id);setCommandError("");setCommandModal(true);}}
+              creating={createCommandMutation.isPending} createError={commandError}
+              onOpenCash={()=>setTab("CAIXA")}/>
       ) : null}
-
 
       {tab === "PACOTES" ? (
         <section className="panel table-panel">
@@ -644,17 +658,6 @@ export default function PdvPage() {
       <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={!commandClientId || createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
         <InlineNotice tone="error">{commandError}</InlineNotice><FormField label="Cliente"><select className="form-control" value={commandClientId} onChange={(event) => setCommandClientId(event.target.value)}><option value="">Selecione...</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.nome}</option>)}</select></FormField>
       </Modal>
-
-      <Modal open={Boolean(commandDetailId)} title={commandDetail ? `Comanda #${commandDetail.numero}` : "Comanda"} subtitle={commandDetail?.cliente?.nome} onClose={() => setCommandDetailId(null)} size="lg">
-        {commandDetailQuery.isLoading ? <div className="loading-state">Carregando...</div> : commandDetail ? <div className="pdv-command-detail">
-          <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
-          <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{selectedCommandItem?.tipo === "SERVICO" && selectedCommandItem.servico?.exigePet ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending}><Plus size={15} /> Lançar</button></div>
-          <InlineNotice tone="error">{commandCloseError}</InlineNotice>
-          <div className="table-scroll"><table className="pdv-command-items"><thead><tr><th>CNPJ</th><th>Item</th><th>Pet</th><th>Qtd.</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{commandDetail.itens.map((item) => <tr key={item.id}><td>{item.empresa?.nomeFantasia}</td><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorTotal)}</td><td>{item.status}</td><td>{item.empresaId === selectedCompany?.id && item.status === "ATIVO" ? <button className="icon-button table-action" type="button" onClick={() => removeCommandItemMutation.mutate(item.id)}><Trash2 size={14} /></button> : null}</td></tr>)}</tbody></table></div>
-          {currentCompanyCommandItems.length ? <div className="pdv-command-close"><div><span>Fechar itens de <strong>{selectedCompany?.nomeFantasia}</strong></span><b>{formatCurrency(currentCompanyCommandTotal)}</b></div>{openSession ? <><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments} />{commandPayments.length === 1 && money(commandPayments[0].valor) !== currentCompanyCommandTotal ? <button className="ghost-button" type="button" onClick={() => setCommandPayments([{ ...commandPayments[0], valor: currentCompanyCommandTotal }])}>Preencher pagamento</button> : null}<button className="primary-button" type="button" disabled={closeCommandMutation.isPending} onClick={() => closeCommandMutation.mutate()}>Fechar este CNPJ · {formatCurrency(currentCompanyCommandTotal)}</button></> : <InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}</div> : <InlineNotice>Não há itens pendentes do CNPJ atualmente selecionado.</InlineNotice>}
-        </div> : null}
-      </Modal>
-
 
       <Modal open={Boolean(packageReceive)} title="Receber pacote" subtitle={packageReceive ? `${packageReceive.nome} · ${packageReceive.cliente?.nome}` : ""} onClose={() => setPackageReceive(null)} footer={<><button className="ghost-button" type="button" onClick={() => setPackageReceive(null)}>Cancelar</button><button className="primary-button" type="button" disabled={!openSession || receivePackageMutation.isPending} onClick={() => receivePackageMutation.mutate()}>Confirmar recebimento</button></>}>
         <InlineNotice tone="error">{packageError}</InlineNotice>
