@@ -38,7 +38,7 @@ test("company switch preserves unified workspace only inside the same authorized
 
 test("operator search clears stale tutor selection; reservation prevents editing it",()=>{
  const page=readFileSync(new URL("../src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
- assert.match(page,/function UnifiedPdvWorkspace\(\{openDraftId,initialClientId\}\)/);
+ assert.match(page,/function UnifiedPdvWorkspace\(\{openDraftId,initialClientId,initialPetId\}\)/);
  assert.match(page,/key=\{selectedOrganization\?\.id\|\|"sem-organizacao"\}/);
  assert.ok(page.includes('setClientSearch(value);setClientId("");setSelectedClient(null)'));
  assert.match(page,/setSelectedClient\(saved\.cliente\|\|null\)/);
