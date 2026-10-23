@@ -195,3 +195,9 @@
 .pdv-page .pdv-command-workspace .pdv-command-close>.primary-button{width:100%;justify-content:center;min-height:45px}
 .pdv-page .pdv-command-workspace .pdv-command-detail>.alert{grid-column:1}
 @media(max-width:1100px){.pdv-page .pdv-command-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-command-workspace .pdv-command-detail>*{grid-column:1!important;grid-row:auto!important}.pdv-page .pdv-command-workspace .pdv-command-detail>.table-scroll{min-height:180px}}
+
+/* Aba de orçamentos reaproveita ClientQuotesTab, sem criar checkout. */
+.pdv-page .pdv-orders-home__quotes{display:grid;gap:16px;min-width:0;padding:12px 0}
+.pdv-page .pdv-orders-home__quotes-client{display:grid;gap:8px;font-size:12px;font-weight:750;color:#4d5c78}
+.pdv-page .pdv-orders-home__quotes-client .form-control{min-height:42px;width:100%}
+.pdv-page .pdv-orders-home__quotes .pv-client-quotes{min-width:0}
