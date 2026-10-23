@@ -292,7 +292,10 @@ export default function PdvPage() {
     queryFn: async () => (await api.get("/pdv/vendas", { params: { limite: 60 } })).data.dados || [],
   });
   const commandsQuery = useQuery({
-    queryKey: ["pdv-commands", selectedOrganization?.id],
+    // M.5.71: consultas de comandas sao por CNPJ; nunca reutilizar o cache
+    // de outra empresa apenas porque ambas pertencem ao mesmo tenant.
+    queryKey: ["pdv-commands", selectedOrganization?.id, selectedCompany?.id],
+    enabled: Boolean(selectedOrganization?.id && selectedCompany?.id && hasPermission("pdv.acessar")),
     queryFn: async () => (await api.get("/pdv/comandas")).data.dados || [],
   });
   const quotesQuery=useQuery({
