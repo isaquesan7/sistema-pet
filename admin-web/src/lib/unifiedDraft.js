@@ -1,8 +1,13 @@
+import {isValidPdvQuantity} from "./pdvQuantity.js";
 /** Rebuild a saved management-PDV draft from its persisted, authorized snapshot.
  * Never depend on the current catalog search or treat old prices as approved. */
 export function buildUnifiedDraftPayload(clientId, lines) {
  if (typeof clientId !== "string" || !clientId.trim()) {
   throw new Error("Selecione um cliente antes de validar a comanda.");
+ }
+ for (const row of lines) {
+  if (!isValidPdvQuantity(row.tipo,row.quantidade)) throw new Error(row.tipo==="SERVICO"?"Serviços aceitam apenas quantidades inteiras a partir de 1.":"Quantidade inválida. Confira o peso ou as unidades do produto.");
+  if (row.tipo==="SERVICO"&&!row.petId) throw new Error("Selecione um pet para cada serviço antes de salvar a comanda.");
  }
  return {
   clienteId: clientId,
