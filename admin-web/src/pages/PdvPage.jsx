@@ -388,8 +388,9 @@ export default function PdvPage() {
   });
 
   const createCommandMutation = useMutation({
-    mutationFn: async () => (await api.post("/pdv/comandas", { clienteId: commandClientId || null })).data.comanda,
-    onSuccess: (comanda) => {
+    mutationFn: async (payload) => (await api.post("/pdv/comandas", { clienteId: payload?.clienteId ?? (commandClientId || null) })).data.comanda,
+    onSuccess: (comanda,variables) => {
+      if(variables?.petId)setCommandPetId(variables.petId);
       setCommandModal(false);
       setCommandClientId("");
       setCommandError("");
@@ -535,17 +536,18 @@ export default function PdvPage() {
       </section>
 
       <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
-        {[ ["VENDA", ShoppingCart, "Venda"], ["COMANDAS", WalletCards, intelligentPreference?"Comandas por CNPJ":"Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
+        {[ ["COMANDAS", WalletCards, "Comandas e ordens"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
           <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
       </nav>
 
+      {tab === "VENDA" && <button type="button" className="ghost-button pdv-order-back" onClick={()=>{setTab("COMANDAS");setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);invalidatePdv();}}>← Voltar às comandas</button>}
       {tab === "VENDA" ? unifiedStatus.isPending ? (
         <section className="panel loading-state">Conferindo o modo de PDV da organização...</section>
       ) : unifiedStatus.isError ? (
         <section className="panel"><InlineNotice tone="error">Não foi possível consultar a configuração de PDV. Por segurança, o fechamento fica indisponível até atualizar.</InlineNotice><button className="ghost-button" type="button" onClick={()=>unifiedStatus.refetch()}>Tentar novamente</button></section>
       ) : showIntelligentSale ? (
-        <UnifiedPdvPreviewPage />
+        <UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} />
       ) : (
         <PdvSaleLayout
           searchControl={<label className="search-box pdv-search"><Search size={17}/><input
@@ -589,23 +591,28 @@ export default function PdvPage() {
         />
       ) : null}
 
-      {tab === "COMANDAS" ? (
-        <section className="panel table-panel">
-          <div className="toolbar">
-            <div><strong className="table-main-text">Comandas da organização</strong><div className="table-subtext">Histórico e operação individual por CNPJ. Para uma nova comanda multiempresa, use a aba Venda do PDV Inteligente; nunca feche uma comanda unificada pela rotina legada.</div></div>
-            <button className="primary-button" type="button" onClick={() => setCommandModal(true)}><Plus size={16} /> Nova comanda</button>
-          </div>
-          <div className="table-scroll">
-            <table className="pdv-command-table"><thead><tr><th>Nº</th><th>Cliente</th><th>Status</th><th>CNPJs envolvidos</th><th>Total</th><th>Ações</th></tr></thead>
-              <tbody>{commands.map((command) => {
-                const totalCommand = command.itens.reduce((sum, item) => sum + money(item.valorTotal), 0);
-                const companies = [...new Set(command.itens.map((item) => item.empresa?.nomeFantasia).filter(Boolean))];
-                return <tr key={command.id}><td>#{command.numero}</td><td><strong className="table-main-text">{command.cliente?.nome}</strong></td><td><span className="badge badge--muted">{commandStatusLabel(command.status)}</span></td><td>{companies.join(" + ") || "—"}</td><td>{formatCurrency(totalCommand)}</td><td><button className="icon-button table-action" type="button" onClick={() => setCommandDetailId(command.id)}><Eye size={15} /></button></td></tr>;
-              })}</tbody></table>
-          </div>
-        </section>
-      ) : null}
-
+      {tab === "COMANDAS" && !commandDetailId ? <PdvOrdersHome
+        commands={commands} drafts={intelligentPreference?(unifiedDraftListQuery.data||[]):[]}
+        sales={sales} clients={clients} intelligent={showIntelligentSale}
+        openSession={openSession} companyName={selectedCompany?.nomeFantasia}
+        isLoading={commandsQuery.isLoading||salesQuery.isLoading||(intelligentPreference&&unifiedDraftListQuery.isLoading)}
+        creating={createCommandMutation.isPending} error={commandError}
+        onOpenCommand={order=>{setCommandDetailId(order.id);setCommandCloseError("");}}
+        onOpenDraft={draft=>{setUnifiedDraftToOpen(draft.id);setUnifiedInitialClient(null);setTab("VENDA");}}
+        onOpenSale={sale=>setSaleDetailId(sale.id)}
+        onCash={()=>setTab("CAIXA")}
+        onCreate={({clienteId:customerId,petId})=>{
+          setCommandError("");
+          setCommandPetId(petId||"");
+          if(showIntelligentSale){
+            setUnifiedDraftToOpen(null);setUnifiedInitialClient(customerId||"");
+            setTab("VENDA");
+          }else{
+            setCommandClientId(customerId||"");
+            createCommandMutation.mutate({clienteId:customerId||null,petId:petId||null});
+          }
+        }}
+      /> : null}
 
       {tab === "PACOTES" ? (
         <section className="panel table-panel">
