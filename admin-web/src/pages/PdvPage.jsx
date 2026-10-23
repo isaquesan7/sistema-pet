@@ -539,7 +539,7 @@ export default function PdvPage() {
 
   return (
     <div className="page-stack pdv-page">
-      <header className="pdv-hero" aria-label="Painel do ponto de venda">
+      <header className={tab==="COMANDAS"?"pdv-hero pdv-hero--order-mode":"pdv-hero"} aria-label="Painel do ponto de venda">
         <div className="pdv-hero__copy">
           <span className="pdv-hero__eyebrow">POINTVET <span aria-hidden="true">/</span> ATENDIMENTO</span>
           <h1>PDV e Comandas</h1>
@@ -555,12 +555,12 @@ export default function PdvPage() {
         <div><span>LIBERAÇÃO OPERACIONAL</span><h2>Fechamento multiempresa ainda restrito</h2><p>O catálogo inteligente e a comanda integrada estão disponíveis. Enquanto o checkout por CNPJ não for autorizado na API, você pode registrar uma venda individual pelo fluxo anterior, nesta mesma tela. Salve qualquer rascunho antes de alternar o modo temporário.</p></div>
         <button className="ghost-button" type="button" onClick={()=>setIndividualFallback(value=>!value)}>{individualFallback?"Voltar à comanda inteligente":"Venda individual temporária"} <Plus size={15}/></button>
       </section>}
-      <section className="pdv-summary-grid">
+      {tab!=="COMANDAS"&&<section className="pdv-summary-grid">
         <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje (CNPJ atual)</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
         <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje (CNPJ atual)</span><strong>{summary.vendasHoje || 0}</strong></div></div>
         <div className="pdv-summary-card"><WalletCards size={19} /><div><span>Comandas pendentes</span><strong>{summary.comandasAbertas || 0}</strong></div></div>
         <div className="pdv-summary-card"><Banknote size={19} /><div><span>Saldo inicial</span><strong>{formatCurrency(openSession?.valorAbertura || 0)}</strong></div></div>
-      </section>
+      </section>}
 
       <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
         {[ ["COMANDAS", WalletCards, "Comandas e ordens"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
