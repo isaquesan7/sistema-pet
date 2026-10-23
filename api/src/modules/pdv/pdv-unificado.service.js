@@ -37,7 +37,8 @@ export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteI
  const rows=itens.map(input=>{
   const item=map.get(input.itemCatalogoId);
   if(!item||item.empresaId!==input.empresaId)throw Error("ITEM_INVALIDO");
-  if(item.tipo==="SERVICO"&&item.servico?.exigePet&&!input.petId)throw Error("PET_OBRIGATORIO");
+  if(item.tipo==="SERVICO"&&!input.petId)throw Error("PET_OBRIGATORIO");
+  if(item.tipo==="SERVICO"&&(!Number.isInteger(input.quantidade)||input.quantidade<1))throw Error("QUANTIDADE_INVALIDA");
   // money in integer cents, quantities up to 3 fractional digits.
   const quantityMilli=Math.round(input.quantidade*1000);
   if(Math.abs(quantityMilli/1000-input.quantidade)>0.0000001)throw Error("QUANTIDADE_INVALIDA");
@@ -79,7 +80,7 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
    await tx.comandaItem.deleteMany({where:{comandaId:id,status:"ATIVO"}});
    comanda=await tx.comanda.findUnique({where:{id}});
   }else{
-   comanda=await tx.comanda.create({data:{clienteId:args.clienteId,rascunhoUnificado:true,status:"ABERTA"}});
+   comanda=await tx.comanda.create({data:{organizacaoId:args.organizacaoId,clienteId:args.clienteId,rascunhoUnificado:true,status:"ABERTA"}});
   }
   const linhas=previa.empresas.flatMap(g=>g.itens.map(l=>({
     comandaId:comanda.id,empresaId:l.empresaId,itemCatalogoId:l.itemCatalogoId,petId:l.petId,
@@ -141,7 +142,8 @@ export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,i
   const cat=line.itemCatalogo;
   if(!cat?.ativo||cat.empresaId!==line.empresaId)issues.push({itemId:line.id,codigo:"ITEM_INDISPONIVEL"});
   if(line.petId&&(!line.pet?.ativo||line.pet.clienteId!==draft.clienteId))issues.push({itemId:line.id,codigo:"PET_INVALIDO"});
-  if(cat?.servico?.exigePet&&!line.petId)issues.push({itemId:line.id,codigo:"PET_OBRIGATORIO"});
+  if(cat?.tipo==="SERVICO"&&!line.petId)issues.push({itemId:line.id,codigo:"PET_OBRIGATORIO"});
+  if(cat?.tipo==="SERVICO"&&!Number.isInteger(Number(line.quantidade)))issues.push({itemId:line.id,codigo:"QUANTIDADE_INVALIDA"});
   const unit=cents(line.valorUnitario),qty=Math.round(Number(line.quantidade)*1000);
   const expected=Math.round(unit*qty/1000)-cents(line.desconto);
   if(expected!==cents(line.valorTotal)||expected<0)issues.push({itemId:line.id,codigo:"VALOR_DIVERGENTE"});
