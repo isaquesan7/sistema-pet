@@ -61,9 +61,11 @@ async function garantirComanda(tx, atendimento) {
     if (existente && !["FECHADA", "CANCELADA"].includes(existente.status)) return existente;
   }
 
+  const tutor=await tx.cliente.findUnique({where:{id:atendimento.clienteId},select:{organizacaoId:true}});
+  if(!tutor)throw new Error("CLIENTE_NAO_ENCONTRADO");
   const comanda = await tx.comanda.create({
     data: {
-      organizacaoId: atendimento.organizacaoId,
+      organizacaoId: tutor.organizacaoId,
       clienteId: atendimento.clienteId,
       observacoes: `Comanda do atendimento clínico ${atendimento.id}`,
     },
