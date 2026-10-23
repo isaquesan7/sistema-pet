@@ -101,7 +101,7 @@ export async function converterOrcamentoEmRascunhoSomenteSandbox({
   if(current.itens.length!==quote.itens.length||
      cents(current.total)!==cents(quote.total))fail("M4B_PREVIA_DIVERGENTE");
   const comanda=await tx.comanda.create({data:{
-   clienteId,rascunhoUnificado:true,status:"ABERTA",
+   organizacaoId,clienteId,rascunhoUnificado:true,status:"ABERTA",
    observacoes:"Rascunho de orçamento aprovado #"+quote.numero+" (M.4B CI)"
   }});
   const mapped=new Map(parsed.vinculos.map(x=>[x.orcamentoItemId,x.itemCatalogoId]));
