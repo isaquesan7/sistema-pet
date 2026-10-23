@@ -730,6 +730,35 @@ export async function criarComanda({ organizacaoId, dados }) {
   });
 }
 
+/** Ajusta o tutor de uma comanda ainda aberta. Não mistura pets de tutores,
+ * não altera uma comanda multiempresa reservada e não executa venda.
+ */
+export async function atualizarClienteComanda({ organizacaoId, id, clienteId }) {
+  return prisma.$transaction(async (tx) => {
+    const comanda = await tx.comanda.findFirst({
+      where: { id, organizacaoId, rascunhoUnificado: false },
+      include: {
+        itens: {
+          where: { status: "ATIVO" },
+          include: { pet: { select: { id: true, clienteId: true } },
+            itemCatalogo: { select: { tipo: true } } },
+        },
+      },
+    });
+    if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
+    if (["FECHADA", "CANCELADA"].includes(comanda.status)) throw new Error("COMANDA_FECHADA");
+    await validarCliente(tx, organizacaoId, clienteId, false);
+    const services = comanda.itens.filter(line => line.itemCatalogo?.tipo === "SERVICO");
+    if (services.length && !clienteId) throw new Error("CLIENTE_OBRIGATORIO_SERVICO");
+    if (services.some(line => !line.pet || line.pet.clienteId !== clienteId)) throw new Error("PET_NAO_ENCONTRADO");
+    return tx.comanda.update({
+      where: { id },
+      data: { clienteId: clienteId || null },
+      include: { cliente: { include: { pets: { where: { ativo: true },select: { id: true,nome: true } } } } },
+    });
+  });
+}
+
 export async function buscarComanda({ organizacaoId, id }) {
   const comanda = await prisma.comanda.findFirst({
     where: { id, organizacaoId, rascunhoUnificado: false },
