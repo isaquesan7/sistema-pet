@@ -306,3 +306,12 @@
  .pdv-page .pdv-command-entry .pdv-command-add>.pdv-command-quantity{width:100%;max-width:none}
  .pdv-page .pdv-command-entry .pdv-command-add>.pdv-command-quantity input{max-width:none;width:100%}
 }
+
+/* A tela de comandas ocupa o primeiro plano: sem painel de indicadores duplicado. */
+.pdv-page .pdv-hero--order-mode{padding:12px 17px;min-height:auto;gap:12px}
+.pdv-page .pdv-hero--order-mode .pdv-hero__eyebrow{font-size:10px}
+.pdv-page .pdv-hero--order-mode h1{font-size:19px;line-height:1.25;margin:4px 0}
+.pdv-page .pdv-hero--order-mode .pdv-hero__copy>p{font-size:11px;line-height:1.4;margin:2px 0 7px}
+.pdv-page .pdv-hero--order-mode .pdv-session-badge{padding:8px 11px;min-height:0}
+.pdv-page .pdv-hero--order-mode .pdv-hero__chips{gap:6px}
+@media(max-width:830px){.pdv-page .pdv-hero--order-mode{flex-wrap:wrap}}
