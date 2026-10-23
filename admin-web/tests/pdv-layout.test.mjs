@@ -27,10 +27,10 @@ test("continua usando os mesmos fluxos de venda, comandas, caixa e cancelamento"
   'queryKey: ["pdv-items", selectedCompany?.id, itemSearch]',
   'api.post("/pdv/vendas"','api.post(`/pdv/comandas/${commandDetailId}/fechar`',
   'api.post(`/pdv/vendas/${cancelSale.id}/cancelar`',
-  'if (!openSession) return setSaleError','if (missingPet) return setSaleError',
+  'if (!openSession) return setSaleError','if(missingPet)return setSaleError',
   'hasPermission("pdv.aplicar_desconto")','hasPermission("pdv.cancelar_venda")',
   'onClick={finalizeSale}','<PaymentEditor payments={payments} total={total} onChange={setPayments}/>',
-  '<UnifiedPdvPreviewPage />'
+  '<UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} />'
  ])assert.ok(page.includes(marker),`Fluxo ausente: ${marker}`);
 });
 
