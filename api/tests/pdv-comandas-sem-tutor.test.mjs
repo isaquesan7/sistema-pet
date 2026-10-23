@@ -8,7 +8,7 @@ const migration=read("../prisma/migrations/20261023180000_comandas_sem_cliente/m
 const svc=read("../src/modules/pdv/pdv.service.js");
 const unif=read("../src/modules/pdv/pdv-unificado.service.js");
 test("migração retroativa mantém cliente e isola toda comanda por organização",()=>{
- assert.match(schema,/model Comanda \{[\s\S]*?organizacaoId String\s+clienteId String\?/);
+ assert.match(schema,/model Comanda \{[\s\S]*?organizacaoId String\s+empresaOrigemId String\?\s+clienteId String\?/);
  assert.match(schema,/cliente Cliente\? @relation/);
  assert.match(migration,/UPDATE "comandas" AS c[\s\S]*?FROM "clientes" AS cl/);
  assert.match(migration,/RAISE EXCEPTION/);
@@ -19,7 +19,7 @@ test("migração retroativa mantém cliente e isola toda comanda por organizaç�
 });
 test("toda criação de comanda preserva a organização e cliente opcional",()=>{
  assert.match(svc,/data: \{ organizacaoId, clienteId: dados.clienteId \|\| null/);
- assert.match(unif,/organizacaoId:args.organizacaoId,clienteId:args.clienteId\|\|null/);
+ assert.match(unif,/organizacaoId:args.organizacaoId,empresaOrigemId:args.empresaId,clienteId:args.clienteId\|\|null/);
  assert.match(read("../src/modules/consultorio/consultorio.service.js"),/organizacaoId: tutor.organizacaoId/);
  assert.match(read("../src/modules/banho-tosa/banho-tosa.service.js"),/organizacaoId:tutor.organizacaoId/);
 });
