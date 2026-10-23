@@ -27,7 +27,7 @@ import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
 import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
-import {normalizePdvQuantity,stepPdvQuantity} from "../lib/pdvQuantity.js";
+import {normalizePdvQuantity,stepPdvQuantity,isValidPdvQuantity} from "../lib/pdvQuantity.js";
 import "../pdv.css";
 
 const paymentLabels = {
@@ -76,7 +76,7 @@ function commandStatusLabel(status) {
 }
 
 function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
-  const needsPet = line.item.tipo === "SERVICO" && line.item.servico?.exigePet;
+  const needsPet = line.item.tipo === "SERVICO";
   const pets = client?.pets || [];
   return (
     <div className="pdv-cart-line">
@@ -487,7 +487,9 @@ export default function PdvPage() {
     setSaleError("");
     if (!openSession) return setSaleError("Abra um caixa antes de finalizar a venda.");
     if (!cart.length) return setSaleError("Adicione pelo menos um produto ou serviço.");
-    const missingPet = cart.some((line) => line.item.tipo === "SERVICO" && line.item.servico?.exigePet && !line.petId);
+    if (cart.some((line) => !isValidPdvQuantity(line.item.tipo,line.quantidade))) return setSaleError("Serviços exigem quantidades inteiras a partir de 1. Confira também as quantidades dos produtos.");
+    if (cart.some((line) => line.item.tipo === "SERVICO") && !clientId) return setSaleError("Selecione um tutor para os serviços.");
+    const missingPet = cart.some((line) => line.item.tipo === "SERVICO" && !line.petId);
     if (missingPet) return setSaleError("Selecione o pet dos serviços que exigem vínculo.");
     saleMutation.mutate();
   }
