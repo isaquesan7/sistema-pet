@@ -45,7 +45,7 @@ export function listOrderRows({commands=[],drafts=[],sales=[],quotes=[],filter="
  return rows.filter(row=>{
   const isOpen=["ABERTA","PARCIALMENTE_FECHADA","RESERVADA"].includes(row.status);
   const passes=filter==="ABERTAS"?(isOpen&&row.kind!=="ORCAMENTO"):filter==="FECHADAS"?
-   (!isOpen&&row.kind!=="ORCAMENTO"&&today(row.date)):row.kind==="ORCAMENTO";
+   (["FECHADA","FINALIZADA"].includes(row.status)&&row.kind!=="ORCAMENTO"&&today(row.date)):row.kind==="ORCAMENTO";
   if(!passes||normalized&&!row.searchValue.includes(normalized))return false;
   if(clientId&&row.order.cliente?.id!==clientId)return false;
   if(petId&&!(row.order.itens||[]).some(i=>i.petId===petId||i.pet?.id===petId))return false;
@@ -128,7 +128,7 @@ export default function PdvOrdersHome({
      <button className="primary-button" type="button" disabled={creating||(budget&&!clientId)} onClick={()=>
       budget?onStartQuote(clientId):onCreate({clienteId:clientId||null,petId:petId||null})}>
       {budget?<ArrowRight size={16}/>:<Plus size={17}/>}
-      {creating?"Abrindo...":budget?"Ir aos orçamentos do tutor":"Abrir nova comanda"}
+      {creating?"Abrindo...":budget?"Abrir perfil para orçamento":"Abrir nova comanda"}
      </button>
      <small>{intelligent?"Modo Inteligente: os valores continuam separados por empresa.":"Modo por empresa: a venda será registrada somente no CNPJ selecionado."} Serviços exigem tutor e pet válidos.</small>
     </div>
