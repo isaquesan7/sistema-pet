@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {isValidPdvQuantity,sanitizePdvQuantity,stepPdvQuantity,serviceNeedsTutorAndPet} from "../src/lib/pdvQuantity.js";
+import {initialPetForUnifiedService} from "../src/lib/unifiedDraft.js";
 const read=p=>readFileSync(new URL(p,import.meta.url),"utf8");
 const page=read("../src/pages/PdvPage.jsx"),home=read("../src/components/PdvOrdersHome.jsx"),unified=read("../src/pages/UnifiedPdvPreviewPage.jsx");
 test("serviços só permitem números inteiros positivos, sem arredondar fraude",()=>{
@@ -20,6 +21,18 @@ test("serviços só permitem números inteiros positivos, sem arredondar fraude"
  assert.equal(serviceNeedsTutorAndPet(service),true);
  assert.equal(serviceNeedsTutorAndPet(bulk),false);
 });
+test("pet escolhido ao abrir comanda permanece apenas em serviços do mesmo tutor",()=>{
+ const source={clientId:"tutor-A",initialClientId:"tutor-A",initialPetId:"pet-1",pets:[{id:"pet-1",ativo:true}]};
+ assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},source),"pet-1");
+ assert.equal(initialPetForUnifiedService({tipo:"PRODUTO"},source),"");
+ assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},{...source,clientId:"tutor-B"}),"");
+ assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},{...source,pets:[{id:"pet-2"}]}),"");
+ assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},{...source,pets:[{id:"pet-1",ativo:false}]}),"");
+ assert.match(page,/initialPetId=\\{unifiedInitialPet\\}/);
+ assert.match(page,/setUnifiedInitialPet\\(petId\\|\\|null\\)/);
+ assert.match(unified,/initialPetForUnifiedService\\(item/);
+});
+
 test("entrada do PDV é a central de comandas com abertura lateral e categorias",()=>{
  assert.match(page,/useState\("COMANDAS"\)/);
  assert.match(page,/<PdvOrdersHome/);
