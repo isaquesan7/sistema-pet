@@ -5,17 +5,17 @@ import {useQuery,useMutation,useQueryClient} from "@tanstack/react-query";
 import {Plus,Minus,Trash2,ShieldCheck,Search} from "lucide-react";
 import api,{getApiErrorMessage} from "../lib/api.js";
 import {formatCurrency} from "../lib/formatters.js";
-import {buildUnifiedDraftPayload,unifiedScopedQueryKey,visibleUnifiedClients,rehydrateUnifiedDraft,addUnifiedCatalogItem,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
+import {buildUnifiedDraftPayload,unifiedScopedQueryKey,visibleUnifiedClients,rehydrateUnifiedDraft,addUnifiedCatalogItem,initialPetForUnifiedService,updateUnifiedLine,removeUnifiedLine,unifiedPrecloseMessages} from "../lib/unifiedDraft.js";
 import {isBulkWeightProduct,stockUnitLabel,bulkGrams,bulkTotalCents,bulkFromGrams,bulkFromAmount,bulkScaleCheck} from "../lib/unifiedBulk.js";
 import {manualPaymentForms,defaultManualPayment,previewManualAllocation,previewManualReceipt} from "../lib/unifiedManualAllocation.js";
 import {useAuth} from "../context/AuthContext.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvPaymentPending,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
 import "../clients.css";
-export default function UnifiedPdvPreviewPage({openDraftId=null,initialClientId=null}){
+export default function UnifiedPdvPreviewPage({openDraftId=null,initialClientId=null,initialPetId=null}){
  const {selectedOrganization}=useAuth();
- return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"} openDraftId={openDraftId} initialClientId={initialClientId}/>;
+ return <UnifiedPdvWorkspace key={selectedOrganization?.id||"sem-organizacao"} openDraftId={openDraftId} initialClientId={initialClientId} initialPetId={initialPetId}/>;
 }
-function UnifiedPdvWorkspace({openDraftId,initialClientId}){
+function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
  const {selectedOrganization,selectedCompany,hasPermission}=useAuth();
  const scopedKey=(name,...details)=>unifiedScopedQueryKey(name,selectedOrganization?.id,selectedCompany?.id,...details);
  const [motivoCancelar,setMotivoCancelar]=useState("Revisão da comanda");
@@ -66,7 +66,16 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId}){
   if(!saved)return;
   restoredId.current=openDraftId;reopen(saved);
  },[openDraftId,draftList.data]);
- function add(item){const key=`nova:${++nextLineId.current}`;setLocalChanges(true);setSavedNotice("");setLines(rows=>addUnifiedCatalogItem(rows,item,key));preview.reset();}
+ function add(item){
+  const key=`nova:${++nextLineId.current}`;
+  const petId=initialPetForUnifiedService(item,{
+   clientId,initialClientId,initialPetId,
+   pets:clientDetails.data?.id===clientId?clientDetails.data.pets:[]
+  });
+  setLocalChanges(true);setSavedNotice("");
+  setLines(rows=>addUnifiedCatalogItem(rows,item,key).map(row=>row.lineKey===key?{...row,petId}:row));
+  preview.reset();
+ }
  function editBulk(row,raw){
   const parsed=row.modoGranel==="VALOR"?bulkFromAmount(raw,row.preco,row.unidade):bulkFromGrams(raw,row.unidade);
   const totalZero=!parsed.erro&&bulkTotalCents({...row,quantidade:parsed.quantidade})<1;
