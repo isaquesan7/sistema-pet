@@ -198,7 +198,7 @@ function PaymentEditor({ payments, total, onChange }) {
 
 /** Editor de comanda na tela principal; reaproveita as mutações transacionais existentes. */
 function PdvCommandWorkspaceBody({
- command,selectedCompany,catalog,selectedCommandItem,commandItemId,setCommandItemId,
+ command,selectedCompany,clients,updateCommandClientMutation,catalog,selectedCommandItem,commandItemId,setCommandItemId,
  commandPetId,setCommandPetId,commandQuantity,setCommandQuantity,addCommandItemMutation,removeCommandItemMutation,
  closeCommandMutation,commandPayments,setCommandPayments,currentCompanyCommandItems,
  currentCompanyCommandTotal,openSession,commandCloseError
@@ -206,6 +206,17 @@ function PdvCommandWorkspaceBody({
  const commandDetail=command;
  const commandClient=command.cliente;
  return (<div className="pdv-command-detail">
+          <div className="pdv-command-client-area">
+            <label>Cliente da comanda (obrigatório para serviços)
+              <select className="form-control" value={command.clienteId||""}
+                disabled={updateCommandClientMutation.isPending||["FECHADA","CANCELADA"].includes(command.status)}
+                onChange={e=>updateCommandClientMutation.mutate(e.target.value||null)}>
+                <option value="">Consumidor não identificado</option>
+                {clients.map(client=><option value={client.id} key={client.id}>{client.nome}</option>)}
+              </select>
+            </label>
+            {updateCommandClientMutation.isError&&<InlineNotice tone="error">{getApiErrorMessage(updateCommandClientMutation.error)}</InlineNotice>}
+          </div>
           <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
           <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select><label className="pdv-command-quantity">Qtd.<input className="form-control" type="number" min={selectedCommandItem?.tipo==="SERVICO"?1:0.001} step={selectedCommandItem?.tipo==="SERVICO"?1:0.001} value={commandQuantity} onChange={e=>setCommandQuantity(normalizePdvQuantity(selectedCommandItem?.tipo||"PRODUTO",e.target.value,commandQuantity))}/></label>{selectedCommandItem?.tipo === "SERVICO" ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending || !isValidPdvQuantity(selectedCommandItem?.tipo,commandQuantity) || (selectedCommandItem?.tipo==="SERVICO"&&(!commandClient||!commandPetId))}><Plus size={15} /> Lançar</button></div>
           <InlineNotice tone="error">{commandCloseError}</InlineNotice>
@@ -410,6 +421,12 @@ export default function PdvPage() {
     onError: (error) => setCommandError(getApiErrorMessage(error)),
   });
 
+  const updateCommandClientMutation = useMutation({
+    mutationFn: async clienteId => (await api.patch(`/pdv/comandas/${commandDetailId}/cliente`,{clienteId})).data.comanda,
+    onSuccess:()=>{setCommandPetId("");invalidatePdv();},
+    onError:()=>{},
+  });
+
   const addCommandItemMutation = useMutation({
     mutationFn: async () => {
       const item = catalog.find((entry) => entry.id === commandItemId);
@@ -609,6 +626,7 @@ export default function PdvPage() {
             </div>
             {commandDetailQuery.isLoading?<div className="panel loading-state">Carregando comanda...</div>:commandDetail?(
               <PdvCommandWorkspaceBody command={commandDetail} selectedCompany={selectedCompany}
+                clients={clients} updateCommandClientMutation={updateCommandClientMutation}
                 catalog={catalog} selectedCommandItem={selectedCommandItem}
                 commandItemId={commandItemId} setCommandItemId={setCommandItemId}
                 commandPetId={commandPetId} setCommandPetId={setCommandPetId}
