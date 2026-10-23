@@ -646,6 +646,8 @@ export default function PdvPage() {
               onOpenSale={id=>{setSaleDetailId(id);setTab("HISTORICO");}}
               onCreateCommand={id=>{setCommandError("");createCommandMutation.mutate(id);}}
               creating={createCommandMutation.isPending} createError={commandError}
+              canQuoteView={hasPermission("financeiro.visualizar")}
+              canQuoteCreate={hasPermission("financeiro.gerenciar")}
               onOpenCash={()=>setTab("CAIXA")}/>
       ) : null}
 
