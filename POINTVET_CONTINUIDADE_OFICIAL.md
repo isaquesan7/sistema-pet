@@ -1,3 +1,17 @@
+# M.5.71 — RESOLUÇÃO CONSCIENTE DA DIVERGÊNCIA PR #36 / PR #38 (23/10/2026)
+
+A PR #36 avançou após a abertura da PR #38, criando conflito em aproximadamente 15 arquivos. A reconciliação é deliberada e não aceita um merge automático que reintroduza edição irrestrita do tutor, checkout multiempresa prematuro ou a UX antiga. A árvore final da PR #38 conserva as implementações mais recentes e incorpora os objetivos úteis da #36:
+
+- A central de comandas da PR #38 substitui a tabela protótipo da PR #36, mantendo seus requisitos operacionais (abertura, busca, histórico, caixa e orçamentos).
+- Mantida a atribuição de tutor UMA vez à comanda inicialmente anônima via `PATCH /pdv/comandas/:id/tutor`; a rota mais antiga `/cliente`, que permitia trocar tutor enquanto aberta, NÃO deve ser reintroduzida sem regra clínica/auditoria específica.
+- Regras de quantidades inteiras para serviços e frações para produtos foram unificadas em `pdvQuantity.js`, revalidadas também antes de salvar um rascunho inteligente, preservando o contrato já autorizado.
+- Os testes exclusivos da PR #36 (`pdv-order-quantity.test.mjs`, `pdv-comanda-flow.contract.test.mjs`) foram trazidos e adaptados para os contratos atuais; workflow incluiu ambas as suítes.
+- Novidade adicional: `empresaOrigemId` na comanda, migração de backfill conservadora e autorização por CNPJ na leitura/edição do PDV individual. Não confundir com a autorização da API do motor Inteligente.
+- Não realizar squash da PR #36 na `main`, nem deploy por mero sucesso de CI. Conservar a PR #38 como DRAFT até integração API/migração isolada, inspeção visual e aceite operacional.
+- O teste CI descartável exercita a nova migração; não representa restore de staging/produção, nem autoriza alteração nos bancos da Pet King.
+
+---
+
 # M.5.71 — AJUSTE DE UX DAS 3 REFERÊNCIAS VISUAIS (23/10/2026) — SOMENTE PR #38 DRAFT
 
 **Referências do proprietário:** três screenshots de um PDV concorrente foram usadas apenas para hierarquia/fluxo operacional, não para copiar marca, cores, ícones ou telas. Requisito: central de ordens com abas, filtros e abertura lateral; detalhe da comanda com itens à esquerda e identificação/resumo/recebimento à direita; interface responsiva, particularmente 1366×768. Preservar identidade PointVet e dois CNPJs separados.
