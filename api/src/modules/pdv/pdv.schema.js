@@ -62,7 +62,7 @@ export const vendaSchema = z.object({
 });
 
 export const comandaSchema = z.object({
-  clienteId: z.string().min(1),
+  clienteId: z.string().min(1).optional().nullable(),
   observacoes: textOptional,
 });
 
