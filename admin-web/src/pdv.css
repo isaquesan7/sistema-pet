@@ -200,3 +200,109 @@
 .pdv-page .pdv-command-attach>select{flex:1 1 200px;max-width:320px}
 .pdv-page .pdv-command-attach>button{white-space:nowrap}
 @media(max-width:650px){.pdv-page .pdv-command-attach>select{max-width:none;width:100%}}
+
+
+/* M.5.71 — hierarquia operacional inspirada nas capturas recebidas.
+ * Mantem a paleta roxo/indigo do PointVet, sem reproduzir a identidade alheia. */
+.pdv-page .pdv-hero:has(~ .pdv-orders-home){padding-block:13px}
+.pdv-page .pdv-orders-main{padding-bottom:12px}
+.pdv-page .pdv-orders-tabs button span{font-size:10px;margin-left:4px;border-radius:7px;background:#f0edfd;color:#5e50b7;padding:2px 5px;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-orders-filters{padding-top:12px;display:grid;gap:10px}
+.pdv-page .pdv-orders-search{margin:0}
+.pdv-page .pdv-orders-filter-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pdv-page .pdv-orders-filter-line>label{display:grid;min-width:0;gap:5px;font-size:11px;color:#65738c;font-weight:700}
+.pdv-page .pdv-orders-filter-line .form-control{min-width:0;width:100%;height:39px}
+.pdv-page .pdv-orders-list-caption{display:grid;grid-template-columns:minmax(200px,2.1fr) minmax(115px,.7fr) minmax(95px,.5fr) minmax(63px,.37fr);gap:10px;padding:15px 13px 9px;border-bottom:1px solid #e8ebf4;color:#6c7890;font-size:10px;font-weight:800;letter-spacing:.055em}
+.pdv-page .pdv-orders-list-caption span:nth-child(3){text-align:right}
+.pdv-page .pdv-orders-list-caption span:last-child{text-align:right}
+.pdv-page .pdv-orders-list{max-height:490px;gap:0;overflow-y:auto}
+.pdv-page .pdv-order-row{grid-template-columns:minmax(59px,.40fr) minmax(160px,1.6fr) minmax(118px,.74fr) minmax(92px,.65fr) minmax(66px,.42fr);gap:11px;padding:14px 9px;border:0;border-bottom:1px solid #e8ebf4;border-radius:0;background:transparent}
+.pdv-page .pdv-order-row__identity strong{font-size:13px}
+.pdv-page .pdv-order-row__open{display:inline-flex;justify-content:flex-end;gap:4px;align-items:center;color:#5949bd;font-size:11px;font-weight:850}
+.pdv-page .pdv-order-row__open svg{flex:none}
+.pdv-page .pdv-orders-footnote{display:flex;align-items:center;gap:7px;border-top:1px solid #ebedf5;padding:11px 4px 0;font-size:10px;color:#7a859b}
+.pdv-page .pdv-orders-cash-status{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.pdv-page .pdv-orders-cash-status>strong{font-size:12px;color:#273451}
+.pdv-page .pdv-orders-cash-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pdv-page .pdv-orders-cash-actions>button{min-width:0;justify-content:center;min-height:38px;font-size:11px}
+.pdv-page .pdv-orders-cash-actions>.pdv-danger{color:#be425a;border-color:#f1cbd1}
+.pdv-page .pdv-orders-side-body>p{line-height:1.5}
+.pdv-page .pdv-order-workspace{padding:16px;gap:15px}
+.pdv-page .pdv-order-workspace__top>.pdv-order-status{margin-left:auto;flex:none}
+.pdv-page .pdv-order-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr) minmax(302px,34%);gap:14px;align-items:start}
+.pdv-page .pdv-command-main,.pdv-page .pdv-command-sidebar{min-width:0}
+.pdv-page .pdv-command-main{display:flex;flex-direction:column;min-height:450px;border:1px solid #e2e6f2;border-radius:13px;overflow:hidden;background:#fff}
+.pdv-page .pdv-command-entry{padding:12px 13px 11px;background:#fafbfe;border-bottom:1px solid #e8ebf3}
+.pdv-page .pdv-command-pane-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:11px}
+.pdv-page .pdv-command-pane-head>div>span{font-size:10px;letter-spacing:.10em;font-weight:850;color:#7568b2}
+.pdv-page .pdv-command-pane-head h3{font-size:15px;margin:3px 0 0;color:#243552}
+.pdv-page .pdv-command-pane-head>span{font-size:10px;color:#6d7890;text-align:right}
+.pdv-page .pdv-command-entry .pdv-command-add{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+.pdv-page .pdv-command-entry .pdv-command-add>select{min-width:140px;flex:1 1 145px}
+.pdv-page .pdv-command-entry .pdv-command-add>select:first-child{flex:2 1 235px}
+.pdv-page .pdv-command-entry .pdv-command-add>.primary-button{height:39px}
+.pdv-page .pdv-command-entry>small{display:block;padding-top:8px;color:#866c32;font-size:11px}
+.pdv-page .pdv-command-line-list{flex:1;display:grid;align-content:start;gap:9px;padding:13px;min-width:0}
+.pdv-page .pdv-command-line{display:flex;align-items:center;gap:12px;padding:13px 11px;border:1px solid #e3e6ef;border-radius:11px;background:#fff;min-width:0}
+.pdv-page .pdv-command-line.is-processed{background:#f8f9fb}
+.pdv-page .pdv-command-line__type{display:grid;place-items:center;border-radius:999px;width:28px;height:28px;flex:none;background:#eee9ff;color:#5746ae;font-size:12px;font-weight:850}
+.pdv-page .pdv-command-line__type.is-service{background:#fff3dd;color:#a56e19}
+.pdv-page .pdv-command-line__name{display:grid;gap:5px;min-width:0;flex:1}
+.pdv-page .pdv-command-line__name>strong{font-size:12px;color:#273450;overflow-wrap:anywhere}
+.pdv-page .pdv-command-line__name>small{font-size:10px;color:#6d7890;overflow-wrap:anywhere}
+.pdv-page .pdv-command-line__value{display:grid;gap:5px;justify-items:end;flex:none}
+.pdv-page .pdv-command-line__value>strong{font-size:12px;color:#263553;white-space:nowrap}
+.pdv-page .pdv-command-line__value>small{font-size:10px;color:#68758d;white-space:nowrap}
+.pdv-page .pdv-command-line__locked{font-size:11px;color:#adb5c4;padding:0 6px}
+.pdv-page .pdv-command-list-total{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px;margin-top:auto;background:#f6f5fd;border-top:1px solid #e8e4fa;color:#3d3a65;font-size:12px}
+.pdv-page .pdv-command-list-total strong{font-size:15px;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-command-sidebar{display:grid;gap:12px}
+.pdv-page .pdv-command-identification,.pdv-page .pdv-command-sidebar .pdv-command-close{border:1px solid #e1e5f0;border-radius:13px;overflow:hidden;background:#fff}
+.pdv-page .pdv-command-section-title{display:flex;align-items:center;gap:8px;background:linear-gradient(100deg,#6757d8,#5366d5);color:#fff;padding:12px 13px;font-size:13px;font-weight:800}
+.pdv-page .pdv-command-side-body{display:grid;gap:11px;padding:13px}
+.pdv-page .pdv-command-side-body>label{display:grid;gap:3px;min-width:0}
+.pdv-page .pdv-command-side-body>label>span{font-size:10px;color:#76819a}
+.pdv-page .pdv-command-side-body>label>strong{font-size:12px;font-weight:750;overflow-wrap:anywhere;color:#2d3953}
+.pdv-page .pdv-command-sidebar .pdv-command-attach{display:grid;gap:9px;padding:12px;border:1px solid #ddd9f7;background:#f8f6ff;border-radius:9px}
+.pdv-page .pdv-command-sidebar .pdv-command-attach p{margin:0;font-size:11px;line-height:1.5}
+.pdv-page .pdv-command-sidebar .pdv-command-attach select{width:100%;max-width:none}
+.pdv-page .pdv-command-summary-line{display:flex;align-items:baseline;justify-content:space-between;gap:9px;color:#5a687e;font-size:12px}
+.pdv-page .pdv-command-summary-line>strong{font-size:12px;color:#26324e;text-align:right;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-command-summary-breakdown{display:grid;gap:10px;border-top:1px solid #eceef4;padding-top:11px}
+.pdv-page .pdv-command-summary-breakdown>strong{font-size:11px;color:#5c52a2}
+.pdv-page .pdv-command-summary-breakdown>small{font-size:11px;color:#6d7890}
+.pdv-page .pdv-command-summary-line--total{padding:12px 0;border-top:1px solid #e4e7ef;font-size:13px;font-weight:850}
+.pdv-page .pdv-command-summary-line--total>strong{font-size:17px;color:#2a3153}
+.pdv-page .pdv-command-company-receipt{display:grid;gap:7px;background:#f7f6fc;border-radius:9px;border:1px solid #e7e3f8;padding:12px}
+.pdv-page .pdv-command-company-receipt>span{font-size:11px;font-weight:750;color:#6255a4}
+.pdv-page .pdv-command-company-receipt>strong{font-size:19px;color:#252e53}
+.pdv-page .pdv-command-company-receipt>small,.pdv-page .pdv-command-side-body>small{font-size:10px;line-height:1.6;color:#6b7790}
+.pdv-page .pdv-command-sidebar .pdv-command-close{display:block;grid-column:auto;grid-row:auto;padding:0}
+.pdv-page .pdv-command-sidebar .pdv-payment-list{min-width:0}
+.pdv-page .pdv-command-sidebar .pdv-payment-row{grid-template-columns:minmax(0,1fr) minmax(65px,.65fr) 25px;gap:5px}
+.pdv-page .pdv-command-sidebar .pdv-payment-row>*:nth-child(3){grid-column:1/-1}
+.pdv-page .pdv-command-sidebar .pdv-payment-labels{display:none}
+.pdv-page .pdv-command-confirm{width:100%;justify-content:center;min-height:45px;line-height:1.3;text-align:center;white-space:normal}
+@media(max-width:1120px){
+ .pdv-page .pdv-orders-home{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-orders-side{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pdv-page .pdv-order-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr) minmax(285px,.72fr)}
+}
+@media(max-width:830px){
+ .pdv-page .pdv-order-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-orders-list-caption{display:none}
+ .pdv-page .pdv-orders-side{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:620px){
+ .pdv-page .pdv-orders-filter-line{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-order-row{grid-template-columns:55px minmax(0,1fr) auto;gap:7px;padding:13px 7px}
+ .pdv-page .pdv-order-row__date{grid-column:2;grid-row:2}
+ .pdv-page .pdv-order-row__total{grid-column:2;grid-row:3;text-align:left}
+ .pdv-page .pdv-order-row__open{grid-column:3;grid-row:1/span 3;align-self:center}
+ .pdv-page .pdv-orders-cash-actions{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-command-line{flex-wrap:wrap}
+ .pdv-page .pdv-command-line__value{margin-left:auto}
+ .pdv-page .pdv-command-entry .pdv-command-add>*{width:100%;max-width:none}
+ .pdv-page .pdv-command-entry .pdv-command-add>.pdv-command-quantity{width:100%;max-width:none}
+ .pdv-page .pdv-command-entry .pdv-command-add>.pdv-command-quantity input{max-width:none;width:100%}
+}
