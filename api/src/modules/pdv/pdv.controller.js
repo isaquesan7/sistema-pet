@@ -204,6 +204,13 @@ export async function cancelarVenda(req, res, next) {
   } catch (error) { mapError(error, res, next); }
 }
 
+export async function listarOrcamentosPdv(req,res,next){
+ try{
+  const dados=await service.listarOrcamentosPdv({organizacaoId:req.organizacao.id,empresaId:req.empresa.id});
+  return res.json({success:true,dados});
+ }catch(error){next(error);}
+}
+
 export async function listarComandas(req, res, next) {
   try {
     const dados = await service.listarComandas({
