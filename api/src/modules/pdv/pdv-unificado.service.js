@@ -6,7 +6,7 @@ import {createHash} from "node:crypto";
 import prisma from "../../config/prisma.js";
 import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 const itemSchema=z.object({empresaId:z.string().min(1),itemCatalogoId:z.string().min(1),petId:z.string().nullable().optional(),quantidade:z.number().positive().max(10000)}).strict();
-export const previewSchema=z.object({clienteId:z.string().min(1),itens:z.array(itemSchema).min(1).max(100)}).strict();
+export const previewSchema=z.object({clienteId:z.string().min(1).nullable().optional(),itens:z.array(itemSchema).min(1).max(100)}).strict();
 const cents=v=>Math.round(Number(v)*100);
 const serialize=amount=>(amount/100).toFixed(2);
 async function empresasAutorizadas({organizacaoId,usuarioId},db=prisma){
@@ -23,8 +23,8 @@ export async function buscarCatalogo({organizacaoId,usuarioId,empresaId,busca=""
  return items.map(({produto,...x})=>({...x,unidade:produto?.unidade||null,precoVenda:Number(x.precoVenda),empresa:byCompany.get(x.empresaId)}));
 }
 export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteId,itens},db=prisma){
- const cliente=await db.cliente.findFirst({where:{id:clienteId,organizacaoId,ativo:true},select:{id:true,nome:true}});
- if(!cliente)throw Error("CLIENTE_NAO_ENCONTRADO");
+ const cliente=clienteId?await db.cliente.findFirst({where:{id:clienteId,organizacaoId,ativo:true},select:{id:true,nome:true}}):null;
+ if(clienteId&&!cliente)throw Error("CLIENTE_NAO_ENCONTRADO");
  const companies=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},db);
  const allowed=new Map(companies.map(c=>[c.id,c]));
  if(itens.some(x=>!allowed.has(x.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
@@ -37,7 +37,9 @@ export async function simularComanda({organizacaoId,usuarioId,empresaId,clienteI
  const rows=itens.map(input=>{
   const item=map.get(input.itemCatalogoId);
   if(!item||item.empresaId!==input.empresaId)throw Error("ITEM_INVALIDO");
+  if(item.tipo==="SERVICO"&&!clienteId)throw Error("CLIENTE_OBRIGATORIO_SERVICO");
   if(item.tipo==="SERVICO"&&!input.petId)throw Error("PET_OBRIGATORIO");
+  if(!clienteId&&input.petId)throw Error("PET_INVALIDO");
   if(item.tipo==="SERVICO"&&(!Number.isInteger(input.quantidade)||input.quantidade<1))throw Error("QUANTIDADE_INVALIDA");
   // money in integer cents, quantities up to 3 fractional digits.
   const quantityMilli=Math.round(input.quantidade*1000);
@@ -64,23 +66,23 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
   const previa=await simularComanda(args,tx);
   let comanda;
   if(id){
-   const atual=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId:args.organizacaoId}},include:{itens:true,vendas:{select:{id:true}}}});
+   const atual=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,organizacaoId:args.organizacaoId},include:{itens:true,vendas:{select:{id:true}}}});
    if(!atual)throw Error("RASCUNHO_NAO_ENCONTRADO");
    if(atual.status!=="ABERTA"||atual.vendas?.length)throw Error("RASCUNHO_BLOQUEADO");
    if(atual.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
-   if(atual.clienteId!==args.clienteId)throw Error("RASCUNHO_CLIENTE_IMUTAVEL");
+   if(atual.clienteId&&(atual.clienteId!==(args.clienteId||null)))throw Error("RASCUNHO_CLIENTE_IMUTAVEL");
    const ativa=await tx.reservaFechamentoUnificado.findFirst({where:{comandaId:id,status:"RESERVADA"},select:{id:true}});
    if(ativa)throw Error("RASCUNHO_RESERVADO");
    const empresaIds=[...new Set(atual.itens.map(x=>x.empresaId))];
    const acessiveis=await empresasAutorizadas(args,tx);
    if(empresaIds.some(e=>!acessiveis.some(a=>a.id===e)))throw Error("EMPRESA_SEM_ACESSO");
-   const updated=await tx.comanda.updateMany({where:{id,rascunhoUnificado:true,status:"ABERTA",versaoRascunho:versao},data:{versaoRascunho:{increment:1}}});
+   const updated=await tx.comanda.updateMany({where:{id,rascunhoUnificado:true,status:"ABERTA",versaoRascunho:versao},data:{versaoRascunho:{increment:1},clienteId:args.clienteId||null}});
    if(updated.count!==1)throw Error("RASCUNHO_DESATUALIZADO");
    // Replaced lines are only draft lines. No comanda has been invoiced.
    await tx.comandaItem.deleteMany({where:{comandaId:id,status:"ATIVO"}});
    comanda=await tx.comanda.findUnique({where:{id}});
   }else{
-   comanda=await tx.comanda.create({data:{organizacaoId:args.organizacaoId,clienteId:args.clienteId,rascunhoUnificado:true,status:"ABERTA"}});
+   comanda=await tx.comanda.create({data:{organizacaoId:args.organizacaoId,clienteId:args.clienteId||null,rascunhoUnificado:true,status:"ABERTA"}});
   }
   const linhas=previa.empresas.flatMap(g=>g.itens.map(l=>({
     comandaId:comanda.id,empresaId:l.empresaId,itemCatalogoId:l.itemCatalogoId,petId:l.petId,
@@ -93,7 +95,7 @@ export async function salvarRascunho(args,{id=null,versao=null}={}){
 export async function listarRascunhos({organizacaoId,usuarioId,empresaId,somenteConcluidas=false}){
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
  const allowed=new Map(acessiveis.map(a=>[a.id,a]));
- const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:somenteConcluidas?"FECHADA":"ABERTA",cliente:{organizacaoId}},select:{id:true,numero:true,status:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{id:true,empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,descricao:true,valorUnitario:true,valorTotal:true,status:true,itemCatalogo:{select:{tipo:true,produto:{select:{unidade:true}},servico:{select:{exigePet:true}}}}}}},orderBy:{createdAt:"desc"},take:100});
+ const list=await prisma.comanda.findMany({where:{rascunhoUnificado:true,status:somenteConcluidas?"FECHADA":"ABERTA",organizacaoId},select:{id:true,numero:true,status:true,versaoRascunho:true,createdAt:true,cliente:{select:{id:true,nome:true}},itens:{select:{id:true,empresaId:true,itemCatalogoId:true,petId:true,quantidade:true,descricao:true,valorUnitario:true,valorTotal:true,status:true,itemCatalogo:{select:{tipo:true,produto:{select:{unidade:true}},servico:{select:{exigePet:true}}}}}}},orderBy:{createdAt:"desc"},take:100});
  // A linha salva é a fonte da retomada; buscas de catálogo podem estar filtradas,
  // ter sido renomeadas ou não devolver um item desativado. Pre-close revalida tudo.
  return list.filter(x=>x.itens.length&&x.itens.every(i=>allowed.has(i.empresaId))).slice(0,50).map(x=>({...x,itens:x.itens.map(({itemCatalogo,...i})=>({...i,quantidade:Number(i.quantidade),valorUnitario:Number(i.valorUnitario),valorTotal:Number(i.valorTotal),empresaNome:allowed.get(i.empresaId).nomeFantasia,tipo:itemCatalogo?.tipo,unidade:itemCatalogo?.produto?.unidade||null,exigePet:Boolean(itemCatalogo?.servico?.exigePet)}))}));
@@ -129,11 +131,11 @@ export async function listarEstornosUnificados({organizacaoId,usuarioId,empresaI
  * All seller allocations are evaluated from persisted draft rows, not client totals.
  */
 export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
- const draft=await db.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+ const draft=await db.comanda.findFirst({where:{id,rascunhoUnificado:true,organizacaoId},
   include:{cliente:{select:{id:true,nome:true,ativo:true}},itens:{where:{status:"ATIVO"},include:{itemCatalogo:{select:{id:true,ativo:true,precoVenda:true,empresaId:true,servico:{select:{exigePet:true}}}},pet:{select:{id:true,clienteId:true,ativo:true}}}},vendas:{select:{id:true}}}});
  if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
  if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
- if(draft.status!=="ABERTA"||draft.vendas.length||!draft.cliente.ativo||!draft.itens.length)throw Error("RASCUNHO_BLOQUEADO");
+ if(draft.status!=="ABERTA"||draft.vendas.length||(draft.cliente&&!draft.cliente.ativo)||!draft.itens.length)throw Error("RASCUNHO_BLOQUEADO");
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},db);
  const allowed=new Map(acessiveis.map(e=>[e.id,e]));
  if(draft.itens.some(i=>!allowed.has(i.empresaId)))throw Error("EMPRESA_SEM_ACESSO");
@@ -142,6 +144,7 @@ export async function conferirPreFechamento({organizacaoId,usuarioId,empresaId,i
   const cat=line.itemCatalogo;
   if(!cat?.ativo||cat.empresaId!==line.empresaId)issues.push({itemId:line.id,codigo:"ITEM_INDISPONIVEL"});
   if(line.petId&&(!line.pet?.ativo||line.pet.clienteId!==draft.clienteId))issues.push({itemId:line.id,codigo:"PET_INVALIDO"});
+  if(cat?.tipo==="SERVICO"&&!draft.clienteId)issues.push({itemId:line.id,codigo:"CLIENTE_OBRIGATORIO"});
   if(cat?.tipo==="SERVICO"&&!line.petId)issues.push({itemId:line.id,codigo:"PET_OBRIGATORIO"});
   if(cat?.tipo==="SERVICO"&&!Number.isInteger(Number(line.quantidade)))issues.push({itemId:line.id,codigo:"QUANTIDADE_INVALIDA"});
   const unit=cents(line.valorUnitario),qty=Math.round(Number(line.quantidade)*1000);
