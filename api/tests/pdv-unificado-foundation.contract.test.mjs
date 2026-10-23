@@ -47,7 +47,7 @@ test("unified draft persistence never reaches payments, stock or fiscal",()=>{
 test("legacy detail view cannot expose multi-company drafts and cross-company role must be active",()=>{
  const legacy=get("../src/modules/pdv/pdv.service.js");
  const unified=get("../src/modules/pdv/pdv-unificado.service.js");
- assert.match(legacy,/where: \{ id, cliente: \{ organizacaoId \}, rascunhoUnificado: false \}/);
+ assert.match(legacy,/where: \{ id, organizacaoId, rascunhoUnificado: false \}/);
  assert.match(unified,/v\.cargo\?\.ativo/);
 });
 
