@@ -51,3 +51,14 @@ test("histórico e rascunho multiempresa são consultados pela central",()=>{
  assert.match(home,/kind:"UNIFICADA"/);
  assert.match(home,/kind:"VENDA"/);
 });
+
+test("aba de orçamentos usa registros reais e a mesma permissão de leitura do financeiro",()=>{
+ const apiRoutes=readFileSync(new URL("../../api/src/modules/pdv/pdv.routes.js",import.meta.url),"utf8");
+ const apiService=readFileSync(new URL("../../api/src/modules/pdv/pdv.service.js",import.meta.url),"utf8");
+ assert.match(apiRoutes,/router.get\("\/orcamentos", exigirPermissao\("financeiro.visualizar"\), controller.listarOrcamentosPdv\)/);
+ assert.match(apiService,/where:\{organizacaoId,empresaId\}/);
+ assert.match(page,/api.get\("\/pdv\/orcamentos"\)/);
+ assert.match(page,/onOpenQuote=\{quote=>navigate/);
+ assert.match(home,/kind:"ORCAMENTO"/);
+ assert.match(home,/filter==="FECHADAS"/);
+});
