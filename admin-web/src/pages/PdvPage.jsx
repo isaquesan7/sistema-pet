@@ -199,7 +199,7 @@ function PaymentEditor({ payments, total, onChange }) {
 /** Editor de comanda na tela principal; reaproveita as mutações transacionais existentes. */
 function PdvCommandWorkspaceBody({
  command,selectedCompany,catalog,selectedCommandItem,commandItemId,setCommandItemId,
- commandPetId,setCommandPetId,addCommandItemMutation,removeCommandItemMutation,
+ commandPetId,setCommandPetId,commandQuantity,setCommandQuantity,addCommandItemMutation,removeCommandItemMutation,
  closeCommandMutation,commandPayments,setCommandPayments,currentCompanyCommandItems,
  currentCompanyCommandTotal,openSession,commandCloseError
 }){
@@ -207,7 +207,7 @@ function PdvCommandWorkspaceBody({
  const commandClient=command.cliente;
  return (<div className="pdv-command-detail">
           <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
-          <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select>{selectedCommandItem?.tipo === "SERVICO" && selectedCommandItem.servico?.exigePet ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending}><Plus size={15} /> Lançar</button></div>
+          <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select><label className="pdv-command-quantity">Qtd.<input className="form-control" type="number" min={selectedCommandItem?.tipo==="SERVICO"?1:0.001} step={selectedCommandItem?.tipo==="SERVICO"?1:0.001} value={commandQuantity} onChange={e=>setCommandQuantity(normalizePdvQuantity(selectedCommandItem?.tipo||"PRODUTO",e.target.value,commandQuantity))}/></label>{selectedCommandItem?.tipo === "SERVICO" ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending || !isValidPdvQuantity(selectedCommandItem?.tipo,commandQuantity) || (selectedCommandItem?.tipo==="SERVICO"&&(!commandClient||!commandPetId))}><Plus size={15} /> Lançar</button></div>
           <InlineNotice tone="error">{commandCloseError}</InlineNotice>
           <div className="table-scroll"><table className="pdv-command-items"><thead><tr><th>CNPJ</th><th>Item</th><th>Pet</th><th>Qtd.</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{commandDetail.itens.map((item) => <tr key={item.id}><td>{item.empresa?.nomeFantasia}</td><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorTotal)}</td><td>{item.status}</td><td>{item.empresaId === selectedCompany?.id && item.status === "ATIVO" ? <button className="icon-button table-action" type="button" onClick={() => removeCommandItemMutation.mutate(item.id)}><Trash2 size={14} /></button> : null}</td></tr>)}</tbody></table></div>
           {currentCompanyCommandItems.length ? <div className="pdv-command-close"><div><span>Fechar itens de <strong>{selectedCompany?.nomeFantasia}</strong></span><b>{formatCurrency(currentCompanyCommandTotal)}</b></div>{openSession ? <><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments} />{commandPayments.length === 1 && money(commandPayments[0].valor) !== currentCompanyCommandTotal ? <button className="ghost-button" type="button" onClick={() => setCommandPayments([{ ...commandPayments[0], valor: currentCompanyCommandTotal }])}>Preencher pagamento</button> : null}<button className="primary-button" type="button" disabled={closeCommandMutation.isPending} onClick={() => closeCommandMutation.mutate()}>Fechar este CNPJ · {formatCurrency(currentCompanyCommandTotal)}</button></> : <InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}</div> : <InlineNotice>Não há itens pendentes do CNPJ atualmente selecionado.</InlineNotice>}
@@ -248,6 +248,7 @@ export default function PdvPage() {
   const [commandDetailId, setCommandDetailId] = useState(null);
   const [commandItemId, setCommandItemId] = useState("");
   const [commandPetId, setCommandPetId] = useState("");
+  const [commandQuantity,setCommandQuantity]=useState(1);
   const [commandPayments, setCommandPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
   const [commandCloseError, setCommandCloseError] = useState("");
 
@@ -397,12 +398,13 @@ export default function PdvPage() {
   });
 
   const createCommandMutation = useMutation({
-    mutationFn: async () => (await api.post("/pdv/comandas", { clienteId: commandClientId })).data.comanda,
+    mutationFn: async (requestedClientId) => (await api.post("/pdv/comandas", { clienteId: (requestedClientId ?? commandClientId) || null })).data.comanda,
     onSuccess: (comanda) => {
       setCommandModal(false);
       setCommandClientId("");
       setCommandError("");
       setCommandDetailId(comanda.id);
+      setTab("COMANDAS");
       invalidatePdv();
     },
     onError: (error) => setCommandError(getApiErrorMessage(error)),
@@ -414,13 +416,14 @@ export default function PdvPage() {
       return (await api.post(`/pdv/comandas/${commandDetailId}/itens`, {
         itemCatalogoId: commandItemId,
         petId: item?.tipo === "SERVICO" && item.servico?.exigePet ? (commandPetId || null) : null,
-        quantidade: 1,
+        quantidade: normalizePdvQuantity(item?.tipo||"PRODUTO",commandQuantity,1),
         desconto: 0,
       })).data;
     },
     onSuccess: () => {
       setCommandItemId("");
       setCommandPetId("");
+      setCommandQuantity(1);
       invalidatePdv();
     },
     onError: (error) => setCommandCloseError(getApiErrorMessage(error)),
@@ -609,6 +612,7 @@ export default function PdvPage() {
                 catalog={catalog} selectedCommandItem={selectedCommandItem}
                 commandItemId={commandItemId} setCommandItemId={setCommandItemId}
                 commandPetId={commandPetId} setCommandPetId={setCommandPetId}
+                commandQuantity={commandQuantity} setCommandQuantity={setCommandQuantity}
                 addCommandItemMutation={addCommandItemMutation}
                 removeCommandItemMutation={removeCommandItemMutation}
                 closeCommandMutation={closeCommandMutation}
@@ -622,7 +626,7 @@ export default function PdvPage() {
         ) : <PdvOrdersHome commands={commands} sales={sales} clients={clients} openSession={openSession}
               selectedCompany={selectedCompany} onOpenCommand={setCommandDetailId}
               onOpenSale={id=>{setSaleDetailId(id);setTab("HISTORICO");}}
-              onCreateCommand={id=>{setCommandClientId(id);setCommandError("");setCommandModal(true);}}
+              onCreateCommand={id=>{setCommandError("");createCommandMutation.mutate(id);}}
               creating={createCommandMutation.isPending} createError={commandError}
               onOpenCash={()=>setTab("CAIXA")}/>
       ) : null}
@@ -673,7 +677,7 @@ export default function PdvPage() {
         {["SUPPLY", "WITHDRAW", "CLOSE"].includes(cashModal) ? <FormField label={cashModal === "CLOSE" ? "Observação" : "Descrição"}><textarea className="form-control form-control--textarea" value={cashForm.descricao} onChange={(event) => setCashForm((current) => ({ ...current, descricao: event.target.value }))} /></FormField> : null}
       </Modal>
 
-      <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={!commandClientId || createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
+      <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
         <InlineNotice tone="error">{commandError}</InlineNotice><FormField label="Cliente"><select className="form-control" value={commandClientId} onChange={(event) => setCommandClientId(event.target.value)}><option value="">Selecione...</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.nome}</option>)}</select></FormField>
       </Modal>
 
