@@ -28,9 +28,9 @@ test("pet escolhido ao abrir comanda permanece apenas em serviços do mesmo tuto
  assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},{...source,clientId:"tutor-B"}),"");
  assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},{...source,pets:[{id:"pet-2"}]}),"");
  assert.equal(initialPetForUnifiedService({tipo:"SERVICO"},{...source,pets:[{id:"pet-1",ativo:false}]}),"");
- assert.match(page,/initialPetId=\\{unifiedInitialPet\\}/);
- assert.match(page,/setUnifiedInitialPet\\(petId\\|\\|null\\)/);
- assert.match(unified,/initialPetForUnifiedService\\(item/);
+ assert.match(page,/initialPetId=\{unifiedInitialPet\}/);
+ assert.match(page,/setUnifiedInitialPet\(petId\|\|null\)/);
+ assert.match(unified,/initialPetForUnifiedService\(item/);
 });
 
 test("entrada do PDV é a central de comandas com abertura lateral e categorias",()=>{
