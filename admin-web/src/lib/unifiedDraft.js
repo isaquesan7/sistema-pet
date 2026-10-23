@@ -69,6 +69,13 @@ export function addUnifiedCatalogItem(lines,item,lineKey){
  }];
 }
 
+/** Aplica o pet escolhido na abertura apenas a um novo serviço desse mesmo tutor.
+ * Nunca associa um pet a um rascunho reaberto, outro tutor ou cadastro não carregado. */
+export function initialPetForUnifiedService(item,{clientId,initialClientId,initialPetId,pets}={}){
+ if(item?.tipo!=="SERVICO"||!clientId||clientId!==initialClientId||!initialPetId)return "";
+ return Array.isArray(pets)&&pets.some(p=>p.id===initialPetId&&p.ativo!==false)?initialPetId:"";
+}
+
 export function updateUnifiedLine(lines,lineKey,patch){
  return lines.map(row=>{
   if(row.lineKey!==lineKey)return row;
