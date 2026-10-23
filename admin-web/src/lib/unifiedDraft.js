@@ -1,11 +1,11 @@
 /** Rebuild a saved management-PDV draft from its persisted, authorized snapshot.
  * Never depend on the current catalog search or treat old prices as approved. */
 export function buildUnifiedDraftPayload(clientId, lines) {
- if (typeof clientId !== "string" || !clientId.trim()) {
-  throw new Error("Selecione um cliente antes de validar a comanda.");
+ if (lines.some(item=>item.tipo==="SERVICO"&&(!clientId||!item.petId))) {
+  throw new Error("Tutor e pet são obrigatórios para qualquer serviço.");
  }
  return {
-  clienteId: clientId,
+  clienteId: clientId || null,
   itens: lines.map(item => ({
    empresaId: item.empresaId,
    itemCatalogoId: item.itemCatalogoId,
@@ -70,7 +70,14 @@ export function addUnifiedCatalogItem(lines,item,lineKey){
 }
 
 export function updateUnifiedLine(lines,lineKey,patch){
- return lines.map(row=>row.lineKey===lineKey?{...row,...patch}:row);
+ return lines.map(row=>{
+  if(row.lineKey!==lineKey)return row;
+  if(row.tipo==="SERVICO" && Object.prototype.hasOwnProperty.call(patch,"quantidade")){
+    const q=Number(patch.quantidade);
+    if(!Number.isSafeInteger(q)||q<1)return row;
+  }
+  return {...row,...patch};
+ });
 }
 
 export function removeUnifiedLine(lines,lineKey){
