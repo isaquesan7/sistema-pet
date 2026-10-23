@@ -28,6 +28,8 @@ import InlineNotice from "../components/InlineNotice.jsx";
 import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
 import "../pdv.css";
+import PdvOrdersHome from "../components/PdvOrdersHome.jsx";
+import {sanitizePdvQuantity,stepPdvQuantity,serviceNeedsTutorAndPet} from "../lib/pdvQuantity.js";
 
 const paymentLabels = {
   DINHEIRO: "Dinheiro",
@@ -75,7 +77,7 @@ function commandStatusLabel(status) {
 }
 
 function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
-  const needsPet = line.item.tipo === "SERVICO" && line.item.servico?.exigePet;
+  const needsPet = serviceNeedsTutorAndPet(line.item);
   const pets = client?.pets || [];
   return (
     <div className="pdv-cart-line">
@@ -94,15 +96,15 @@ function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
         ) : null}
       </div>
       <div className="pdv-quantity">
-        <button type="button" onClick={() => onUpdate({ quantidade: Math.max(0.001, round(line.quantidade - 1)) })}><Minus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item,line.quantidade,-1) })}><Minus size={13} /></button>
         <input
           type="number"
-          min="0.001"
-          step="0.001"
+          min={needsPet?"1":"0.001"}
+          step={needsPet?"1":"0.001"}
           value={line.quantidade}
-          onChange={(event) => onUpdate({ quantidade: Math.max(0.001, Number(event.target.value) || 1) })}
+          onChange={(event) => onUpdate({ quantidade: sanitizePdvQuantity(line.item,event.target.value,line.quantidade) })}
         />
-        <button type="button" onClick={() => onUpdate({ quantidade: round(line.quantidade + 1) })}><Plus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item,line.quantidade,1) })}><Plus size={13} /></button>
       </div>
       {canDiscount ? (
         <label className="pdv-line-discount">
@@ -208,7 +210,7 @@ export default function PdvPage() {
   const intelligentCheckoutEnabled=unifiedStatus.data?.checkoutUnificadoDisponivel===true;
   const [individualFallback,setIndividualFallback]=useState(false);
   const showIntelligentSale=intelligentPreference&&!(individualFallback&&!intelligentCheckoutEnabled);
-  const [tab, setTab] = useState("VENDA");
+  const [tab, setTab] = useState("COMANDAS");
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
@@ -227,6 +229,9 @@ export default function PdvPage() {
   const [commandError, setCommandError] = useState("");
   const [commandDetailId, setCommandDetailId] = useState(null);
   const [commandItemId, setCommandItemId] = useState("");
+  const [commandQuantity,setCommandQuantity]=useState(1);
+  const [unifiedDraftToOpen,setUnifiedDraftToOpen]=useState(null);
+  const [unifiedInitialClient,setUnifiedInitialClient]=useState(null);
   const [commandPetId, setCommandPetId] = useState("");
   const [commandPayments, setCommandPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
   const [commandCloseError, setCommandCloseError] = useState("");
@@ -242,7 +247,7 @@ export default function PdvPage() {
   useEffect(()=>{
     setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
-    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);
+    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);
     setCashModal(null);setCommandModal(false);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
@@ -277,6 +282,11 @@ export default function PdvPage() {
   const commandsQuery = useQuery({
     queryKey: ["pdv-commands", selectedOrganization?.id],
     queryFn: async () => (await api.get("/pdv/comandas")).data.dados || [],
+  });
+  const unifiedDraftListQuery=useQuery({
+    queryKey:["pdv-unified-order-list",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(intelligentPreference&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv-unificado/rascunhos")).data.dados||[],retry:false
   });
   const pendingPackagesQuery = useQuery({
     queryKey: ["pdv-pending-packages", selectedCompany?.id],
@@ -319,6 +329,7 @@ export default function PdvPage() {
     queryClient.invalidateQueries({ queryKey: ["pdv-cash"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-sales"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-commands"] });
+    queryClient.invalidateQueries({ queryKey: ["pdv-unified-order-list"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-command-detail"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-items"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-pending-packages"] });
@@ -377,12 +388,12 @@ export default function PdvPage() {
   });
 
   const createCommandMutation = useMutation({
-    mutationFn: async () => (await api.post("/pdv/comandas", { clienteId: commandClientId })).data.comanda,
+    mutationFn: async () => (await api.post("/pdv/comandas", { clienteId: commandClientId || null })).data.comanda,
     onSuccess: (comanda) => {
       setCommandModal(false);
       setCommandClientId("");
       setCommandError("");
-      setCommandDetailId(comanda.id);
+      setCommandDetailId(comanda.id);setTab("COMANDAS");
       invalidatePdv();
     },
     onError: (error) => setCommandError(getApiErrorMessage(error)),
@@ -394,12 +405,12 @@ export default function PdvPage() {
       return (await api.post(`/pdv/comandas/${commandDetailId}/itens`, {
         itemCatalogoId: commandItemId,
         petId: item?.tipo === "SERVICO" && item.servico?.exigePet ? (commandPetId || null) : null,
-        quantidade: 1,
+        quantidade: commandQuantity,
         desconto: 0,
       })).data;
     },
     onSuccess: () => {
-      setCommandItemId("");
+      setCommandItemId("");setCommandQuantity(1);
       setCommandPetId("");
       invalidatePdv();
     },
@@ -464,7 +475,9 @@ export default function PdvPage() {
   }
 
   function updateCart(index, patch) {
-    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch,
+      quantidade:patch.quantidade===undefined?line.quantidade:sanitizePdvQuantity(line.item,patch.quantidade,line.quantidade)
+    } : line));
   }
 
   function removeCart(index) {
@@ -486,8 +499,10 @@ export default function PdvPage() {
     setSaleError("");
     if (!openSession) return setSaleError("Abra um caixa antes de finalizar a venda.");
     if (!cart.length) return setSaleError("Adicione pelo menos um produto ou serviço.");
-    const missingPet = cart.some((line) => line.item.tipo === "SERVICO" && line.item.servico?.exigePet && !line.petId);
-    if (missingPet) return setSaleError("Selecione o pet dos serviços que exigem vínculo.");
+    const hasService=cart.some(line=>serviceNeedsTutorAndPet(line.item));
+    if(hasService&&!clientId)return setSaleError("Para lançar serviços, selecione o tutor e o pet.");
+    const missingPet=cart.some(line=>serviceNeedsTutorAndPet(line.item)&&!line.petId);
+    if(missingPet)return setSaleError("Para lançar serviços, selecione o tutor e o pet.");
     saleMutation.mutate();
   }
 
