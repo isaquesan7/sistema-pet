@@ -5,6 +5,7 @@
 import {useMemo,useState} from "react";
 import {Eye,Plus,Search,ReceiptText,Store} from "lucide-react";
 import {formatCurrency,formatDateTime} from "../lib/formatters.js";
+import ClientQuotesTab from "./ClientQuotesTab.jsx";
 
 function isToday(value){
  if(!value)return false;
@@ -14,7 +15,7 @@ function isToday(value){
 }
 const money=value=>{const n=Number(value);return Number.isFinite(n)?n:0};
 const statusText={ABERTA:"Aberta",PARCIALMENTE_FECHADA:"Parcialmente fechada",FECHADA:"Fechada",CANCELADA:"Cancelada"};
-export default function PdvOrdersHome({commands=[],sales=[],clients=[],openSession,selectedCompany,onOpenCommand,onOpenSale,onCreateCommand,creating=false,createError="",onOpenCash}){
+export default function PdvOrdersHome({commands=[],sales=[],clients=[],openSession,selectedCompany,onOpenCommand,onOpenSale,onCreateCommand,creating=false,createError="",onOpenCash,canQuoteView=false,canQuoteCreate=false}){
  const [filter,setFilter]=useState("OPEN");
  const [search,setSearch]=useState("");
  const [clientId,setClientId]=useState("");
@@ -36,7 +37,7 @@ export default function PdvOrdersHome({commands=[],sales=[],clients=[],openSessi
     <button type="button" className={filter==="CLOSED"?"active":""} aria-pressed={filter==="CLOSED"} onClick={()=>setFilter("CLOSED")}>Finalizadas hoje ({todaySales.length})</button>
     <button type="button" className={filter==="QUOTES"?"active":""} aria-pressed={filter==="QUOTES"} onClick={()=>setFilter("QUOTES")}>Orçamentos</button>
    </div>
-   {filter==="QUOTES"?<div className="pdv-orders-home__empty">Orçamentos têm fluxo próprio. Esta lista será conectada ao módulo de orçamentos; nenhum orçamento é tratado como venda.</div>:<>
+   {filter==="QUOTES"?<div className="pdv-orders-home__quotes"> {!canQuoteView?<p className="pdv-orders-home__empty">Sem permissão para visualizar orçamentos.</p>:<><label className="pdv-orders-home__quotes-client">Tutor para consultar orçamentos<select className="form-control" value={clientId} onChange={e=>setClientId(e.target.value)}><option value="">Selecione o tutor...</option>{clients.map(c=><option value={c.id} key={c.id}>{c.nome}</option>)}</select></label>{clientId?<ClientQuotesTab key={clientId} clientId={clientId} companyId={selectedCompany?.id} pets={clients.find(c=>c.id===clientId)?.pets||[]} canCreate={canQuoteCreate} canPreview={false}/>:<div className="pdv-orders-home__empty">Selecione um tutor para consultar ou criar orçamentos deste CNPJ.</div>}</>}</div>:<>
     <label className="search-box pdv-search"><Search size={17}/><input aria-label="Buscar comanda, cliente ou pet" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar nº, tutor ou pet..."/></label>
     <div className="table-scroll"><table className="pdv-orders-home__table"><thead><tr><th>Nº</th><th>Tutor / pet</th><th>Data</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead><tbody>
      {matches.map(item=><tr key={item.id}>
