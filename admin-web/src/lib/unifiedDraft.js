@@ -1,6 +1,13 @@
+import {isValidPdvQuantity} from "./pdvQuantity.js";
+
 /** Rebuild a saved management-PDV draft from its persisted, authorized snapshot.
  * Never depend on the current catalog search or treat old prices as approved. */
 export function buildUnifiedDraftPayload(clientId, lines) {
+ for(const item of lines) {
+  if(!isValidPdvQuantity(item,item.quantidade)) {
+   throw new Error(item.tipo==="SERVICO"?"Serviços aceitam somente quantidades inteiras maiores que zero.":"Quantidade inválida: confira o peso ou unidade do produto.");
+  }
+ }
  if (lines.some(item=>item.tipo==="SERVICO"&&(!clientId||!item.petId))) {
   throw new Error("Tutor e pet são obrigatórios para qualquer serviço.");
  }
