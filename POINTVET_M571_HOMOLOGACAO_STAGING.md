@@ -1,5 +1,16 @@
 # PointVet M.5.71 — Plano de homologação controlada (PR #38)
 
+## Atualização do gate de backup — usuário confirmou criação (23/10/2026)
+
+- **Backup manual criado:** o proprietário informou em conversa que concluiu a criação do backup do Postgres do ambiente staging. Registro é **declaração do operador**, ainda sem ID, timestamp, checksum, status de snapshot ou prova de restauração acessível ao conector. **Não afirmar snapshot verificado ou restauro aprovado.**
+- **CI:** PR #38 código `c8cf2720d028325d08aff5a16313d32ed6165fe9` passou `validate` e `isolated-postgres` no [run #40043436413](https://github.com/isaquesan7/sistema-pet/actions/runs/40043436413); PR sem conflitos, Draft. Commit de documentação subsequente não mudou código.
+- **Railway staging:** após o proprietário descartar o patch anterior, a API foi preparada novamente **sozinha**, com `connect_service_source(staged:true)` para o mesmo commit de código aprovado. `get_staged_changes` confirmou APENAS `pointvet-api-staging` no patch `1db185c6-760a-4578-98cd-bab8e9e9df51`; o Admin, Portal e PostgreSQL não aparecem nesse patch. API viva segue em `2e48bde574c46ae7f09ea640318fca73fdceaf7b`; Admin vivo segue em `739e12dcb50d5c1774f0abdf83b2acb22316bd50`. **NENHUM DEPLOY aplicado.**
+- **Gate pendente e não automatizável pelo conector atual:** inspecionar a identificação/horário do backup nativo no painel `staging → Postgres → Backups` e demonstrar recuperação em destino separado, sem sobrescrever o volume original. O conector Railway não oferece métodos para listar/criar/restaurar snapshots e não executa comandos SQL arbitrários; a API aceita migrações automaticamente no predeploy, por isso ainda não deve ser publicada sem esse gate.
+- **Não repetir M.5.59:** o ensaio sintético de dump/restore integral já foi aprovado; o gate específico é restaurabilidade de dados do staging, não necessidade de novo motor ou módulo. Para evidência com `pg_dump/pg_restore`, requer executor aprovado com acesso seguro à origem e destino isolado. Não expor dados pessoais ou dumps em GitHub, logs públicos ou respostas. **Não utilizar RESTORE no próprio banco staging** para testar, pois Railway pode substituir o volume montado.
+- **Próxima operação quando houver evidência:** confirmar que patch contém somente API; aplicar **somente API** no staging, verificar predeploy Prisma e segurança de CNPJ; preparar Admin em patch separado após validação da API. Checkout multiempresa permanece fechado.
+
+---
+
 ## Revisão operacional — 23/10/2026 (preparo sem deploy)
 
 **CI confirmado no SHA de código `c8cf2720d028325d08aff5a16313d32ed6165fe9`:**
