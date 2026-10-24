@@ -35,7 +35,9 @@ test("o modo inteligente não permite desconto global fictício nem fechamento p
  assert.match(shared,/lockedDiscount=!canDiscount\|\|typeof onDiscountChange/);
  assert.match(shared,/lockedAddition=typeof onAdditionChange/);
  assert.match(intelligent,/discount=\{0\} addition=\{0\} canDiscount=\{false\}/);
- assert.match(intelligent,/<PdvCheckoutButton[\s\S]*?disabled=\{true\} reason=/);
+ assert.match(intelligent,/<PdvCheckoutButton[\s\S]*?disabled=\{!canContinue\}/);
+ assert.match(intelligent,/label=\{checkoutActionLabel\}/);
+ assert.match(intelligent,/onClick=\{continueCheckout\}/);
  assert.match(intelligent,/checkoutEnabled=\{manualCheckoutEnabled\}/);
  assert.match(intelligent,/<UnifiedAllocationConference/);
  assert.match(intelligent,/\/fechar-manual/);
