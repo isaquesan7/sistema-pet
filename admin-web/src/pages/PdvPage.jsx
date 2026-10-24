@@ -227,8 +227,6 @@ export default function PdvPage() {
   const [cashForm, setCashForm] = useState({ caixaId: "", valor: "0", descricao: "" });
   const [cashError, setCashError] = useState("");
 
-  const [commandModal, setCommandModal] = useState(false);
-  const [commandClientId, setCommandClientId] = useState("");
   const [commandAttachClientId,setCommandAttachClientId]=useState("");
   const [commandError, setCommandError] = useState("");
   const [commandDetailId, setCommandDetailId] = useState(null);
@@ -260,7 +258,7 @@ export default function PdvPage() {
     setCommandItemId("");setCommandQuantity(1);setCommandPayments([{forma:"PIX",valor:0,parcelas:1}]);
     if(!keepOrder){setCommandDetailId(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);}
     setSaleDetailId(null);setCancelSale(null);setCommandAttachClientId("");setCommandPetId("");
-    setCashModal(null);setCommandModal(false);setPackageReceive(null);
+    setCashModal(null);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
   const canDiscount = hasPermission("pdv.aplicar_desconto");
@@ -342,14 +340,10 @@ export default function PdvPage() {
     [commandDetail, selectedCompany]
   );
   const currentCompanyCommandTotal = round(currentCompanyCommandItems.reduce((sum, item) => sum + money(item.valorTotal), 0));
-  const commandCompanyGroups = useMemo(() => Object.values((commandDetail?.itens || []).reduce((acc, item) => {
-    const id=item.empresaId;
-    if(!acc[id])acc[id]={id,empresa:item.empresa,total:0,pendente:0};
-    if(item.status!=="CANCELADO")acc[id].total+=money(item.valorTotal);
-    if(item.status==="ATIVO")acc[id].pendente+=money(item.valorTotal);
-    return acc;
-  },{})),[commandDetail]);
-  const commandOrderTotal=round(commandCompanyGroups.reduce((sum,group)=>sum+group.total,0));
+  // A API de comandas tradicionais entrega SOMENTE itens deste CNPJ.
+  // Nunca apresentar a soma parcial como valor global multiempresa.
+  const commandCompanyVisibleTotal=round((commandDetail?.itens||[]).filter(item=>item.status!=="CANCELADO")
+    .reduce((sum,item)=>sum+money(item.valorTotal),0));
   const commandPaymentsTotal=round(commandPayments.reduce((sum,payment)=>sum+money(payment.valor),0));
   const commandReadyToClose=currentCompanyCommandItems.length>0&&Boolean(openSession)&&
     commandPayments.length>0&&commandPayments.every(p=>Number.isFinite(Number(p.valor))&&Number(p.valor)>0)&&
@@ -421,11 +415,9 @@ export default function PdvPage() {
   });
 
   const createCommandMutation = useMutation({
-    mutationFn: async (payload) => (await api.post("/pdv/comandas", { clienteId: payload?.clienteId ?? (commandClientId || null) })).data.comanda,
+    mutationFn: async (payload) => (await api.post("/pdv/comandas", { clienteId: payload?.clienteId || null })).data.comanda,
     onSuccess: (comanda,variables) => {
       if(variables?.petId)setCommandPetId(variables.petId);
-      setCommandModal(false);
-      setCommandClientId("");
       setCommandError("");
       setCommandDetailId(comanda.id);setTab("COMANDAS");
       invalidatePdv();
@@ -655,7 +647,6 @@ export default function PdvPage() {
             setUnifiedDraftToOpen(null);setUnifiedInitialClient(customerId||"");setUnifiedInitialPet(petId||null);
             setTab("VENDA");
           }else{
-            setCommandClientId(customerId||"");
             createCommandMutation.mutate({clienteId:customerId||null,petId:petId||null});
           }
         }}
@@ -707,9 +698,7 @@ export default function PdvPage() {
         {["SUPPLY", "WITHDRAW", "CLOSE"].includes(cashModal) ? <FormField label={cashModal === "CLOSE" ? "Observação" : "Descrição"}><textarea className="form-control form-control--textarea" value={cashForm.descricao} onChange={(event) => setCashForm((current) => ({ ...current, descricao: event.target.value }))} /></FormField> : null}
       </Modal>
 
-      <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={!commandClientId || createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
-        <InlineNotice tone="error">{commandError}</InlineNotice><FormField label="Cliente"><select className="form-control" value={commandClientId} onChange={(event) => setCommandClientId(event.target.value)}><option value="">Selecione...</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.nome}</option>)}</select></FormField>
-      </Modal>
+
 
       {tab==="COMANDAS"&&commandDetailId?<section className="pdv-order-workspace">
         <div className="pdv-order-workspace__top">
@@ -758,7 +747,7 @@ export default function PdvPage() {
               <span className="pdv-command-line__locked" title="Item de outra empresa ou já processado">—</span>}
             </div>):<div className="pdv-orders-empty"><ClipboardList size={25}/><strong>Comanda sem itens</strong><p>Selecione um produto ou serviço e adicione à lista.</p></div>}
            </div>
-           <div className="pdv-command-list-total"><span>Total registrado na comanda</span><strong>{formatCurrency(commandOrderTotal)}</strong></div>
+           <div className="pdv-command-list-total"><span>Total registrado neste CNPJ</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
           </div>
           <aside className="pdv-command-sidebar">
            <section className="pdv-command-identification">
@@ -782,15 +771,9 @@ export default function PdvPage() {
             <div className="pdv-command-side-body">
              <div className="pdv-command-summary-line"><span>Aberta em</span><strong>{formatDateTime(commandDetail.createdAt)}</strong></div>
              <div className="pdv-command-summary-line"><span>Situação</span><strong>{commandStatusLabel(commandDetail.status)}</strong></div>
-             <div className="pdv-command-summary-line"><span>Total em itens</span><strong>{formatCurrency(commandOrderTotal)}</strong></div>
-             <div className="pdv-command-summary-breakdown">
-              <strong>Distribuição por empresa</strong>
-              {commandCompanyGroups.length?commandCompanyGroups.map(group=><div key={group.id} className="pdv-command-summary-line">
-               <span>{group.empresa?.nomeFantasia||"Empresa"} {group.id===selectedCompany?.id?"(atual)":""}</span>
-               <strong>{formatCurrency(group.total)}</strong>
-              </div>):<small>Nenhum valor lançado ainda.</small>}
-             </div>
-             <div className="pdv-command-summary-line pdv-command-summary-line--total"><span>Total da comanda</span><strong>{formatCurrency(commandOrderTotal)}</strong></div>
+             <div className="pdv-command-summary-line"><span>Empresa atual</span><strong>{selectedCompany?.nomeFantasia||"CNPJ selecionado"}</strong></div>
+             <div className="pdv-command-summary-line pdv-command-summary-line--total"><span>Total registrado neste CNPJ</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
+             <small>Este resumo é restrito ao CNPJ selecionado. Para conferir outra empresa, alterne o CNPJ no PointVet.</small>
              {currentCompanyCommandItems.length?<>
                <div className="pdv-command-company-receipt"><span>Itens pendentes deste CNPJ</span><strong>{formatCurrency(currentCompanyCommandTotal)}</strong>
                 <small>A confirmação abaixo registra somente o recebimento da empresa selecionada, não de todos os CNPJs.</small></div>
