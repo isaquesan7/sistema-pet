@@ -98,10 +98,10 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
  }
  useEffect(()=>{
   if(!openDraftId||restoredId.current===openDraftId)return;
-  const saved=(draftList.data||[]).find(x=>x.id===openDraftId);
+  const saved=(draftList.data||[]).find(x=>x.id===openDraftId)||(completedList.data||[]).find(x=>x.id===openDraftId);
   if(!saved)return;
   restoredId.current=openDraftId;reopen(saved);
- },[openDraftId,draftList.data]);
+ },[openDraftId,draftList.data,completedList.data]);
  function add(item){
   const key=`nova:${++nextLineId.current}`;
   const petId=initialPetForUnifiedService(item,{
