@@ -1,16 +1,18 @@
 import {isValidPdvQuantity} from "./pdvQuantity.js";
+
 /** Rebuild a saved management-PDV draft from its persisted, authorized snapshot.
  * Never depend on the current catalog search or treat old prices as approved. */
 export function buildUnifiedDraftPayload(clientId, lines) {
- if (typeof clientId !== "string" || !clientId.trim()) {
-  throw new Error("Selecione um cliente antes de validar a comanda.");
+ for(const item of lines) {
+  if(!isValidPdvQuantity(item,item.quantidade)) {
+   throw new Error(item.tipo==="SERVICO"?"Serviços aceitam somente quantidades inteiras maiores que zero.":"Quantidade inválida: confira o peso ou unidade do produto.");
+  }
  }
- for (const row of lines) {
-  if (!isValidPdvQuantity(row.tipo,row.quantidade)) throw new Error(row.tipo==="SERVICO"?"Serviços aceitam apenas quantidades inteiras a partir de 1.":"Quantidade inválida. Confira o peso ou as unidades do produto.");
-  if (row.tipo==="SERVICO"&&!row.petId) throw new Error("Selecione um pet para cada serviço antes de salvar a comanda.");
+ if (lines.some(item=>item.tipo==="SERVICO"&&(!clientId||!item.petId))) {
+  throw new Error("Tutor e pet são obrigatórios para qualquer serviço.");
  }
  return {
-  clienteId: clientId,
+  clienteId: clientId || null,
   itens: lines.map(item => ({
    empresaId: item.empresaId,
    itemCatalogoId: item.itemCatalogoId,
@@ -46,7 +48,7 @@ export function visibleUnifiedClients(clients, selectedClient) {
 }
 
 export function rehydrateUnifiedDraft(saved){
- return (saved.itens||[]).filter(i=>i.status==="ATIVO").map(i=>({
+ return (saved.itens||[]).filter(i=>i.status==="ATIVO"||(saved.status==="FECHADA"&&i.status==="FATURADO")).map(i=>({
   lineKey:`persistida:${i.id}`,
   rascunhoItemId:i.id,
   empresaId:i.empresaId,
@@ -74,8 +76,22 @@ export function addUnifiedCatalogItem(lines,item,lineKey){
  }];
 }
 
+/** Aplica o pet escolhido na abertura apenas a um novo serviço desse mesmo tutor.
+ * Nunca associa um pet a um rascunho reaberto, outro tutor ou cadastro não carregado. */
+export function initialPetForUnifiedService(item,{clientId,initialClientId,initialPetId,pets}={}){
+ if(item?.tipo!=="SERVICO"||!clientId||clientId!==initialClientId||!initialPetId)return "";
+ return Array.isArray(pets)&&pets.some(p=>p.id===initialPetId&&p.ativo!==false)?initialPetId:"";
+}
+
 export function updateUnifiedLine(lines,lineKey,patch){
- return lines.map(row=>row.lineKey===lineKey?{...row,...patch}:row);
+ return lines.map(row=>{
+  if(row.lineKey!==lineKey)return row;
+  if(row.tipo==="SERVICO" && Object.prototype.hasOwnProperty.call(patch,"quantidade")){
+    const q=Number(patch.quantidade);
+    if(!Number.isSafeInteger(q)||q<1)return row;
+  }
+  return {...row,...patch};
+ });
 }
 
 export function removeUnifiedLine(lines,lineKey){

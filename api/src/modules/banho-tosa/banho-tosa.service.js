@@ -124,15 +124,15 @@ async function validarConflito(tx, { empresaId, profissionalId, inicio, fim, ign
   if (conflito) throw new Error("HORARIO_INDISPONIVEL");
 }
 
-async function obterOuCriarComanda(tx, clienteId) {
+async function obterOuCriarComanda(tx, clienteId, empresaId) {
   const aberta = await tx.comanda.findFirst({
-    where: { clienteId, status: { in: ["ABERTA", "PARCIALMENTE_FECHADA"] } },
+    where: { clienteId, status: { in: ["ABERTA", "PARCIALMENTE_FECHADA"] }, OR: [{empresaOrigemId:empresaId},{itens:{some:{empresaId}}}] },
     orderBy: { createdAt: "desc" },
   });
   if (aberta) return aberta;
   const tutor=await tx.cliente.findUnique({where:{id:clienteId},select:{organizacaoId:true}});
   if(!tutor)throw new Error("CLIENTE_NAO_ENCONTRADO");
-  return tx.comanda.create({ data: { organizacaoId:tutor.organizacaoId,clienteId, observacoes: "Comanda aberta pelo Banho e Tosa" } });
+  return tx.comanda.create({ data: { organizacaoId:tutor.organizacaoId,empresaOrigemId:empresaId,clienteId, observacoes: "Comanda aberta pelo Banho e Tosa" } });
 }
 
 async function consumirCreditoNoTx(tx, { empresaId, organizacaoId, usuarioId, clienteId, petId, itemCatalogoId, pacoteClienteItemId, quantidade, ordemItemId }) {
@@ -193,7 +193,7 @@ async function criarItensOrdem(tx, { ordem, empresaId, organizacaoId, usuarioId,
   for (const linha of preparados) {
     const viaPacote = Boolean(linha.pacoteClienteItemId);
     if (!viaPacote && !comanda) {
-      comanda = await obterOuCriarComanda(tx, clienteId);
+      comanda = await obterOuCriarComanda(tx, clienteId, empresaId);
       await tx.ordemServicoBanhoTosa.update({ where: { id: ordem.id }, data: { comandaId: comanda.id } });
     }
 

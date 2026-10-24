@@ -4,6 +4,7 @@ import {
   cancelarVendaSchema,
   comandaItemSchema,
   comandaSchema,
+  atribuirClienteComandaSchema,
   fecharCaixaSchema,
   fecharComandaSchema,
   movimentacaoCaixaSchema,
@@ -49,6 +50,7 @@ function mapError(error, res, next) {
     VENDA_POSSUI_DOCUMENTO_FISCAL: [409, "Esta venda possui documento fiscal autorizado. Cancele o documento no módulo Fiscal antes de cancelar a venda."],
     COMANDA_NAO_ENCONTRADA: [404, "Comanda não encontrada."],
     COMANDA_FECHADA: [409, "Esta comanda está fechada ou cancelada."],
+    COMANDA_TUTOR_IMUTAVEL: [409, "O tutor desta comanda já foi definido. Não é possível trocá-lo por esse fluxo."],
     COMANDA_RASCUNHO_UNIFICADO: [409, "Rascunho multiempresa: o fechamento só estará disponível após homologação."],
     ITEM_COMANDA_NAO_ENCONTRADO: [404, "Item ativo da comanda não encontrado para esta empresa."],
     COMANDA_SEM_ITENS_EMPRESA: [409, "A comanda não possui itens pendentes do CNPJ selecionado."],
@@ -202,10 +204,18 @@ export async function cancelarVenda(req, res, next) {
   } catch (error) { mapError(error, res, next); }
 }
 
+export async function listarOrcamentosPdv(req,res,next){
+ try{
+  const dados=await service.listarOrcamentosPdv({organizacaoId:req.organizacao.id,empresaId:req.empresa.id});
+  return res.json({success:true,dados});
+ }catch(error){next(error);}
+}
+
 export async function listarComandas(req, res, next) {
   try {
     const dados = await service.listarComandas({
       organizacaoId: req.organizacao.id,
+      empresaId: req.empresa.id,
       busca: req.query.busca?.trim(),
       status: req.query.status || undefined,
     });
@@ -216,28 +226,23 @@ export async function listarComandas(req, res, next) {
 export async function criarComanda(req, res, next) {
   try {
     const dados = parse(comandaSchema, req.body, res); if (!dados) return;
-    const comanda = await service.criarComanda({ organizacaoId: req.organizacao.id, dados });
+    const comanda = await service.criarComanda({ organizacaoId: req.organizacao.id, empresaId: req.empresa.id, dados });
     return res.status(201).json({ success: true, comanda });
   } catch (error) { mapError(error, res, next); }
 }
 
-export async function atualizarClienteComanda(req, res, next) {
-  try {
-    const dados = parse(comandaSchema, req.body, res); if (!dados) return;
-    if (!Object.hasOwn(dados,"clienteId")) {
-      return res.status(400).json({success:false,message:"Informe o tutor a vincular à comanda."});
-    }
-    const comanda = await service.atualizarClienteComanda({
-      organizacaoId:req.organizacao.id,id:req.params.id,clienteId:dados.clienteId
-    });
-    return res.json({success:true,comanda});
-  } catch (error) { mapError(error,res,next); }
-}
-
 export async function buscarComanda(req, res, next) {
   try {
-    return res.json({ success: true, comanda: await service.buscarComanda({ organizacaoId: req.organizacao.id, id: req.params.id }) });
+    return res.json({ success: true, comanda: await service.buscarComanda({ organizacaoId: req.organizacao.id, empresaId: req.empresa.id, id: req.params.id }) });
   } catch (error) { mapError(error, res, next); }
+}
+
+export async function atribuirTutorComanda(req,res,next){
+ try{
+  const dados=parse(atribuirClienteComandaSchema,req.body,res);if(!dados)return;
+  const comanda=await service.atribuirTutorComanda({organizacaoId:req.organizacao.id,empresaId:req.empresa.id,id:req.params.id,clienteId:dados.clienteId});
+  return res.json({success:true,comanda});
+ }catch(error){mapError(error,res,next);}
 }
 
 export async function adicionarItemComanda(req, res, next) {

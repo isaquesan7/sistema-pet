@@ -87,6 +87,8 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  ]});
  await prisma.usuarioEmpresa.create({data:{usuarioId:attendant,empresaId:foreignCompany}});
  await prisma.cliente.create({data:{id:client,organizacaoId:org,nome:"Tutor CI"}});
+ const specie=await prisma.especie.create({data:{organizacaoId:org,nome:"Espécie checkout CI"}});
+ const pet=await prisma.pet.create({data:{id:"chk-pet-"+suffix,clienteId:client,especieId:specie.id,nome:"Pet de serviço checkout CI"}});
  await prisma.itemCatalogo.createMany({data:[
   {id:itemId,empresaId:store,nome:"Racao Adulto Granel",tipo:"PRODUTO",precoVenda:"15.00"},
   {id:serviceId,empresaId:service,nome:"Servico Manual",tipo:"SERVICO",precoVenda:"10.00"}
@@ -139,7 +141,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await request("GET","/api/pdv-unificado/disponibilidade",403,null,limitedAuth,service);
  await request("GET","/api/pdv-unificado/rascunhos-concluidos",403,null,attendantAuth);
  const items=[{empresaId:store,itemCatalogoId:itemId,quantidade:0.333},
-  {empresaId:service,itemCatalogoId:serviceId,quantidade:1}];
+  {empresaId:service,itemCatalogoId:serviceId,quantidade:1,petId:pet.id}];
  const draft=(await request("POST","/api/pdv-unificado/rascunhos",201,
   {clienteId:client,itens:items})).dados;
  assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados.length,0,

@@ -1,4 +1,9 @@
 name: PointVet Unified PDV Foundation
+concurrency:
+  group: pointvet-pdv-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+# A PR #38 ja foi reconciliada com a base (#36).
+# Um unico gatilho por PR substitui a duplicacao push+pull_request.
 on:
   pull_request:
     paths:
@@ -105,7 +110,6 @@ on:
       - "api/tests/pointvet-m542-pagamentos-manuais-ui.contract.test.mjs"
       - "api/tests/pointvet-m544-declaracao-manual-ui.contract.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
-      - "admin-web/src/lib/pdvQuantity.js"
       - "admin-web/src/lib/unifiedBulk.js"
       - "admin-web/src/lib/unifiedManualAllocation.js"
       - "admin-web/src/pages/CatalogPage.jsx"
@@ -119,10 +123,6 @@ on:
       - "api/src/modules/estoque/estoque.service.js"
       - "api/src/modules/estoque/estoque.controller.js"
       - "api/src/modules/pdv/pdv.service.js"
-      - "api/src/modules/pdv/pdv.controller.js"
-      - "api/src/modules/pdv/pdv.routes.js"
-      - "api/tests/pdv-comanda-flow.contract.test.mjs"
-      - "admin-web/src/components/PdvOrdersHome.jsx"
       - "api/src/modules/consultorio/consultorio.service.js"
       - "api/src/modules/pacotes/pacotes.service.js"
       - "api/src/modules/pdv/pdv-unificado-preparacao.service.js"
@@ -248,8 +248,19 @@ on:
       - "admin-web/tests/unified-pdv-layout.test.mjs"
       - "admin-web/tests/pdv-layout.test.mjs"
       - "admin-web/tests/pdv-single-screen.test.mjs"
-      - "admin-web/tests/pdv-uniform-ux.test.mjs tests/pdv-order-quantity.test.mjs"
+      - "admin-web/tests/pdv-uniform-ux.test.mjs"
+      - "admin-web/tests/pdv-orders-first.test.mjs"
+      - "admin-web/tests/pdv-visual-reference.test.mjs"
       - "admin-web/tests/pdv-order-quantity.test.mjs"
+      - "admin-web/tests/pdv-unified-guided-checkout.test.mjs"
+      - "admin-web/tests/pdv-unified-history-reversal.test.mjs"
+      - "api/tests/pdv-comandas-sem-tutor.test.mjs"
+      - "api/tests/pdv-comandas-cnpj.integration.test.mjs"
+      - "api/tests/pdv-comanda-flow.contract.test.mjs"
+      - "api/tests/pointvet-manual-checkout-http.integration.test.mjs"
+      - "api/tests/pdv-unificado-postgres.smoke.mjs"
+      - "api/tests/pdv-unificado-integration.test.mjs"
+      - "api/tests/pdv-unificado-fiscal.integration.test.mjs"
       - "admin-web/tests/unified-context.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
       - "admin-web/src/pages/SettingsPage.jsx"
@@ -261,7 +272,7 @@ on:
       - "admin-web/src/clients.css"
       - "api/src/modules/organizacoes/organizacoes.schema.js"
       - "api/src/app.js"
-      - "api/tests/pdv-unificado-foundation.contract.test.mjs tests/pdv-comanda-flow.contract.test.mjs"
+      - "api/tests/pdv-unificado-foundation.contract.test.mjs"
       - "api/tests/pdv-unificado-postgres.smoke.mjs"
       - "api/tests/pdv-unificado-integration.test.mjs"
       - "api/tests/pdv-unificado-psp-contract.test.mjs"
@@ -349,6 +360,8 @@ jobs:
           node --check api/src/modules/clientes/client-finance.routes.js
           node --test api/tests/client-quotes-credit.contract.test.mjs
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
+          node --test api/tests/pdv-comandas-sem-tutor.test.mjs
+          node --test api/tests/pdv-comanda-flow.contract.test.mjs
           node --test api/tests/pdv-unificado-retomada-comanda.contract.test.mjs
           node --test api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs
           node --test api/tests/pdv-unificado-racao-granel.contract.test.mjs
@@ -435,7 +448,7 @@ jobs:
         working-directory: admin-web
         run: |
           npm ci
-          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs
+          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs tests/pdv-orders-first.test.mjs tests/pdv-visual-reference.test.mjs tests/pdv-order-quantity.test.mjs tests/pdv-unified-guided-checkout.test.mjs tests/pdv-unified-history-reversal.test.mjs
           npm run build
 
   isolated-postgres:
@@ -523,3 +536,8 @@ jobs:
           NODE_ENV: test
           POINTVET_UNIFIED_SALES_SANDBOX: "1"
         run: bash scripts/ci-pointvet-backup-restore-drill.sh
+      - name: M.5.71 verify CNPJ-scoped commands and legacy orders on isolated PostgreSQL
+        working-directory: api
+        env:
+          NODE_ENV: test
+        run: node --import tsx --test tests/pdv-comandas-cnpj.integration.test.mjs

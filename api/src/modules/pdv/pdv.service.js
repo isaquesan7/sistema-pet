@@ -690,81 +690,82 @@ export async function cancelarVenda({ empresaId, usuarioId, id, motivo }) {
   });
 }
 
-export async function listarComandas({ organizacaoId, busca, status }) {
+/** Orçamentos da empresa selecionada, somente leitura; autorização financeiro.visualizar
+ * aplicada na rota. Não converte, não reserva estoque e não emite documentos. */
+export async function listarOrcamentosPdv({organizacaoId,empresaId}){
+ const rows=await prisma.orcamentoCliente.findMany({
+  where:{organizacaoId,empresaId},
+  include:{cliente:{select:{id:true,nome:true,cpfCnpj:true}},itens:{select:{id:true,descricao:true,petId:true}}},
+  orderBy:{createdAt:"desc"},take:100
+ });
+ return rows.map(row=>({
+  id:row.id,numero:row.numero,status:row.status,createdAt:row.createdAt,
+  updatedAt:row.updatedAt,cliente:row.cliente,
+  empresaId:row.empresaId,total:Number(row.total),
+  itens:row.itens
+ }));
+}
+
+/** Tenant scope alone is insufficient: an operator must see only commands whose
+ * originating company or authorized item/sale belongs to the selected CNPJ.
+ * The multi-company engine has its own separately authorized endpoints. */
+function escopoComandaEmpresa(empresaId) {
+  if (!empresaId) throw new Error("EMPRESA_NAO_INFORMADA");
+  return { OR: [
+    { empresaOrigemId: empresaId },
+    { itens: { some: { empresaId } } },
+    { vendas: { some: { empresaId } } },
+  ] };
+}
+
+export async function listarComandas({ organizacaoId, empresaId, busca, status }) {
   return prisma.comanda.findMany({
     where: {
       organizacaoId,
       rascunhoUnificado: false,
-      ...(status ? { status } : {}),
-      ...(busca ? {
-        OR: [
+      AND: [
+        escopoComandaEmpresa(empresaId),
+        ...(busca ? [{ OR: [
           { cliente: { nome: { contains: busca, mode: "insensitive" } } },
-          { itens: { some: { descricao: { contains: busca, mode: "insensitive" } } } },
-        ],
-      } : {}),
+          { itens: { some: { empresaId, descricao: { contains: busca, mode: "insensitive" } } } },
+        ] }] : []),
+      ],
+      ...(status ? { status } : {}),
     },
     orderBy: { updatedAt: "desc" },
     take: 100,
     include: {
-      cliente: { select: { id: true, nome: true, telefone: true, whatsapp: true } },
+      cliente: { select: { id: true, nome: true, cpfCnpj: true, telefone: true, whatsapp: true } },
       itens: {
-        where: { status: { not: "CANCELADO" } },
+        where: { empresaId, status: { not: "CANCELADO" } },
         include: {
           empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
           itemCatalogo: { select: { id: true, nome: true, tipo: true } },
           pet: { select: { id: true, nome: true } },
         },
       },
-      vendas: { select: { id: true, numero: true, empresaId: true, status: true, valorTotal: true } },
+      vendas: { where: { empresaId }, select: { id: true, numero: true, empresaId: true, status: true, valorTotal: true } },
     },
   });
 }
 
-export async function criarComanda({ organizacaoId, dados }) {
+export async function criarComanda({ organizacaoId, empresaId, dados }) {
   return prisma.$transaction(async (tx) => {
     await validarCliente(tx, organizacaoId, dados.clienteId, false);
     return tx.comanda.create({
-      data: { organizacaoId, clienteId: dados.clienteId || null, observacoes: dados.observacoes || null },
+      data: { organizacaoId, clienteId: dados.clienteId || null, empresaOrigemId: empresaId, observacoes: dados.observacoes || null },
       include: { cliente: true },
     });
   });
 }
 
-/** Ajusta o tutor de uma comanda ainda aberta. Não mistura pets de tutores,
- * não altera uma comanda multiempresa reservada e não executa venda.
- */
-export async function atualizarClienteComanda({ organizacaoId, id, clienteId }) {
-  return prisma.$transaction(async (tx) => {
-    const comanda = await tx.comanda.findFirst({
-      where: { id, organizacaoId, rascunhoUnificado: false },
-      include: {
-        itens: {
-          where: { status: "ATIVO" },
-          include: { pet: { select: { id: true, clienteId: true } },
-            itemCatalogo: { select: { tipo: true } } },
-        },
-      },
-    });
-    if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
-    if (["FECHADA", "CANCELADA"].includes(comanda.status)) throw new Error("COMANDA_FECHADA");
-    await validarCliente(tx, organizacaoId, clienteId, false);
-    const services = comanda.itens.filter(line => line.itemCatalogo?.tipo === "SERVICO");
-    if (services.length && !clienteId) throw new Error("CLIENTE_OBRIGATORIO_SERVICO");
-    if (services.some(line => !line.pet || line.pet.clienteId !== clienteId)) throw new Error("PET_NAO_ENCONTRADO");
-    return tx.comanda.update({
-      where: { id },
-      data: { clienteId: clienteId || null },
-      include: { cliente: { include: { pets: { where: { ativo: true },select: { id: true,nome: true } } } } },
-    });
-  });
-}
-
-export async function buscarComanda({ organizacaoId, id }) {
+export async function buscarComanda({ organizacaoId, empresaId, id }) {
   const comanda = await prisma.comanda.findFirst({
-    where: { id, organizacaoId, rascunhoUnificado: false },
+    where: { id, organizacaoId, rascunhoUnificado: false, AND: [escopoComandaEmpresa(empresaId)] },
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
+        where: { empresaId },
         include: {
           empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
           itemCatalogo: { select: { id: true, nome: true, tipo: true, precoVenda: true } },
@@ -773,6 +774,7 @@ export async function buscarComanda({ organizacaoId, id }) {
         orderBy: { createdAt: "asc" },
       },
       vendas: {
+        where: { empresaId },
         include: { empresa: { select: { id: true, nomeFantasia: true } }, pagamentos: true },
         orderBy: { createdAt: "desc" },
       },
@@ -782,10 +784,26 @@ export async function buscarComanda({ organizacaoId, id }) {
   return comanda;
 }
 
+/** Comanda de produtos inicialmente anônima pode ganhar tutor uma única vez.
+ * O vínculo não pode ser trocado depois: protege pets e histórico financeiro. */
+export async function atribuirTutorComanda({organizacaoId,empresaId,id,clienteId}){
+ return prisma.$transaction(async tx=>{
+  await validarCliente(tx,organizacaoId,clienteId,true);
+  const updated=await tx.comanda.updateMany({where:{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:{in:["ABERTA","PARCIALMENTE_FECHADA"]},AND:[escopoComandaEmpresa(empresaId)]},data:{clienteId}});
+  if(updated.count!==1){
+   const existing=await tx.comanda.findFirst({where:{id,organizacaoId,rascunhoUnificado:false,AND:[escopoComandaEmpresa(empresaId)]},select:{id:true,clienteId:true,status:true}});
+   if(!existing)throw new Error("COMANDA_NAO_ENCONTRADA");
+   if(["FECHADA","CANCELADA"].includes(existing.status))throw new Error("COMANDA_FECHADA");
+   throw new Error("COMANDA_TUTOR_IMUTAVEL");
+  }
+  return tx.comanda.findUnique({where:{id},include:{cliente:{include:{pets:{where:{ativo:true},select:{id:true,nome:true}}}}}});
+ });
+}
+
 export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId, dados }) {
   return prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, organizacaoId },
+      where: { id: comandaId, organizacaoId, AND: [escopoComandaEmpresa(empresaId)] },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
     if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
@@ -837,7 +855,7 @@ export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId,
 export async function fecharComandaEmpresa({ empresaId, organizacaoId, usuarioId, comandaId, dados }) {
   const venda = await prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, organizacaoId },
+      where: { id: comandaId, organizacaoId, AND: [escopoComandaEmpresa(empresaId)] },
       include: {
         itens: {
           where: { empresaId, status: "ATIVO" },

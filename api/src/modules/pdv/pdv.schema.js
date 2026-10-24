@@ -66,6 +66,7 @@ export const comandaSchema = z.object({
   observacoes: textOptional,
 });
 
+export const atribuirClienteComandaSchema=z.object({clienteId:z.string().min(1)});
 export const comandaItemSchema = itemVendaSchema;
 
 export const fecharComandaSchema = z.object({
