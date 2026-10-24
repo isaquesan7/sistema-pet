@@ -252,6 +252,7 @@ on:
       - "admin-web/tests/pdv-orders-first.test.mjs"
       - "admin-web/tests/pdv-visual-reference.test.mjs"
       - "admin-web/tests/pdv-order-quantity.test.mjs"
+      - "admin-web/tests/pdv-unified-guided-checkout.test.mjs"
       - "api/tests/pdv-comandas-sem-tutor.test.mjs"
       - "api/tests/pdv-comandas-cnpj.integration.test.mjs"
       - "api/tests/pdv-comanda-flow.contract.test.mjs"
@@ -446,7 +447,7 @@ jobs:
         working-directory: admin-web
         run: |
           npm ci
-          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs tests/pdv-orders-first.test.mjs tests/pdv-visual-reference.test.mjs tests/pdv-order-quantity.test.mjs
+          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs tests/pdv-orders-first.test.mjs tests/pdv-visual-reference.test.mjs tests/pdv-order-quantity.test.mjs tests/pdv-unified-guided-checkout.test.mjs
           npm run build
 
   isolated-postgres:
