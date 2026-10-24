@@ -306,6 +306,17 @@ export default function PdvPage() {
     enabled:Boolean(intelligentPreference&&selectedCompany?.id),
     queryFn:async()=>(await api.get("/pdv-unificado/rascunhos")).data.dados||[],retry:false
   });
+  // Histórico unificado é da COMANDA, não uma segunda venda do CNPJ.
+  // O backend só retorna comandas cuja totalidade dos CNPJs é acessível.
+  const unifiedCompletedQuery=useQuery({
+    queryKey:["pdv-unified-completed",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(tab==="HISTORICO"&&intelligentPreference&&selectedCompany?.id&&
+      unifiedStatus.data?.estornoUnificadoDisponivel&&canCancel),
+    queryFn:async()=>(await api.get("/pdv-unificado/rascunhos-concluidos")).data.dados||[],
+    retry:false,refetchOnMount:"always",
+  });
+  const unifiedReversalPermissions=unifiedStatus.data?.permissoesEmpresas||[];
+  const missingReversalCompanies=unifiedReversalPermissions.filter(x=>x.pdvAcessar&&!x.pdvCancelarVenda);
   const pendingPackagesQuery = useQuery({
     queryKey: ["pdv-pending-packages", selectedCompany?.id],
     queryFn: async () => (await api.get("/pdv/pacotes-pendentes")).data.dados || [],
@@ -684,10 +695,39 @@ export default function PdvPage() {
       ) : null}
 
       {tab === "HISTORICO" ? (
+        <>
+        {intelligentPreference&&<section className="panel table-panel pdv-unified-history-main" aria-label="Histórico de vendas unificadas">
+          <div className="toolbar"><div>
+           <strong className="table-main-text">Vendas unificadas concluídas</strong>
+           <div className="table-subtext">Uma comanda pode conter vendas de vários CNPJs. Para estornar, abra a comanda original e faça o estorno integral.</div>
+          </div><span className="toolbar__count">{(unifiedCompletedQuery.data||[]).length} comandas</span></div>
+          {!canCancel&&<InlineNotice tone="error">Este operador não possui pdv.cancelar_venda no CNPJ selecionado. Confira a permissão em todos os CNPJs participantes.</InlineNotice>}
+          {missingReversalCompanies.length>0&&<InlineNotice tone="error">Para estornar uma comanda unificada, é necessária a permissão pdv.cancelar_venda em todas as empresas. Revise: {missingReversalCompanies.map(c=>c.nomeFantasia).join(", ")}.</InlineNotice>}
+          {!unifiedStatus.data?.estornoUnificadoDisponivel&&<InlineNotice tone="error">O estorno integral está desabilitado para o CNPJ selecionado. A venda continua registrada; não cancele as vendas-filhas individualmente.</InlineNotice>}
+          {unifiedCompletedQuery.isLoading&&<div className="loading-state">Consultando vendas unificadas...</div>}
+          {unifiedCompletedQuery.isError&&<InlineNotice tone="error">Não foi possível consultar as comandas concluídas: {getApiErrorMessage(unifiedCompletedQuery.error)}</InlineNotice>}
+          {!unifiedCompletedQuery.isLoading&&!unifiedCompletedQuery.isError&&canCancel&&unifiedStatus.data?.estornoUnificadoDisponivel&&!(unifiedCompletedQuery.data||[]).length&&
+           <div className="table-subtext pdv-unified-history-empty">Nenhuma comanda unificada concluída disponível para este operador. Verifique se ele possui acesso e permissão de estorno nos dois CNPJs.</div>}
+          {(unifiedCompletedQuery.data||[]).length>0&&<div className="pdv-unified-history-cards">
+           {unifiedCompletedQuery.data.map(order=><div key={order.id} className="pdv-unified-history-row">
+            <div><strong>Comanda unificada #{order.numero}</strong>
+             <small>{order.cliente?.nome||"Consumidor não identificado"} · {formatDateTime(order.createdAt)}</small>
+             <small>Operação conjunta — não cancelar as vendas de cada CNPJ separadamente.</small>
+            </div>
+            <strong>{formatCurrency((order.itens||[]).reduce((sum,item)=>sum+money(item.valorTotal),0))}</strong>
+            <button className="ghost-button" type="button" onClick={()=>{
+              setUnifiedDraftToOpen(order.id);
+              setUnifiedInitialClient(null);setUnifiedInitialPet(null);
+              setIndividualFallback(false);setTab("VENDA");
+            }}>Abrir comanda para estorno integral</button>
+           </div>)}
+          </div>}
+        </section>}
         <section className="panel table-panel">
           <div className="toolbar"><strong className="table-main-text">Últimas vendas do CNPJ selecionado</strong><span className="toolbar__count">{sales.length} registros</span></div>
           <div className="table-scroll"><table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>{sales.map((sale) => <tr key={sale.id}><td>#{sale.numero}</td><td>{formatDateTime(sale.createdAt)}</td><td>{sale.cliente?.nome || "Consumidor"}</td><td>{sale._count?.itens || 0}</td><td>{sale.pagamentos?.map((p) => paymentLabels[p.forma]).join(" + ") || "—"}</td><td><strong>{formatCurrency(sale.valorTotal)}</strong></td><td><span className={`badge ${sale.status === "FINALIZADA" ? "badge--success" : "badge--muted"}`}>{saleStatusLabel(sale.status)}</span></td><td><button className="icon-button table-action" type="button" onClick={() => setSaleDetailId(sale.id)}><Eye size={15} /></button></td></tr>)}</tbody></table></div>
         </section>
+        </>
       ) : null}
 
       <Modal open={Boolean(cashModal)} title={{ CREATE: "Novo caixa", OPEN: "Abrir caixa", SUPPLY: "Suprimento", WITHDRAW: "Sangria", CLOSE: "Fechar caixa" }[cashModal]} onClose={() => setCashModal(null)} footer={<><button className="ghost-button" type="button" onClick={() => setCashModal(null)}>Cancelar</button><button className="primary-button" type="button" onClick={() => cashMutation.mutate()} disabled={cashMutation.isPending}>Confirmar</button></>}>
