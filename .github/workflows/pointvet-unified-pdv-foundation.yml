@@ -1,16 +1,10 @@
 name: PointVet Unified PDV Foundation
+concurrency:
+  group: pointvet-pdv-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+# A PR #38 ja foi reconciliada com a base (#36).
+# Um unico gatilho por PR substitui a duplicacao push+pull_request.
 on:
-  # M.5.71: PR #38 tem conflitos com a branch-base; o CI isolado deve poder
-  # validar a branch de desenvolvimento mesmo sem merge automático da PR.
-  push:
-    branches:
-      - "feat/pointvet-m5-71-pdv-comandas"
-    paths:
-      - ".github/workflows/pointvet-unified-pdv-foundation.yml"
-      - "admin-web/src/**"
-      - "admin-web/tests/**"
-      - "api/**"
-      - "POINTVET_CONTINUIDADE_OFICIAL.md"
   pull_request:
     paths:
       - "POINTVET_CONTINUIDADE_OFICIAL.md"
