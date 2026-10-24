@@ -54,6 +54,8 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
  const closingPlan=useQuery({queryKey:scopedKey("unified-close-plan",draft?.id,draft?.versao),enabled:enabled&&Boolean(draft?.id)&&closingReview.data?.pendencias?.length===0,queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/plano-fechamento`,{params:{versao:draft.versao}})).data.dados});
  const reservation=useQuery({queryKey:scopedKey("unified-reservation",draft?.id,draft?.versao),enabled:enabled&&Boolean(draft?.id),queryFn:async()=>(await api.get(`/pdv-unificado/rascunhos/${draft.id}/reserva`,{params:{versao:draft.versao}})).data.dados});
  const isReserved=draft?.status==="FECHADA"||reservation.data?.status==="RESERVADA"||Boolean(reservation.data?.operacoes?.some(op=>op.status==="CONCLUIDA"));
+ const reserveMutation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/reservar`,{versao:draft.versao})).data.dados,onSuccess:async()=>{setSavedNotice("Operações reservadas com segurança. Nenhuma cobrança foi realizada.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
+ const cancelReservation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/cancelar-reserva`,{versao:draft.versao,motivo:motivoCancelar})).data.dados,onSuccess:async()=>{setSavedNotice("Reserva cancelada. Ajuste e salve uma nova versão da comanda.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
  // A venda inteligente continua com gate na API: este botão apenas avança
  // pelas etapas já implementadas, nunca confirma recebimento diretamente.
  const invalidService=lines.some(row=>row.tipo==="SERVICO"&&(!clientId||!row.petId));
@@ -71,8 +73,6 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
   if(checkoutStage==="RESERVAR"){reserveMutation.mutate();return;}
   if(checkoutStage==="RECEBIMENTOS"){paymentSectionRef.current?.scrollIntoView({behavior:"smooth",block:"start"});}
  }
- const reserveMutation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/reservar`,{versao:draft.versao})).data.dados,onSuccess:async()=>{setSavedNotice("Operações reservadas com segurança. Nenhuma cobrança foi realizada.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
- const cancelReservation=useMutation({mutationFn:async()=>(await api.post(`/pdv-unificado/rascunhos/${draft.id}/cancelar-reserva`,{versao:draft.versao,motivo:motivoCancelar})).data.dados,onSuccess:async()=>{setSavedNotice("Reserva cancelada. Ajuste e salve uma nova versão da comanda.");await queryClient.invalidateQueries({queryKey:["unified-reservation"]});}});
  const preview=useMutation({mutationFn:async()=>(await api.post("/pdv-unificado/simulacao",buildUnifiedDraftPayload(clientId,lines))).data.dados});
  function reopen(saved){
    setLocalChanges(false);setClientId(saved.cliente?.id||"");setSelectedClient(saved.cliente||null);setClientSearch(saved.cliente?.nome||"");setDraft({id:saved.id,versao:saved.versaoRascunho,status:saved.status});setSavedNotice("");
