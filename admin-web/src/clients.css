@@ -222,3 +222,9 @@
 .pv-unified-preview .pv-unified-advanced .pdv-unified-review{margin:0;padding:8px 13px 14px;display:grid;gap:10px}
 .pv-unified-preview .pv-unified-settlement{min-width:0;scroll-margin-top:90px}
 @media(max-width:680px){.pv-unified-preview .pv-unified-advanced>summary{padding:12px}}
+
+/* Setup de piloto permanece em detalhes avançados, sem poluir o caixa. */
+.pv-unified-preview .pv-unified-pilot-config{display:grid;justify-items:start;gap:9px;border:1px solid #dedaf0;border-radius:9px;padding:12px;background:#fff}
+.pv-unified-preview .pv-unified-pilot-config>strong{font-size:12px;color:#53449a}
+.pv-unified-preview .pv-unified-pilot-config>p{margin:0;font-size:11px;line-height:1.55;color:#5e6a85}
+.pv-unified-preview .pv-unified-pilot-config>small{font-size:11px;color:#526b83}
