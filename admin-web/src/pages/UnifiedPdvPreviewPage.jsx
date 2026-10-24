@@ -486,6 +486,8 @@ function UnifiedManualReceiptPreview({preparacao,versao,comandaId,checkoutEnable
     {(fechar.data?.vendas||operacoesFechadas.map(op=>({vendaId:op.vendaId,empresaId:op.empresaId}))).map(v=><p key={v.vendaId}>Empresa {v.empresaId} · Venda {v.vendaId}</p>)}
     <p>Não é possível cancelar vendas-filhas isoladas. O cancelamento deve ser integral, com permissão em todos os CNPJs.</p>
    </div>}
+   {vendaRegistrada&&!reversalEnabled&&<p className="alert" role="status">Estorno indisponível para o CNPJ atual. Confira a autorização do piloto com o administrador.</p>}
+   {vendaRegistrada&&reversalEnabled&&!hasPermission("pdv.cancelar_venda")&&<p className="alert" role="status">O operador não possui permissão para estornar no CNPJ selecionado. Confira também a autorização nos demais CNPJs da comanda.</p>}
    {vendaRegistrada&&reversalEnabled&&hasPermission("pdv.cancelar_venda")&&<section className="pv-unified-manual-company">
     <h4>Estorno integral desta comanda</h4>
     {!checkoutEnabled&&<p className="alert" role="status">Contingência: novas vendas continuam bloqueadas. Apenas o estorno integral desta venda já concluída está autorizado.</p>}
