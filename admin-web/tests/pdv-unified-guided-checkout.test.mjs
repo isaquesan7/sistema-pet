@@ -38,3 +38,12 @@ test("não duplicar no fluxo os resumos técnicos e ação de reservar",()=>{
  assert.match(css,/\.pv-unified-preview \.pv-unified-advanced>summary:focus-visible/);
  assert.match(page,/PdvPaymentSection/);
 });
+
+test("configuração do piloto nunca remove o gate nem copia credenciais",()=>{
+ assert.match(page,/Copiar IDs para configurar o piloto/);
+ assert.match(page,/empresasAutorizadas:/);
+ assert.match(page,/empresa\.pdvAcessar/);
+ assert.match(page,/navigator\.clipboard\.writeText/);
+ assert.doesNotMatch(page,/POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED\s*=\s*"1"/);
+ assert.match(css,/\.pv-unified-preview \.pv-unified-pilot-config/);
+});
