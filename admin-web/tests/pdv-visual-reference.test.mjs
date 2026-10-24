@@ -30,13 +30,17 @@ test("central nao duplica venda vinculada a comanda e nao conta estorno como fec
 });
 test("workspace tem painel de itens e identificacao com resumo por CNPJ",()=>{
  for(const name of ["pdv-command-main","pdv-command-line-list","pdv-command-sidebar",
-  "pdv-command-identification","pdv-command-close","Distribuição por empresa",
-  "Total da comanda","Itens pendentes deste CNPJ","Registrar pagamento e fechar este CNPJ"]){
+  "pdv-command-identification","pdv-command-close","Total registrado neste CNPJ",
+  "Itens pendentes deste CNPJ","Registrar pagamento e fechar este CNPJ"]){
   assert.ok(page.includes(name),`Ausente: ${name}`);
  }
- assert.match(page,/commandCompanyGroups\s*=\s*useMemo/);
+ assert.match(page,/commandCompanyVisibleTotal=round/);
+ assert.doesNotMatch(page,/Distribuição por empresa|Total da comanda/);
  assert.match(page,/commandReadyToClose=currentCompanyCommandItems\.length>0/);
  assert.match(page,/commandPaymentsTotal===currentCompanyCommandTotal/);
+ assert.doesNotMatch(page,/commandModal|setCommandModal|commandClientId|setCommandClientId/);
+ assert.equal((page.match(/<PdvOrdersHome\b/g)||[]).length,1);
+ assert.equal((page.match(/api\.post\("\/pdv\/comandas"/g)||[]).length,1);
  assert.match(page,/disabled=\{!commandReadyToClose\|\|closeCommandMutation\.isPending\}/);
  assert.match(page,/api\.post\(`\/pdv\/comandas\/\$\{commandDetailId\}\/fechar`/);
  assert.doesNotMatch(page,/FECHAR E BAIXAR/);
