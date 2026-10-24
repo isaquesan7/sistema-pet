@@ -342,6 +342,7 @@ export default function PdvPage() {
   const commands = commandsQuery.data || [];
   const pendingPackages = pendingPackagesQuery.data || [];
   const commandDetail = commandDetailQuery.data || null;
+  const unifiedOrderForSelectedSale=(unifiedCompletedQuery.data||[]).find(order=>order.id===saleDetailQuery.data?.comandaId)||null;
 
   const subtotal = useMemo(() => round(cart.reduce((sum, line) => sum + Math.max(0, money(line.item.precoVenda) * money(line.quantidade) - money(line.desconto)), 0)), [cart]);
   const total = round(Math.max(0, subtotal - money(saleDiscount) + money(saleAddition)));
@@ -838,7 +839,7 @@ export default function PdvPage() {
         {packageReceive ? <><div className="pdv-package-receive-summary"><span>Valor do pacote</span><strong>{formatCurrency(packageReceive.valorPacote)}</strong></div><PaymentEditor payments={packagePayments} total={money(packageReceive.valorPacote)} onChange={setPackagePayments} /></> : null}
       </Modal>
 
-      <Modal open={Boolean(saleDetailId)} title={saleDetailQuery.data ? `Venda #${saleDetailQuery.data.numero}` : "Venda"} onClose={() => setSaleDetailId(null)} size="lg" footer={saleDetailQuery.data?.status === "FINALIZADA" && canCancel ? <button className="ghost-button pdv-danger" type="button" onClick={() => { setCancelSale(saleDetailQuery.data); setSaleDetailId(null); }}>Cancelar venda</button> : null}>
+      <Modal open={Boolean(saleDetailId)} title={saleDetailQuery.data ? `Venda #${saleDetailQuery.data.numero}` : "Venda"} onClose={() => setSaleDetailId(null)} size="lg" footer={unifiedOrderForSelectedSale ? <button className="ghost-button" type="button" onClick={()=>{setSaleDetailId(null);setUnifiedDraftToOpen(unifiedOrderForSelectedSale.id);setUnifiedInitialClient(null);setUnifiedInitialPet(null);setIndividualFallback(false);setTab("VENDA");}}>Abrir comanda para estorno integral</button> : saleDetailQuery.data?.status === "FINALIZADA" && canCancel ? <button className="ghost-button pdv-danger" type="button" onClick={() => { setCancelSale(saleDetailQuery.data); setSaleDetailId(null); }}>Cancelar venda</button> : null}>
         {saleDetailQuery.isLoading ? <div className="loading-state">Carregando...</div> : saleDetailQuery.data ? <div className="pdv-sale-detail"><div className="pdv-sale-detail__summary"><div><span>Cliente</span><strong>{saleDetailQuery.data.cliente?.nome || "Consumidor"}</strong></div><div><span>Data</span><strong>{formatDateTime(saleDetailQuery.data.createdAt)}</strong></div><div><span>Total</span><strong>{formatCurrency(saleDetailQuery.data.valorTotal)}</strong></div><div><span>Status</span><strong>{saleStatusLabel(saleDetailQuery.data.status)}</strong></div></div><div className="table-scroll"><table><thead><tr><th>Item</th><th>Pet</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody>{saleDetailQuery.data.itens.map((item) => <tr key={item.id}><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorUnitario)}</td><td>{formatCurrency(item.valorTotal)}</td></tr>)}</tbody></table></div><div className="pdv-sale-payment-tags">{saleDetailQuery.data.pagamentos.map((p) => <span key={p.id}><CreditCard size={13} /> {paymentLabels[p.forma]} · {formatCurrency(p.valor)}</span>)}</div></div> : null}
       </Modal>
 
