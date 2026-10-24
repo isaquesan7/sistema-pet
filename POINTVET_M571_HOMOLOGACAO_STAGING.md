@@ -1,5 +1,25 @@
 # PointVet M.5.71 — Plano de homologação controlada (PR #38)
 
+## Revisão operacional — 23/10/2026 (preparo sem deploy)
+
+**CI confirmado no SHA de código `c8cf2720d028325d08aff5a16313d32ed6165fe9`:**
+[GitHub Actions #40043436413](https://github.com/isaquesan7/sistema-pet/actions/runs/40043436413), `validate SUCCESS` e `isolated-postgres SUCCESS`. Inclui testes de CNPJ com PostgreSQL descartável. A PR #38 segue **DRAFT / mergeable clean**.
+
+**Staging Railway inspecionado:** projeto `Pet King PDV Homologacao`, environment `staging`. Admin, API, Portal e PostgreSQL **4/4 online**, sem publicação nova. Foi preparado um patch não destrutivo de source, **não aceito nem implantado**, ID `1db185c6-760a-4578-98cd-bab8e9e9df51`. A API possui alterações pendentes para o commit M.5.71. O Admin foi devolvido aos mesmos valores de branch+commit publicados (M.5.70), **mas o Railway ainda exibe o recurso Admin no patch com campos idênticos**. Consequentemente, o patch **NÃO deve ser aceito como unidade**: pode rebuildar API e Admin simultaneamente, contrariando a implantação sequencial. Antes de qualquer deploy, descartar/limpar os campos do Admin no patch via Dashboard Railway; confirmar em `get_staged_changes` que resta **somente a API**. Não há ação de descarte granular na integração Railway disponível neste chat.
+
+**Backup (ainda NÃO confirmado no PostgreSQL persistente):** Railway dispõe de snapshots nativos de volumes, mas a integração de Railway conectada neste chat não expõe comandos para criar/listar/restaurar esses snapshots. Caminho documentado:
+1. Na interface Railway, selecionar projeto `Pet King PDV Homologacao` → ambiente `staging` → serviço `Postgres` → guia **Backups**. Conferir se já existe backup de volume recente e sua identificação e horário.
+2. Antes da janela de migração, criar **backup manual do volume postgres-volume**. Registrar ID/horário e a operação de sucesso, sem copiar senhas, URLs internas ou dados pessoais no GitHub. Não clicar em **Restore** no banco original durante o teste.
+3. Para validar restauração de forma independente, utilizar um banco destino **isolado** com dump/restore `pg_dump/pg_restore`, guardas de identidade da origem/destino, hashes e comparação de esquema/dados, preservando privacidade. O ensaio sintético anterior M.5.59 **não equivale** ao restore do staging; não reutilizar suas credenciais nem seus bancos, somente o processo testado.
+4. Fazer o gate completo somente quando houver evidência de backup restaurável, janela de manutenção autorizada e os recursos do patch separados por etapa. A migração aditiva de `empresaOrigemId` roda no **pre-deploy da API** (`npm run db:deploy`). Admin só depois da API passar nos testes HTTP.
+
+**IMPORTANTE:** o clique `Apply/Deploy` do patch atual (com API+Admin) **não foi autorizado**, não deve ser usado para "avançar" ou testar backup. API live continua pinada em `2e48bde574c46ae7f09ea640318fca73fdceaf7b`, Admin live em `739e12dcb50d5c1774f0abdf83b2acb22316bd50`.
+
+Referências da documentação Railway: [Backups nativos](https://docs.railway.com/volumes/backups) e [Comandos PostgreSQL](https://docs.railway.com/cli/postgres).
+
+---
+
+
 Data do preparo: 23/10/2026. Documento operacional; **não é autorização nem registro de implantação**.
 
 ## Estado verificado no Railway
