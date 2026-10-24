@@ -53,7 +53,9 @@ test("mesmos campos de pagamentos sem simular recebimento real",()=>{
  assert.match(shared,/export function PdvPaymentPending/);
  assert.match(shared,/aria-label="Forma de pagamento indisponível" disabled/);
  assert.match(shared,/aria-label="Valor do pagamento indisponível" value="0" readOnly disabled/);
- assert.match(intelligent,/<PdvPaymentPending message=/);
+ assert.match(intelligent,/className="pdv-payment-pending"/);
+ assert.match(intelligent,/Para registrar os recebimentos, salve a comanda e reserve/);
+ assert.doesNotMatch(intelligent,/<PdvPaymentPending message=/);
  assert.match(intelligent,/Salvar rascunho/);
  assert.match(intelligent,/Validar e calcular sem cobrar/);
  assert.match(individual,/<PaymentEditor payments=\{payments\}/);
