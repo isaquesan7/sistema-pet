@@ -102,7 +102,7 @@ export function PdvPaymentPending({message}){
  </div>;
 }
 
-export function PdvCheckoutButton({total,formatMoney,onClick,disabled=false,pending=false,reason}){
+export function PdvCheckoutButton({total,formatMoney,onClick,disabled=false,pending=false,reason,label=null}){
  // O motivo da indisponibilidade deve ser anunciado também a leitores de tela,
  // sem associar o botão ao motor financeiro nem modificar suas permissões.
  const reasonId=useId();
@@ -110,7 +110,7 @@ export function PdvCheckoutButton({total,formatMoney,onClick,disabled=false,pend
   <button className="primary-button primary-button--large" type="button"
    disabled={disabled||pending} aria-describedby={reason?reasonId:undefined}
    onClick={onClick}>
-   {pending?"Finalizando...":`Finalizar venda · ${total===null?"—":formatMoney(total)}`}
+   {pending?"Processando...":label||`Finalizar venda · ${total===null?"—":formatMoney(total)}`}
   </button>
   {reason&&<small id={reasonId} className="pdv-checkout-action__reason" role="status">{reason}</small>}
  </div>;
