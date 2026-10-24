@@ -47,3 +47,18 @@ test("configuração do piloto nunca remove o gate nem copia credenciais",()=>{
  assert.doesNotMatch(page,/POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED\s*=\s*"1"/);
  assert.match(css,/\.pv-unified-preview \.pv-unified-pilot-config/);
 });
+
+test("estorno integral recebe autorização no fechamento imediato e ao reabrir venda",()=>{
+ const calls=page.match(/<UnifiedManualReceiptPreview[^>]*\/>/g)||[];
+ assert.equal(calls.length,2,"As duas entradas para estorno devem reutilizar o mesmo componente");
+ for(const rendered of calls){
+  assert.match(rendered,/checkoutEnabled=\{checkoutEnabled\}/);
+  assert.match(rendered,/reversalEnabled=\{reversalEnabled\}/);
+  assert.match(rendered,/onEstorno=\{onEstorno\}/);
+ }
+ assert.match(page,/vendaRegistrada&&reversalEnabled&&hasPermission\("pdv\.cancelar_venda"\)/);
+ assert.match(page,/vendaRegistrada&&!reversalEnabled/);
+ assert.match(page,/vendaRegistrada&&reversalEnabled&&!hasPermission/);
+ assert.match(page,/\/estornar-manual/);
+ assert.match(page,/Estorno integral desta comanda/);
+});
