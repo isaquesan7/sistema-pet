@@ -49,7 +49,7 @@ test("configuração do piloto nunca remove o gate nem copia credenciais",()=>{
 });
 
 test("estorno integral recebe autorização no fechamento imediato e ao reabrir venda",()=>{
- const calls=page.match(/<UnifiedManualReceiptPreview[^>]*\/>/g)||[];
+ const calls=page.match(/<UnifiedManualReceiptPreview[\s\S]*?\/>/g)||[];
  assert.equal(calls.length,2,"As duas entradas para estorno devem reutilizar o mesmo componente");
  for(const rendered of calls){
   assert.match(rendered,/checkoutEnabled=\{checkoutEnabled\}/);
