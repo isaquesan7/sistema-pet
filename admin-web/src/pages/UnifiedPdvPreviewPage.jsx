@@ -380,7 +380,7 @@ function UnifiedAllocationConference({draft,reservation,dirty,checkoutEnabled,re
    {preparation.data.operacoes.map(op=><div key={op.empresaId}><span>{op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}
   </div>}
   {preparation.data?.status==="PREPARADA"&&!dirty&&!diagnosis.data?.exigeRevisaoManual&&
-   <UnifiedManualReceiptPreview key={preparation.data.id} preparacao={preparation.data} versao={draft.versao} comandaId={draft.id} checkoutEnabled={checkoutEnabled} onEstorno={onEstorno} operacoesFechadas={reservation.operacoes.filter(op=>op.status==="CONCLUIDA"&&op.vendaId)}/>}
+   <UnifiedManualReceiptPreview key={preparation.data.id} preparacao={preparation.data} versao={draft.versao} comandaId={draft.id} checkoutEnabled={checkoutEnabled} reversalEnabled={reversalEnabled} onEstorno={onEstorno} operacoesFechadas={reservation.operacoes.filter(op=>op.status==="CONCLUIDA"&&op.vendaId)}/>}
   {conference.data&&<div className="pv-unified-total">
    <strong>{conference.data.preConferenciaAprovada?"Alocações consistentes — execução ainda desativada":"Alocações com pendências"}</strong>
    {conference.data.pendencias.map((e,i)=><p key={i}>{e.codigo} — empresa {e.empresaId}</p>)}
