@@ -298,3 +298,16 @@
 .pdv-page .pdv-hero--order-mode .pdv-session-badge{padding:8px 11px;min-height:0}
 .pdv-page .pdv-hero--order-mode .pdv-hero__chips{gap:6px}
 @media(max-width:830px){.pdv-page .pdv-hero--order-mode{flex-wrap:wrap}}
+
+
+/* Histórico unificado no PDV: comanda única; não confundir com venda-filha por CNPJ. */
+.pdv-page .pdv-unified-history-main{display:grid;gap:12px;margin-bottom:15px}
+.pdv-page .pdv-unified-history-main .toolbar{gap:12px;align-items:center;flex-wrap:wrap}
+.pdv-page .pdv-unified-history-cards{display:grid;gap:10px}
+.pdv-page .pdv-unified-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:16px;padding:13px 15px;border:1px solid #e5e7f1;border-radius:11px;background:#fbfaff}
+.pdv-page .pdv-unified-history-row>div{display:grid;gap:4px;min-width:0}
+.pdv-page .pdv-unified-history-row strong{font-size:12px;overflow-wrap:anywhere;color:#313859}
+.pdv-page .pdv-unified-history-row small{font-size:11px;line-height:1.5;color:#64708b}
+.pdv-page .pdv-unified-history-empty{padding:15px;border:1px dashed #dadde9;border-radius:9px}
+@media(max-width:850px){.pdv-page .pdv-unified-history-row{grid-template-columns:minmax(0,1fr) auto}.pdv-page .pdv-unified-history-row>button{grid-column:1/-1;justify-self:start}}
+@media(max-width:520px){.pdv-page .pdv-unified-history-row{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-unified-history-row>button{width:100%;justify-content:center}}
