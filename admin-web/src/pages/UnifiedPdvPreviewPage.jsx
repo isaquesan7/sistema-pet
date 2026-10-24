@@ -24,6 +24,7 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
  const restoredId=useRef(null);
  const paymentSectionRef=useRef(null);
  const [savedNotice,setSavedNotice]=useState("");
+ const [pilotScopeNotice,setPilotScopeNotice]=useState("");
  const [localChanges,setLocalChanges]=useState(false);
  const [clientSearch,setClientSearch]=useState(""),[clientId,setClientId]=useState("");
  const [selectedClient,setSelectedClient]=useState(null);
@@ -72,6 +73,23 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
   if(checkoutStage==="SALVAR"){setSavedNotice("");save.mutate();return;}
   if(checkoutStage==="RESERVAR"){reserveMutation.mutate();return;}
   if(checkoutStage==="RECEBIMENTOS"){paymentSectionRef.current?.scrollIntoView({behavior:"smooth",block:"start"});}
+ }
+ function copyPilotScope(){
+  // A API ja entrega estes IDs ao operador autenticado. Nenhuma chave secreta,
+  // token, senha ou registro de clientes e incluido no texto.
+  const context=eligibility.data?.contextoAcesso;
+  if(!context?.organizacaoId)return;
+  const payload={
+   organizacaoId:context.organizacaoId,
+   empresaSelecionadaId:context.empresaId,
+   empresasAutorizadas:(eligibility.data?.permissoesEmpresas||[])
+    .filter(empresa=>empresa.pdvAcessar)
+    .map(empresa=>({id:empresa.id,nomeFantasia:empresa.nomeFantasia,cnpj:empresa.cnpj}))
+  };
+  if(!navigator.clipboard?.writeText){setPilotScopeNotice("A cópia não está disponível neste navegador.");return;}
+  navigator.clipboard.writeText(JSON.stringify(payload,null,2))
+   .then(()=>setPilotScopeNotice("Identificadores copiados. Compartilhe apenas com o responsável pela homologação."))
+   .catch(()=>setPilotScopeNotice("Não foi possível copiar; verifique a permissão do navegador."));
  }
  const preview=useMutation({mutationFn:async()=>(await api.post("/pdv-unificado/simulacao",buildUnifiedDraftPayload(clientId,lines))).data.dados});
  function reopen(saved){
@@ -221,6 +239,12 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
      </button>
     </div>}
     afterCartContent={<details className="pv-unified-advanced"><summary>Detalhes avançados de planejamento e auditoria</summary><div className="pdv-unified-review">
+     {!manualCheckoutEnabled&&eligibility.data?.contextoAcesso&&<div className="pv-unified-pilot-config">
+      <strong>Habilitação restrita do teste de venda</strong>
+      <p>O registro de vendas está bloqueado no servidor. O responsável pela homologação precisa autorizar esta organização e cada CNPJ no Railway. Nenhuma chave ou senha será copiada.</p>
+      <button className="ghost-button" type="button" onClick={copyPilotScope}>Copiar IDs para configurar o piloto</button>
+      {pilotScopeNotice&&<small role="status">{pilotScopeNotice}</small>}
+     </div>}
      {draft&&<p className="pdv-unified-draft-label">Comanda em atendimento: {draft.id.slice(0,8)} · {isReserved?"Edição bloqueada":localChanges?"Alterações não salvas":"Salva"}</p>}
          {save.isError&&<p className="alert alert--error">{getApiErrorMessage(save.error)}</p>}{savedNotice&&<p className="alert alert--success">{savedNotice}</p>}{closingReview.isError&&<p className="alert alert--error">{getApiErrorMessage(closingReview.error)}</p>}{closingPlan.isError&&<p className="alert alert--error">{getApiErrorMessage(closingPlan.error)}</p>}
     {closingPlan.data&&!localChanges&&<div className="pv-unified-total"><h3>Planejamento por empresa — sem executar</h3>{closingPlan.data.operacoes.map(op=><div key={op.empresaId}><span>{op.empresa} · {op.cnpj}</span><strong>{formatCurrency(Number(op.total))}</strong></div>)}<p>Operações apenas planejadas. O sistema não cria vendas, não movimenta caixa e não emite notas fiscais.</p></div>}{reservation.isError&&<p className="alert alert--error">{getApiErrorMessage(reservation.error)}</p>}
