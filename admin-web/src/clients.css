@@ -211,3 +211,14 @@
 @media(max-width:680px){.pv-unified-hero{flex-direction:column;align-items:stretch;padding:24px 19px}.pv-unified-hero-status{flex-basis:auto}.pv-unified-sourcing{grid-template-columns:1fr}.pv-unified-preview .pv-unified-workspace .pv-detail-panel{padding:15px}.pv-unified-preview .pv-unified-line{gap:11px}.pv-unified-preview .pv-unified-line>label{flex:1 1 140px;width:auto}.pv-unified-preview .pv-unified-line .pv-unified-bulk{grid-template-columns:minmax(0,1fr);flex-basis:100%}.pv-unified-order-summary>div{flex-wrap:wrap;gap:4px}.pv-unified-preview .pv-unified-cart>.pv-pet-card-actions{display:grid;grid-template-columns:1fr}.pv-unified-history>summary{padding:17px}.pv-unified-history-content{padding:0 12px 13px}.pv-unified-preview .pv-unified-manual-payment,.pv-unified-preview .pv-unified-scale-fields{grid-template-columns:1fr}}
 @media(max-width:420px){.pv-unified-preview .pv-unified-catalog-item{flex-wrap:wrap}.pv-unified-preview .pv-unified-add{width:100%}.pv-unified-preview .pv-unified-line>label{flex-basis:100%}.pv-unified-preview .pv-unified-line .pv-unified-remove{margin-left:0}}
 @media(prefers-reduced-motion:reduce){.pv-unified-preview .pv-unified-catalog-item,.pv-unified-history>summary:after{transition:none}}
+
+/* M.5.71 — auditoria avançada recolhida: não estica a comanda nem esconde o checkout. */
+.pv-unified-preview .pv-unified-advanced{margin-top:11px;border:1px solid #e5e8f2;border-radius:11px;overflow:hidden;background:#fbfaff}
+.pv-unified-preview .pv-unified-advanced>summary{padding:13px 15px;font-size:12px;font-weight:750;color:#62549c;cursor:pointer;list-style:none}
+.pv-unified-preview .pv-unified-advanced>summary::-webkit-details-marker{display:none}
+.pv-unified-preview .pv-unified-advanced>summary:after{content:"▾";float:right}
+.pv-unified-preview .pv-unified-advanced[open]>summary:after{content:"▴"}
+.pv-unified-preview .pv-unified-advanced>summary:focus-visible{outline:2px solid #7563cf;outline-offset:-2px}
+.pv-unified-preview .pv-unified-advanced .pdv-unified-review{margin:0;padding:8px 13px 14px;display:grid;gap:10px}
+.pv-unified-preview .pv-unified-settlement{min-width:0;scroll-margin-top:90px}
+@media(max-width:680px){.pv-unified-preview .pv-unified-advanced>summary{padding:12px}}
