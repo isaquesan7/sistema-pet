@@ -48,7 +48,7 @@ export function visibleUnifiedClients(clients, selectedClient) {
 }
 
 export function rehydrateUnifiedDraft(saved){
- return (saved.itens||[]).filter(i=>i.status==="ATIVO").map(i=>({
+ return (saved.itens||[]).filter(i=>i.status==="ATIVO"||(saved.status==="FECHADA"&&i.status==="FATURADO")).map(i=>({
   lineKey:`persistida:${i.id}`,
   rascunhoItemId:i.id,
   empresaId:i.empresaId,
