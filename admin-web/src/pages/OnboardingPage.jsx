@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Check, ChevronLeft, ChevronRight, Eye, EyeOff, LoaderCircle, PawPrint, ShieldCheck, Sparkles } from "lucide-react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import BrandMark from "../components/BrandMark.jsx";
 import api, { getApiErrorMessage } from "../lib/api.js";
 import { formatCurrency } from "../lib/formatters.js";
@@ -21,6 +21,8 @@ function formatCnpjInput(value) {
 export default function OnboardingPage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedPlanSlug = searchParams.get("plano") || "";
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword,setConfirmPassword] = useState("");
@@ -29,7 +31,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(null);
   const [form, setForm] = useState({
-    planoSlug: "", ciclo: "MENSAL",
+    planoSlug: requestedPlanSlug, ciclo: "MENSAL",
     organizacaoNome: "", organizacaoWhatsapp: "",
     empresaNome: "", razaoSocial: "", cnpj: "", tipo: "LOJA_CONSULTORIO", empresaTelefone: "", empresaEmail: "",
     adminNome: "", adminEmail: "", adminTelefone: "", senha: "",
