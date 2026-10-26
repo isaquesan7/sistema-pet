@@ -21,6 +21,14 @@
 
 ---
 
+## M.5.71 — ferramenta DR segura preparada (26/10/2026)
+
+- **Entregue:** `api/scripts/pointvet-m571-staging-drill.mjs`, contrato `pointvet-m571-dr-guard.contract.mjs` e teste de guarda, com workflow `validate`; manual [DR real isolado](POINTVET_M571_DR_RESTAURACAO_REAL.md). A ferramenta usa origem staging somente leitura e `pg_dump`, testa identidade real do cluster via `pg_control_system()`, recusa destino não vazio/projetos da Pet King e restaura só em cluster independente aprovado. Nenhum DR real executado.
+- **Bloqueio confirmado:** staging não expõe proxy TCP público e conector não executa SQL/backups; executar apenas em ambiente de operação autorizado, com acesso privado aos DOIS bancos e novo projeto DR vazio independente. Sem fonte de rede segura, **não criar proxy público como atalho**.
+- **Preservar progresso:** checkout/estorno/relatórios pós-estorno já aprovados; PR #38 continua Draft sobre PR #36, main aciona auto-deploy e predeploy Prisma em `Pet King DEV/production`. Não fazer merge/deploy de produção até DR real + controle de auto-deploy + revisão fiscal/contábil.
+
+---
+
 # M.5.71 — RESOLUÇÃO CONSCIENTE DA DIVERGÊNCIA PR #36 / PR #38 (23/10/2026)
 
 A PR #36 avançou após a abertura da PR #38, criando conflito em aproximadamente 15 arquivos. A reconciliação é deliberada e não aceita um merge automático que reintroduza edição irrestrita do tutor, checkout multiempresa prematuro ou a UX antiga. A árvore final da PR #38 conserva as implementações mais recentes e incorpora os objetivos úteis da #36:
