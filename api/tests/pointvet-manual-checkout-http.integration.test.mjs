@@ -7,6 +7,8 @@ import jwt from "jsonwebtoken";
 import app from "../src/app.js";
 import prisma from "../src/config/prisma.js";
 import {consultarReservaFechamento} from "../src/modules/pdv/pdv-unificado.service.js";
+import {resumo as resumoFinanceiro,fluxo as fluxoFinanceiro} from "../src/modules/financeiro/financeiro.service.js";
+import {fecharCaixa} from "../src/modules/pdv/pdv.service.js";
 
 const CI_URL="postgresql://pointvet_ci:pointvet_ci_only@localhost:5432/pointvet_unified_ci";
 test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay e rollback",async t=>{
@@ -391,4 +393,37 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await prisma.cargoPermissao.create({data:{cargoId:roleService.id,permissaoId:cancelPermission.id}});
  assert.equal((await request("GET",roleEndpoint,200,null,supervisorAuth,service)).dados
   .permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,true);
+
+ // Gate pos-estorno: os relatorios e o fechamento dos DOIS CNPJs devem
+ // neutralizar a venda integral, sem gerar saida duplicada de dinheiro.
+ // Permissao financeira concedida SOMENTE ao tenant CI descartavel.
+ const financePermission=await prisma.permissao.upsert({
+  where:{codigo:"financeiro.visualizar"},update:{},
+  create:{codigo:"financeiro.visualizar",nome:"Visualizar financeiro"}
+ });
+ await prisma.cargoPermissao.createMany({
+  data:[roleStore.id,roleService.id].map(cargoId=>({cargoId,permissaoId:financePermission.id})),
+  skipDuplicates:true
+ });
+ for(const [company,session] of [[store,sessionStore],[service,sessionService]]){
+  const scope={organizacaoId:org,empresaId:company,usuarioId:supervisor,
+   escopo:"empresa",dataInicio:"2020-01-01",dataFim:"2099-12-31"};
+  const summary=await resumoFinanceiro(scope);
+  assert.equal(summary.vendas,0,"Estorno nao deixa venda FINALIZADA no CNPJ");
+  assert.equal(summary.faturamento,0,"Faturamento nao pode incluir venda estornada");
+  assert.equal(summary.receitasRealizadas,0,"Pagamento estornado nao pode ser receita");
+  assert.equal(summary.saldoPeriodo,0,"Estorno nao duplica receita/despesa");
+  assert.equal(summary.empresas.length,1,"Financeiro deve ser restrito ao CNPJ");
+  assert.equal(summary.empresas[0].id,company);
+  assert.equal(summary.empresas[0].faturamento,0);
+  assert.equal(summary.empresas[0].receitas,0);
+  assert.equal((await fluxoFinanceiro(scope)).filter(x=>x.origem==="VENDA").length,0,
+   "O fluxo nao pode incluir pagamento estornado");
+  const fechamento=await fecharCaixa({empresaId:company,usuarioId:supervisor,
+   sessaoId:session.id,dados:{valorFechamento:0}});
+  assert.equal(Number(fechamento.valorEsperado),0,
+   "Caixa sem pagamento aprovado tem esperado zero, inclusive apos auditoria do estorno");
+  assert.equal(Number(fechamento.diferencaFechamento),0,
+   "Caixa de teste fecha sem divergencia de estorno");
+ }
 });
