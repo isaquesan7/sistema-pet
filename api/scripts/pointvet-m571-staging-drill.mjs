@@ -100,7 +100,7 @@ try{
  // Requires pg_control_system() privileges. If denied, fail closed.
  const clusterSource=sql(source,"SELECT system_identifier::text FROM pg_control_system()");
  const clusterTarget=sql(target,"SELECT system_identifier::text FROM pg_control_system()");
- if(!/^\\d{10,}$/.test(clusterSource)||!/^\\d{10,}$/.test(clusterTarget)||
+ if(!/^\d{10,}$/.test(clusterSource)||!/^\d{10,}$/.test(clusterTarget)||
     clusterSource===clusterTarget)fail("source and DR target are the same or unverified PostgreSQL cluster");
  const [srcDb,srcRead,srcVersion]=check(source).split(":");
  const [dstDb,dstRead,dstVersion]=check(target).split(":");
