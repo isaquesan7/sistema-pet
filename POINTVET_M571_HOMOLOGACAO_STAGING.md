@@ -1,3 +1,42 @@
+# M.5.71 — Revisão pré-release e plano de publicação controlada
+
+## Revisão pré-release — 26/10/2026 (gates reais)
+
+**Classificação: HOMOLOGAÇÃO FUNCIONAL APROVADA, PUBLICAÇÃO COMERCIAL BLOQUEADA.** Esta seção substitui, para decisões atuais, os inventários "antes do deploy" preservados abaixo como histórico. Não transformar aceite do staging em deploy, merge ou lançamento amplo.
+
+### Evidências verificadas (26/10)
+
+| Controle | Evidência / estado |
+| --- | --- |
+| Staging dedicado | Railway projeto `Pet King PDV Homologacao`, ambiente `staging`, quatro serviços online (API, Admin, Portal, PostgreSQL), sem patch pendente. Postgres com volume `56ad89a7-caa4-4630-9be5-5544560a4ba3`. |
+| Staging API / Admin | `pointvet-api-staging` live commit `c8cf2720d028325d08aff5a16313d32ed6165fe9`; `pointvet-admin-staging` live commit `a1875737fe19a4421f44fa4aaa424e876625fb38`. Commits de documentação posteriores na branch **não** representam novo deploy. |
+| Homologação humana | Proprietário confirmou venda manual entre 2 CNPJs, relatórios financeiros, **estorno integral** e relatórios financeiros **pós-estorno OK**. Logs API: `POST /fechar-manual` 201 e `POST /estornar-manual` 201 (24/10/2026). Não houve inspeção SQL do saldo real pela integração; estoque por lote e fechamento de caixa têm cobertura CI, sem afirmar saldo real não observado. |
+| CI SHA completo | PR #38 HEAD documental `44ae51d6a697c82abe74c0d12f56208f9399825c`; [workflow 40346590474](https://github.com/isaquesan7/sistema-pet/actions/runs/40346590474), jobs `validate` e `isolated-postgres` ambos SUCCESS. Base de código de teste `bec48678e2bb263d5ce3715ab449845f4076e69d`, [40342319505](https://github.com/isaquesan7/sistema-pet/actions/runs/40342319505), também ambos SUCCESS. |
+| GitHub dependências | `main=af0e33540b3481ba0378c0137654f1a026bbbfb3`; PR #36 aberta **DRAFT** (`19213df5d3d26c55ebe4676dec75645a411c8f59`, base main); PR #38 **DRAFT** e sem conflitos **somente contra a PR #36** (`base=19213df5...`). PR #35 Orçamentos/Crédito aberta DRAFT com conflitos e fora do escopo para promover como efeito colateral. **Não mergear PR #38 diretamente na main.** |
+| Ambiente comercial preservado | Railway projeto **outro** `Pet King DEV`, environment com nome `production`; Postgres volume `69e4b414-eb91-4f33-9066-8b977ecd404a` (diferente do staging). Serviços `petrise-api`, `petrise-admin`, `petrise-portal` seguem source branch `main`. Produção online e sem patch pendente; não houve deploy ou variáveis alteradas nesta revisão. |
+| PERIGO de merge | `petrise-api` em **Pet King DEV / production** tem `preDeployCommand=["npm run db:deploy"]`, e API/Admin/Portal estão ligados à branch `main` com `checkSuites=false` observado em API/Admin/Portal. Um merge em `main` **pode disparar implantações** e migrations antes de homologaçao/revisão. Exigir controle de deploy automático por serviço e pin de SHA de release antes de atualizar `main`. |
+
+### Gates ainda BLOQUEANTES antes de liberar uso comercial
+
+1. **DR do staging**: proprietário informou criação de backup nativo, porém ID/data/situação e **restauração independente ainda NÃO foram validados por este conector**. O backup de volume Railway só restaura no **mesmo projeto/ambiente**, trocando o volume montado após Apply. **Nunca pressionar Restore no Postgres original como teste de DR.** Para ensaio isolado com origem staging e destino descartável, utilizar `pg_dump` + `pg_restore` sob executor autorizado (credenciais privadas, sem logs de dados pessoais), validar `current_database()`, projeto/serviço/hostname de origem e destino, versões e hash/tamanho; verificar esquema, linhas, índices, migrações e integridade da amostra, e descartar o destino depois. Alternativamente, PITR para serviço irmão **se previamente habilitado** e com ponto válido; não assumir PITR existente. Documentação oficial: https://docs.railway.com/volumes/backups e https://docs.railway.com/guides/postgres-backups-restores .
+2. **Estratégia de integração**: revisar separadamente a PR #36 (fundação com grande superfície de alterações), a PR #38 (camada M.5.71) e a PR #35 (crédito/orçamentos); nenhuma integração implícita ou bypass da ordem de dependências. Congelar SHAs e obter CI completo no commit EXATO que entraria na `main`.
+3. **Controle dos deploys da `main`**: confirmar/neutralizar implantação automática nas aplicações comerciais ligadas à `main`, especialmente `petrise-api` com predeploy Prisma. Manter serviço comercial antigo operacional até aprovação do cutover. Verificar configurações no Railway antes e após qualquer merge.
+4. **Fiscal/contábil operacional por CNPJ**: primeiro release é **PDV de gestão manual**, sem PSP, banco, TEF, maquininhas ou emissão de notas pelo motor fiscal do PointVet. Definir e homologar processo **externo** de cumprimento fiscal e conferência contábil de mercadoria versus serviço em ambos os CNPJs. Não anunciar emissão automática.
+5. **Plano de canário e rollback**: selecionar inicialmente **somente a organização Pet King** e seus 2 CNPJs autorizados, manter flag OFF para outros tenants; verificar permissões `pdv.acessar`, `pdv.cancelar_venda`, `financeiro.visualizar`, preços, gramas inteiros, serviços inteiros, caixas e cancelamento do legado. Fixar SHAs para rollback de API/Admin; migracões aditivas não são revertidas automaticamente. Se houver venda/pagamento registrado, rollback de código não desfaz o lançamento: preservar dados, interromper novas operações, conciliar e tratar incidentes com auditoria.
+6. **Autorização específica do proprietário para produção**: apresentar relatório final de riscos, quem executa e a janela de implantação. Aprovação de staging **não autoriza** merge, deploy, alteração de flags comerciais, migração real nem restauração destrutiva.
+
+### Sequência de liberação proposta — SEM EXECUÇÃO
+
+1. Registrar evidência DR em origem staging e destino independente; documentar identificadores não secretos, checksums, data UTC, esquema/linhas e resultado do teste. Só aceitar `RESTORE VERIFICADO` depois de efetivamente restaurar. 
+2. Revisar a stack PR #36 → PR #38 e a situação da PR #35. Revisar PR #36 com atenção especial a módulos financeiros/fiscais que são apenas prévias CI. Congelar CI e SHAs e evitar autopublicação por branch `main`.
+3. Auditar backup/alertas do `Pet King DEV / production`, sem reutilizar backup do staging. Preparar migração de dados aditiva, snapshot anterior, smoke e reversão. **Nenhuma mudança no comercial no preparo.**
+4. Na janela especificamente autorizada: aplicar código API em canário restrito, observar saúde, Prisma, autenticação e separação por CNPJ; publicar Admin separadamente; reabrir manualmente a preferência apenas para Pet King e confirmar venda/estorno usando dados de teste, sem cobrar externamente. No primeiro erro de isolamento, discrepância financeira, estoque negativo ou erro persistente, parar novos fechamentos e acionar o plano de rollback.
+5. Somente depois do aceite do canário, deliberar expansão tenant por tenant; funcionalidades fiscais/integrações externas continuam módulos/decisões futuras.
+
+**Estado desta revisão:** apenas leitura de Railway/GitHub e documentação desta PR; **nenhum deploy, merge, migration, restauro, segredo ou operação comercial foi executado**.
+
+---
+
 # PointVet M.5.71 — Plano de homologação controlada (PR #38)
 
 ## Atualização do gate de backup — usuário confirmou criação (23/10/2026)
