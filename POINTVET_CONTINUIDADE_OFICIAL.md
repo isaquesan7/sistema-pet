@@ -1,3 +1,14 @@
+## M.5.71 — ACEITE DE RELATÓRIOS PÓS-ESTORNO (26/10/2026)
+
+- **Operador/proprietário confirmou** que verificou os relatórios do staging após o estorno integral e que **estão todos corretos**; este é o aceite operacional dos relatórios financeiros nos dois CNPJs da Pet King. Não repetir venda/estorno ou reconstruir módulos já aprovados.
+- **Evidência externa anterior:** Railway API staging `POST /pdv-unificado/rascunhos/:id/fechar-manual` 201 e `POST /pdv-unificado/rascunhos/:id/estornar-manual` 201 (24/10 às 17h10, Salvador); proprietário confirmou a execução do estorno integral. **Não afirmar acesso SQL aos saldos reais:** o conector Railway disponível não realiza consultas PostgreSQL read-only.
+- **CI de código:** commit `bec48678e2bb263d5ce3715ab449845f4076e69d`, [GitHub Actions #40342319505](https://github.com/isaquesan7/sistema-pet/actions/runs/40342319505) com `validate SUCCESS` + `isolated-postgres SUCCESS`. A suíte HTTP de banco descartável confirma venda/estorno por dois CNPJs, pagamentos ESTORNADO, lote recomposto, relatórios por empresa e fechamento dos caixas sem divergências. **Não é prova direta do banco staging.**
+- **Railway staging inspecionado em 26/10:** 4 serviços online (API, Admin, Portal e PostgreSQL), sem patch pendente. PR #38 ainda `DRAFT`, sem conflitos, base PR #36. O commit desta atualização é **somente documental**, não deve disparar publicação; o pin de API e Admin permanece o anterior até ordem de deployment.
+- **Status funcional M.5.71:** venda multiempresa **APROVADA**, estorno integral **APROVADO**, relatórios pós-estorno **APROVADOS pelo proprietário**. A conferência de estoque/caixa é exercitada em CI; não registrar saldos reais de staging sem leitura independente ou aceite explícito detalhado.
+- **Próxima etapa real, sem voltar no PDV:** revisão de release da PR #38 com checklist de recuperação/restauração independente do snapshot de staging (**backup criado, recuperação isolada ainda sem prova**), segurança/escopo CNPJ, escopo fiscal separado (não há emissão automática), integração controlada da branch via PR após revisão e autorização específica para produção. **Não ativar em outros tenants ou em produção só por aceite do piloto.** Não criar novo checkout, novo histórico ou novo patch apenas para repetir testes já verdes.
+
+---
+
 # M.5.71 — RESOLUÇÃO CONSCIENTE DA DIVERGÊNCIA PR #36 / PR #38 (23/10/2026)
 
 A PR #36 avançou após a abertura da PR #38, criando conflito em aproximadamente 15 arquivos. A reconciliação é deliberada e não aceita um merge automático que reintroduza edição irrestrita do tutor, checkout multiempresa prematuro ou a UX antiga. A árvore final da PR #38 conserva as implementações mais recentes e incorpora os objetivos úteis da #36:
