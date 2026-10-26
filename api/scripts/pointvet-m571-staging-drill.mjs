@@ -96,6 +96,12 @@ try{
  const started=Date.now();
  const check=env=>sql(env,"SELECT current_database()||':'||"+
   "current_setting('default_transaction_read_only')||':'||current_setting('server_version_num')");
+ // Real PostgreSQL cluster identity, not a Railway label or host alias.
+ // Requires pg_control_system() privileges. If denied, fail closed.
+ const clusterSource=sql(source,"SELECT system_identifier::text FROM pg_control_system()");
+ const clusterTarget=sql(target,"SELECT system_identifier::text FROM pg_control_system()");
+ if(!/^\\d{10,}$/.test(clusterSource)||!/^\\d{10,}$/.test(clusterTarget)||
+    clusterSource===clusterTarget)fail("source and DR target are the same or unverified PostgreSQL cluster");
  const [srcDb,srcRead,srcVersion]=check(source).split(":");
  const [dstDb,dstRead,dstVersion]=check(target).split(":");
  if(srcDb!==plan.source.database||dstDb!==plan.target.database||srcRead!=="on"||dstRead!=="off")
