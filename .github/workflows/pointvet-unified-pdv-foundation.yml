@@ -64,6 +64,9 @@ on:
       - "api/src/modules/plataforma/pointvet-m52-canario.contract.js"
       - "api/tests/pointvet-m52-canario.contract.test.mjs"
       - "api/scripts/ci-pointvet-backup-restore-drill.sh"
+      - "api/scripts/pointvet-m571-staging-drill.mjs"
+      - "api/src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs"
+      - "api/tests/pointvet-m571-dr-guard.contract.test.mjs"
       - "api/scripts/ci-pointvet-canonical-schema.mjs"
       - "api/tests/pointvet-m5-constraint-canonicalization.test.mjs"
       - "api/src/modules/plataforma/pointvet-m5-publicacao.contract.js"
@@ -302,6 +305,9 @@ jobs:
           node --test api/tests/pointvet-m5-constraint-canonicalization.test.mjs
           node --check api/src/modules/plataforma/pointvet-m5-publicacao.contract.js
           node --test api/tests/pointvet-m5-publicacao.contract.test.mjs
+          node --check api/scripts/pointvet-m571-staging-drill.mjs
+          node --check api/src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs
+          node --test api/tests/pointvet-m571-dr-guard.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-isolamento.contract.js
           node --test api/tests/pointvet-m52-isolamento.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-canario.contract.js
