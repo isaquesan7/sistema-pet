@@ -1,3 +1,15 @@
+## Gate de publicação comercial — revisão de 26/10/2026
+
+- **Aceites staging M.5.71:** checkout manual multi-CNPJ, estorno integral e relatórios financeiros pós-estorno aceitos pelo proprietário. API/Admin/Portal/Postgres staging 4/4 online, sem patch; CI `40346590474` (HEAD anterior documental `44ae51d6...`) com `validate` e `isolated-postgres` SUCCESS. Não refazer PDV.
+- **Auditoria real das dependências:** `main=af0e3354...`; PR #36 permanece **DRAFT** e é BASE da PR #38 (também DRAFT, apenas comparada à #36). PR #35 Orçamentos/Crédito ainda DRAFT com conflito. Portanto, **merge #38 → main direto é inseguro** e pode incluir alterações indesejadas/sem revisão. Verificar CI do SHA final após reconciliação.
+- **Risco de autodeploy descoberto:** no projeto Railway `Pet King DEV` env `production`, `petrise-api`, `petrise-admin` e `petrise-portal` estão ligados à `main` (API/Admin/Portal com checkSuites=false), e API executa `npm run db:deploy` antes do start. **Não mergear main antes de controlar os deploys.**
+- **Isolamento observado:** Pet King DEV/production e Pet King PDV Homologacao/staging têm projetos Railway e volumes PostgreSQL diferentes. Não duplicar dados comerciais ou migrar sem autorização.
+- **Gate DR PENDENTE:** backup volume staging informado, **restauração independente não demonstrada**. Segundo documentação Railway, snapshot de volume só restaura no MESMO projeto/ambiente e troca o volume após Deploy; não testar clicando Restore na origem. Teste isolado deve usar `pg_dump/pg_restore` em banco descartável ou PITR para serviço novo se previamente habilitado; não copiar credenciais ou dump para GitHub.
+- **Gate fiscal/contábil e canário PENDENTES:** venda é manual e declarada sem integração bancária/PSP/TEF/fiscal; validar procedimentos externos de obrigações legais por CNPJ e canário restrito, seguido de autorização expressa antes de qualquer produção.
+- **Runbook oficial ATUAL**: [revisão pré-release M.5.71](POINTVET_M571_HOMOLOGACAO_STAGING.md#revisão-pré-release--26102026-gates-reais). Estados anteriores no mesmo documento são históricos e não representam pendências de deploy staging já resolvidas. Nenhum deploy/merge/backup restore realizado neste incremento documental.
+
+---
+
 ## M.5.71 — ACEITE DE RELATÓRIOS PÓS-ESTORNO (26/10/2026)
 
 - **Operador/proprietário confirmou** que verificou os relatórios do staging após o estorno integral e que **estão todos corretos**; este é o aceite operacional dos relatórios financeiros nos dois CNPJs da Pet King. Não repetir venda/estorno ou reconstruir módulos já aprovados.
