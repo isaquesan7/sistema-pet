@@ -1,5 +1,8 @@
 # M.5.71 — Revisão pré-release e plano de publicação controlada
 
+> **DR independente (26/10/2026):** [Procedimento de restauração lógica real do staging](POINTVET_M571_DR_RESTAURACAO_REAL.md) e guardas de execução na PR #38. **Somente ferramenta e preflight sintético; recuperação de staging real ainda NÃO executada.** Não usar botão Restore no volume de origem ou afirmar backup nativo recuperável.
+
+
 ## Revisão pré-release — 26/10/2026 (gates reais)
 
 **Classificação: HOMOLOGAÇÃO FUNCIONAL APROVADA, PUBLICAÇÃO COMERCIAL BLOQUEADA.** Esta seção substitui, para decisões atuais, os inventários "antes do deploy" preservados abaixo como histórico. Não transformar aceite do staging em deploy, merge ou lançamento amplo.
