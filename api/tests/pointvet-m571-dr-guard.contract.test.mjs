@@ -25,6 +25,18 @@ test("refuses production, staging and synthetic CI project as target",()=>{
  for(const project of [prod,staging,synthetic])
   assert.throws(()=>validarPlanoDR({...scope,targetProjectId:project}),/BLOCKED/);
 });
+test("permite dois tuneis SSH Railway no localhost com portas diferentes, mas nunca prova cluster pelo preflight",()=>{
+ const r=validarPlanoDR({...scope,
+  sourceUrl:"postgresql://read:dummy@127.0.0.1:55432/railway?sslmode=require",
+  targetUrl:"postgresql://dr:dummy@127.0.0.1:55433/railway?sslmode=require"
+ });
+ assert.equal(r.restorePerformed,false);
+ assert.equal(r.confirmedActualIdentity,false);
+ assert.throws(()=>validarPlanoDR({...scope,
+  sourceUrl:"postgresql://read:dummy@127.0.0.1:55432/railway?sslmode=require",
+  targetUrl:"postgresql://dr:dummy@127.0.0.1:55432/railway?sslmode=require"
+ }),/BLOCKED/);
+});
 test("refuses shared host, missing confirmation and wrong source service",()=>{
  assert.throws(()=>validarPlanoDR({...scope,targetUrl:src}),/BLOCKED/);
  assert.throws(()=>validarPlanoDR({...scope,confirmacao:"yes"}),/BLOCKED/);
