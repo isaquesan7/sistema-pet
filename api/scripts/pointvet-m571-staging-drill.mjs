@@ -9,7 +9,7 @@ import {createHash} from "node:crypto";
 import {createReadStream,mkdtempSync,rmSync,statSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-import {validarPlanoDR} from "../src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs";
+import {validarPlanoDR,parsePgTableInventory} from "../src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs";
 const fail=message=>{throw Error("POINTVET_M571_DR_FAILED: "+message)};
 const args=new Set(process.argv.slice(2));
 if(args.has("--help")||!args.size){
@@ -53,7 +53,7 @@ const sql=(env,q)=>run("psql",["-X","-A","-t","-q","-v","ON_ERROR_STOP=1","-c",q
 const listSql="SELECT '\"'||replace(table_schema,'\"','\"\"')||'\".\"'||"+
  "replace(table_name,'\"','\"\"')||'\"' FROM information_schema.tables "+
  "WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name";
-const tables=env=>sql(env,listSql).split("\n").filter(Boolean);
+const tables=env=>parsePgTableInventory(sql(env,listSql));
 function tableDigest(env,t){
  if(!/^"[^"]+(?:""[^"]+)*"\."[^"]+(?:""[^"]+)*"$/.test(t))fail("unsafe table identifier");
  return sql(env,"SELECT count(*)::text||':'||md5(coalesce(string_agg(md5(to_jsonb(r)::text),"+
