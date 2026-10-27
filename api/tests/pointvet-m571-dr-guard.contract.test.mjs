@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {spawnSync} from "node:child_process";
-import {validarPlanoDR,parseDbConnection,DR_CONFIRM}
+import {validarPlanoDR,parseDbConnection,parsePgTableInventory,DR_CONFIRM}
  from "../src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs";
 const staging="9564acfc-1582-45d8-8ac3-f0bc2d998530";
 const prod="aab52927-a8c1-4158-80bf-bd22af504e72";
@@ -60,4 +60,15 @@ test("CLI preflight NEVER uses psql or writes data",()=>{
  assert.match(x.stdout,/PREFLIGHT_OK/);
  assert.match(x.stdout,/NAO executado/);
  assert.doesNotMatch(x.stdout,/dummy/);
+});
+
+// Windows PostgreSQL psql writes CRLF; \r must not contaminate quoted table names.
+test("inventario PostgreSQL reconhece Prisma em LF e CRLF sem alterar nomes",()=>{
+ const names=['"public"."_prisma_migrations"','"public"."comandas"','"public"."vendas"'];
+ for(const eol of ["\r\n","\n"]){
+  const raw=names.join(eol)+eol;
+  assert.deepEqual(parsePgTableInventory(raw),names);
+  assert.equal(parsePgTableInventory(raw).includes('"public"."_prisma_migrations"'),true);
+ }
+ assert.deepEqual(parsePgTableInventory("\r\n\r\n"),[]);
 });
