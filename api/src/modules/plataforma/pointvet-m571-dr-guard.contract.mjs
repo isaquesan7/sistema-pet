@@ -6,6 +6,10 @@ const STAGING='9564acfc-1582-45d8-8ac3-f0bc2d998530';
 const COMMERCIAL='aab52927-a8c1-4158-80bf-bd22af504e72';
 const SYNTHETIC='11a9be9f-7635-4e74-96f9-0c48d77242c9';
 export const DR_CONFIRM='I_AUTHORIZE_STAGING_READONLY_TO_FRESH_INDEPENDENT_DR';
+/** Normaliza inventarios do psql com linhas LF (Linux) e CRLF (Windows). */
+export function parsePgTableInventory(output){
+ return String(output).split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+}
 const reject=msg=>{throw Error('POINTVET_M571_DR_BLOCKED: '+msg)};
 export function parseDbConnection(input){
  if(typeof input!=='string'||!input)reject('URL de banco ausente');
