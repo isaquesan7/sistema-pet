@@ -26,6 +26,21 @@ Já existe restauração integral **sintética** em CI (M.5.1 e M.5.59). Não re
 5. Usar somente variáveis de ambiente privadas para as duas URLs PostgreSQL, nunca colá-las no GitHub, ChatGPT, imagens ou logs. Para Bash, capturar valores sem gravá-los no histórico: `read -r -s POINTVET_DR_SOURCE_URL` e `read -r -s POINTVET_DR_TARGET_URL`; depois `export` das variáveis.
 6. Conferir que usuário da origem pode ler o esquema inteiro e invocar `pg_control_system()`; usuário destino pode restaurar o banco vazio. Não tentar contornar falta de permissão elevando acessos comerciais.
 
+## Conexão sem expor PostgreSQL publicamente — Windows (dois túneis Railway CLI)
+
+O Railway CLI atual permite `railway connect Postgres --tunnel-only` sobre SSH mesmo SEM TCP proxy. É seguro manter dois túneis ativos, um para cada projeto, na MESMA máquina Windows, em **portas locais diferentes**. O script permite `127.0.0.1:55432` e `127.0.0.1:55433` e valida que `pg_control_system().system_identifier` é diferente em cada ponta ANTES de restaurar. Se os identificadores reais não puderem ser lidos ou forem iguais, o script ABORTA.
+
+Preparação: Node.js >=22, `npm i -g @railway/cli`, PostgreSQL client `psql`, `pg_dump`, `pg_restore` (versão principal 18 para os bancos Railway atuais), Git. Conferir `railway --version`, `pg_dump --version`, `node --version`.
+
+1. Criar **novo projeto Railway DR** com apenas um Postgres 18 vazio. Confirmar IDs não secretos do projeto e do serviço (não escolher Pet King DEV, não escolher DR-Sintetico-M558).
+2. Em Terminal PowerShell **A**, pasta vazia `$HOME\pointvet-dr\origem`, rodar `railway login`, `railway link` → projeto **Pet King PDV Homologacao**, environment `staging`, e `railway connect Postgres --tunnel-only --port 55432`. Deixar aberto (não fechar, não compartilhar URL/senha impressas).
+3. Em Terminal **B**, pasta diferente `$HOME\pointvet-dr\destino`, `railway link` → **novo projeto DR**, environment com o Postgres de DR, e `railway connect Postgres --tunnel-only --port 55433`. Deixar aberto.
+4. Em Terminal **C**, clonar o repositório e entrar na pasta `api/` da branch `feat/pointvet-m5-71-pdv-comandas` em SHA com guardas de túneis aprovadas. Configurar `POINTVET_DR_SOURCE_PROJECT_ID` e `POINTVET_DR_SOURCE_SERVICE_ID` (já registrados abaixo), e `POINTVET_DR_TARGET_PROJECT_ID` / `...SERVICE_ID` do projeto criado. Construir ou copiar **somente no PowerShell privado** as URLs PostgreSQL dos túneis, substituindo host/porta pelos locais correspondentes, com `?sslmode=require`; senhas especiais devem ser percent-encoded. Definir variáveis via prompt, nunca dentro de commits, tickets ou chat.
+5. Executar `node scripts/pointvet-m571-staging-drill.mjs --preflight-only`. Isso apenas valida campos; **não consulta nenhum banco**. Se tudo estiver pronto e o projeto destino estiver vazio, definir a segunda autorização explícita `POINTVET_DR_EXECUTION_APPROVAL=YES_FRESH_EMPTY_DR_DATABASE` e executar `node scripts/pointvet-m571-staging-drill.mjs --run-isolated-dr`.
+6. Guardar somente o JSON de indicadores, SHA256 e sucesso. Encerrar os túneis (Ctrl+C) e limpar variáveis privadas. Não usar os dumps em ambiente comercial. Se houver erro de permissão de system_identifier, TLS ou versão, **não contornar elevando acessos**: registrar falha sanitizada e interromper.
+
+Documento do CLI: https://docs.railway.com/cli/connect . A ausência de proxy TCP público **não bloqueia o túnel SSH local**; túnel não altera as configurações de rede Railway.
+
 ## Comandos de operação (somente após infraestrutura pronta)
 
 Executar a partir da pasta `api/`; definir as variáveis abaixo sem segredos em repositórios, trocando os IDs do **novo** projeto DR e serviço destino conforme Railway:
