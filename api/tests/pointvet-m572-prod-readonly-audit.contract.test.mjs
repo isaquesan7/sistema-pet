@@ -50,7 +50,7 @@ test("SQL consultivo nao inclui instrucoes mutantes",()=>{
  const sql=readFileSync(new URL("../scripts/pointvet-m572-prod-preflight.sql",import.meta.url),"utf8");
  assert.match(sql,/SELECT json_build_object/i);
  assert.match(sql,/default_transaction_read_only/);
- assert.doesNotMatch(sql,/\\b(?:INSERT|DELETE|UPDATE|ALTER|CREATE|DROP|TRUNCATE|CALL)\\b/i);
+ assert.doesNotMatch(sql,/\b(?:INSERT|DELETE|UPDATE|ALTER|CREATE|DROP|TRUNCATE|CALL)\b/i);
 });
 test("config-only nao acessa qualquer banco e nao pede senha",()=>{
  const env={...process.env,POINTVET_PROD_PREFLIGHT_URL:url,
