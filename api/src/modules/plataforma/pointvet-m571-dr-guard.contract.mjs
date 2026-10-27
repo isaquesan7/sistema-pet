@@ -38,7 +38,15 @@ export function validarPlanoDR({sourceUrl,targetUrl,sourceProjectId,targetProjec
   reject('Postgres origem nao e o staging conhecido');
  if(confirmacao!==DR_CONFIRM)reject('declaracao explicita ausente');
  const source=parseDbConnection(sourceUrl),target=parseDbConnection(targetUrl);
- if(source.hostname===target.hostname)reject('origem e destino nao podem compartilhar host Postgres');
+ // Railway CLI --tunnel-only can forward TWO independent projects to 127.0.0.1
+ // on distinct local ports. Actual cluster identities must still be checked
+ // on both connections by the runner via pg_control_system().
+ const loopbackHost=x=>["127.0.0.1","localhost","[::1]","::1"].includes(x);
+ if(source.hostname===target.hostname&&
+    !(loopbackHost(source.hostname)&&source.port!==target.port))
+  reject("origem e destino nao podem apontar para o mesmo endereco e porta");
+ if(loopbackHost(source.hostname)!==loopbackHost(target.hostname))
+  reject("mistura de tunel local e host remoto bloqueada");
  return {source,target,originProject:STAGING,targetProject:targetProjectId,
   possibleToTest:true,confirmedActualIdentity:false,restorePerformed:false,
   readyForProduction:false};
