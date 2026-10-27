@@ -21,7 +21,7 @@ const isCount=n=>Number.isSafeInteger(n)&&n>=0;
 export function assessProductionReadOnlyAudit(r){
  if(!r||typeof r!=="object"||Array.isArray(r))deny("resposta SQL ausente");
  const fields=["totalComandas","orphanComandas","crossTenantItems","crossTenantSales",
-  "crossTenantClinical","crossTenantBath","multiCompanyComandas",
+  "crossTenantClinical","crossTenantBath","multiCompanyComandas","openComandasWithoutCompanyReference",
   "unfinishedMigrations","completedMigrations"];
  if(fields.some(k=>!isCount(r[k]))||
     typeof r.readOnly!=="boolean"||
@@ -34,6 +34,7 @@ export function assessProductionReadOnlyAudit(r){
  for(const k of ["crossTenantItems","crossTenantSales","crossTenantClinical","crossTenantBath"])
   if(r[k]>0)blockers.push(k+": vinculo cruzado de organizacao/CNPJ");
  if(r.multiCompanyComandas>0)blockers.push("comandas legadas com mais de um CNPJ: inferencia automatica exige revisao");
+ if(r.openComandasWithoutCompanyReference>0)blockers.push("comandas abertas sem CNPJ derivavel: validar visibilidade antes da migracao");
  if(r.unfinishedMigrations>0)blockers.push("migrations Prisma interrompidas");
  if(r.alreadyHasComandaOrganizacao||r.alreadyHasComandaEmpresaOrigem)
   blockers.push("schema de comandas ja alterado; requer conciliacao com migration history");
