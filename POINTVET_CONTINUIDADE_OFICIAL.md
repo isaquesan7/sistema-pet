@@ -1,3 +1,13 @@
+## M.5.72 — comanda multi-CNPJ real da mesma organizacao, parecer e regressao isolada (28/10/2026)
+
+- **Evidencia enviada pelo proprietario:** `--inspect-multicnpj` devolveu `POINTVET_M572_MULTICNPJ_REVIEW_REQUIRED` com `auditedReadOnly=true`, `commercialDeploymentAuthorized=false`, `projectIdentityIndependentlyVerified=false`; contagens: 1 comanda multi-CNPJ, 1 somente mesma organizacao, 0 cross-tenant, 1 com itens, 0 com vendas, 1 com clinica, 1 com banho e tosa, 1 aberta, 0 fechadas, 0 empresa clinica/banho sem item/venda.
+- **Conclusao limitada:** evidencia sustenta que a comanda mista aberta e compativel com uso legitimo multi-CNPJ. `empresaOrigemId` nao e a propriedade exclusiva; `escopoComandaEmpresa` do PDV tradicional combina origem OU itens OU vendas, sempre com tenant `organizacaoId`, e filtra conteudo por empresa. Historico clinico/estetico nao deve ser reatribuido. **Nenhum dado da Pet King foi alterado.**
+- **Regressao adicionada apenas a banco descartavel CI:** `api/tests/pdv-comandas-cnpj.integration.test.mjs` agora monta 2 empresas, 2 itens, atendimento clinico e ordem banho/tosa da mesma comanda, sem venda, compara visibilidade e isolamento por CNPJ com origem null/A e vinculo de tutor. O teste tem exclusao da propria fixture no banco descartavel, nunca na Pet King. CI do HEAD deve ser confirmado.
+- **Nao alterar a migration `20261023234500_comandas_origem_cnpj` aplicada no staging**: sua selecao inicial define ancora e nao altera os `empresaId` das linhas/vendas. Ainda exigir simulacao das 26 migrations em clone do backup comercial, incluindo ver `status` das linhas, invariantes empresa/itens, contagens e relatorios. O preflight permanece BLOCKED ate prova de recuperacao comercial, clone testado, controle do autodeploy/main (`npm run db:deploy`), fiscal multi-CNPJ e canario. PR #38 DRAFT, sem merge/deploy/migration comercial; `productionAuthorized=false`.
+- Proximo passo prioritario: **teste de recuperacao do backup criptografado comercial em destino independente** sob controles de LGPD, depois ensaio das migrations em copia; nao refazer DR de staging nem homologacao de venda/estorno ja aceitos.
+
+---
+
 ## M.5.72 — Preflight real de producao bloqueado por comanda multi-CNPJ (28/10/2026)
 
 - **Resultado enviado pelo operador Windows:** `POINTVET_M572_PROD_PREFLIGHT_BLOCKED` / `auditedReadOnly=true` / `commercialDeploymentAuthorized=false`. Agregados: 2 comandas, 1 multi-CNPJ, 0 orfaos, 0 referencias cruzadas entre organizacoes, 0 comandas abertas sem empresa, 0 migrations incompletas, **22 migrations concluidas**. Nao foi realizada escrita, migration ou deploy. Nao interpretar `projectIdentityIndependentlyVerified=false` como identidade SQL verificada; depende da checagem Railway pelo operador.
