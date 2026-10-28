@@ -62,6 +62,13 @@ Remove-Item Env:POINTVET_PROD_PREFLIGHT_SERVICE_ID -ErrorAction SilentlyContinue
 
 Encerrar a janela do tunel. So compartilhar JSON agregado ja sem segredos. Em caso de `POINTVET_M572_AUDIT_BLOCKED`, NAO corrigir dados em producao sem analise e backup restauravel comprovado.
 
+
+## Diagnostico seguro da falha psql (28/10/2026)
+
+Se o operador receber `POINTVET_M572_AUDIT_BLOCKED: psql falhou`, isso **nao** prova anomalia nos dados nem autoriza alterar esquema. A CLI agora executa o mesmo SQL **somente leitura** mas usa `psql -v VERBOSITY=verbose` apenas internamente para extrair um **codigo seguro**, sem imprimir stderr, URLs, nomes de clientes, credenciais ou SQL bruto. Os codigos possiveis incluem `PSQL_NAO_ENCONTRADO`, `TUNEL_OU_REDE`, `AUTENTICACAO`, `TLS_CONEXAO`, `SQLSTATE_42P01_TABELA_AUSENTE`, `SQLSTATE_42703_COLUNA_AUSENTE`, `SQLSTATE_42501_PERMISSAO_SQL` e `PSQL_STATUS_NAO_ZERO`.
+
+No Windows: confirmar `Get-Command psql` e `Test-NetConnection 127.0.0.1 -Port 55434`, sem copiar logs com credenciais; conferir o `railway link` no painel para Pet King DEV > production > Postgres. Na segunda janela, atualizar a branch Draft com `git pull --ff-only` e repetir somente `node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-readonly` depois de confirmar que as variaveis privadas ainda estao definidas. Compartilhar apenas o codigo seguro ou o JSON agregado. **Nao usar `psql` manual com SQL de escrita, `db:deploy`, `migrate`, `git merge` ou rede publica** para resolver erro de preflight. O resultado `SQLSTATE` e diagnostico, nao a prova final.
+
 ## Gates pendentes para release comercial
 
 1. **DR comercial real:** demonstrar restauracao isolada do artefato de backup comercial aprovado (nao usar staging nem seu DR), validar controles de criptografia/retenção/LGPD. O ensaio `pg_dump` staging realizado nao prova o snapshot nativo nem o backup criptografado do worker comercial.
