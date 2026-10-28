@@ -69,6 +69,15 @@ Se o operador receber `POINTVET_M572_AUDIT_BLOCKED: psql falhou`, isso **nao** p
 
 No Windows: confirmar `Get-Command psql` e `Test-NetConnection 127.0.0.1 -Port 55434`, sem copiar logs com credenciais; conferir o `railway link` no painel para Pet King DEV > production > Postgres. Na segunda janela, atualizar a branch Draft com `git pull --ff-only` e repetir somente `node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-readonly` depois de confirmar que as variaveis privadas ainda estao definidas. Compartilhar apenas o codigo seguro ou o JSON agregado. **Nao usar `psql` manual com SQL de escrita, `db:deploy`, `migrate`, `git merge` ou rede publica** para resolver erro de preflight. O resultado `SQLSTATE` e diagnostico, nao a prova final.
 
+
+## Correcao SQLSTATE 22021 no Windows (28/10/2026)
+
+O operador executou o preflight em Windows, `--config-only` passou e `--inspect-readonly` retornou `SQLSTATE_22021_ERRO_POSTGRES`, sem resultados de dados. O PostgreSQL utiliza este SQLSTATE para sequencia de bytes invalida para a codificacao (tipicamente UTF-8). Foi identificada **uma ocorrencia de Unicode U+2014 (travessao) no comentario inicial** do arquivo `pointvet-m572-prod-preflight.sql`, transmitido ao `psql` pelo argumento `-c`. A conversao Windows da linha de comando pode codificar tal caractere como byte CP1252, inconsistente com UTF-8 no servidor. E uma causa plausivel, nao demonstracao definitiva sem repetir a leitura.
+
+**Alteracoes sem impacto economico:** substituido o travessao por hifen ASCII no SQL; CLI falha preventivamente caso texto SQL contenha caracteres nao ASCII; contrato classifica 22021 como `SQLSTATE_22021_CODIFICACAO_INVALIDA`; novo teste de regressao executado pelo workflow CI. O SQL continua sendo **somente SELECT de agregados**, com `default_transaction_read_only=on`, sem migrations, DDL/DML, deploy ou alteracao de dados.
+
+**Operador:** com tunel privado de producao na porta local `55434` e variaveis privadas ainda configuradas, atualizar a mesma branch com `git pull --ff-only` e repetir apenas `node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-readonly`. Compartilhar somente JSON agregado ou codigo seguro, nunca SQL bruto, senha, URL ou dados pessoais. Resultado limpo nao autoriza producao; anomalias requerem analise e clone isolado.
+
 ## Gates pendentes para release comercial
 
 1. **DR comercial real:** demonstrar restauracao isolada do artefato de backup comercial aprovado (nao usar staging nem seu DR), validar controles de criptografia/retenção/LGPD. O ensaio `pg_dump` staging realizado nao prova o snapshot nativo nem o backup criptografado do worker comercial.
