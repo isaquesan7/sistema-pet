@@ -46,37 +46,37 @@ cp -a "$BASE" "$FULL"
 npm run db:deploy
 before="$(psql_ci -c "SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;")"
 [[ "$before" == "22" ]] || die "baseline migration count mismatch"
-# Insert only synthetic legacy rows. The old schema requires clienteId on comandas.
+# Insert only synthetic legacy rows. Prisma @updatedAt is required by PostgreSQL.
 psql_ci <<'SQL'
 BEGIN;
-INSERT INTO public.organizacoes(id,slug,nome)
- VALUES ('m573-org','m573-only-synthetic','M573 Synthetic');
-INSERT INTO public.empresas(id,"organizacaoId",tipo,"razaoSocial","nomeFantasia",cnpj)
+INSERT INTO public.organizacoes(id,slug,nome,"updatedAt")
+ VALUES ('m573-org','m573-only-synthetic','M573 Synthetic',now());
+INSERT INTO public.empresas(id,"organizacaoId",tipo,"razaoSocial","nomeFantasia",cnpj,"updatedAt")
  VALUES
- ('m573-co1','m573-org','LOJA_CONSULTORIO','Synthetic A','Synthetic A','98765000000001'),
- ('m573-co2','m573-org','BANHO_TOSA','Synthetic B','Synthetic B','98765000000002');
-INSERT INTO public.clientes(id,"organizacaoId",nome)
- VALUES ('m573-cli','m573-org','Synthetic Client');
-INSERT INTO public.especies(id,"organizacaoId",nome)
- VALUES ('m573-esp','m573-org','Synthetic Species');
-INSERT INTO public.pets(id,"clienteId","especieId",nome)
- VALUES ('m573-pet','m573-cli','Synthetic Pet');
-INSERT INTO public.itens_catalogo(id,"empresaId",tipo,nome,"precoVenda")
+ ('m573-co1','m573-org','LOJA_CONSULTORIO','Synthetic A','Synthetic A','98765000000001',now()),
+ ('m573-co2','m573-org','BANHO_TOSA','Synthetic B','Synthetic B','98765000000002',now());
+INSERT INTO public.clientes(id,"organizacaoId",nome,"updatedAt")
+ VALUES ('m573-cli','m573-org','Synthetic Client',now());
+INSERT INTO public.especies(id,"organizacaoId",nome,"updatedAt")
+ VALUES ('m573-esp','m573-org','Synthetic Species',now());
+INSERT INTO public.pets(id,"clienteId","especieId",nome,"updatedAt")
+ VALUES ('m573-pet','m573-cli','m573-esp','Synthetic Pet',now());
+INSERT INTO public.itens_catalogo(id,"empresaId",tipo,nome,"precoVenda","updatedAt")
  VALUES
- ('m573-cat1','m573-co1','PRODUTO','Synthetic A Item',10.00),
- ('m573-cat2','m573-co2','PRODUTO','Synthetic B Item',20.00);
-INSERT INTO public.comandas(id,"clienteId",status)
- VALUES ('m573-mixed','m573-cli','ABERTA'),
-        ('m573-single','m573-cli','ABERTA');
-INSERT INTO public.comanda_itens(id,"comandaId","empresaId","itemCatalogoId",descricao,quantidade,"valorUnitario","valorTotal",status)
+ ('m573-cat1','m573-co1','PRODUTO','Synthetic A Item',10.00,now()),
+ ('m573-cat2','m573-co2','PRODUTO','Synthetic B Item',20.00,now());
+INSERT INTO public.comandas(id,"clienteId",status,"updatedAt")
+ VALUES ('m573-mixed','m573-cli','ABERTA',now()),
+        ('m573-single','m573-cli','ABERTA',now());
+INSERT INTO public.comanda_itens(id,"comandaId","empresaId","itemCatalogoId",descricao,quantidade,"valorUnitario","valorTotal",status,"updatedAt")
  VALUES
- ('m573-line1','m573-mixed','m573-co1','m573-cat1','Synthetic A Item',1,10.00,10.00,'ATIVO'),
- ('m573-line2','m573-mixed','m573-co2','m573-cat2','Synthetic B Item',1,20.00,20.00,'ATIVO'),
- ('m573-line3','m573-single','m573-co1','m573-cat1','Synthetic A Item',1,10.00,10.00,'ATIVO');
-INSERT INTO public.atendimentos_clinicos(id,"empresaId","clienteId","petId","comandaId")
- VALUES ('m573-clinical','m573-co1','m573-cli','m573-pet','m573-mixed');
-INSERT INTO public.ordens_servico_banho_tosa(id,"empresaId","clienteId","petId","comandaId")
- VALUES ('m573-bath','m573-co2','m573-cli','m573-pet','m573-mixed');
+ ('m573-line1','m573-mixed','m573-co1','m573-cat1','Synthetic A Item',1,10.00,10.00,'ATIVO',now()),
+ ('m573-line2','m573-mixed','m573-co2','m573-cat2','Synthetic B Item',1,20.00,20.00,'ATIVO',now()),
+ ('m573-line3','m573-single','m573-co1','m573-cat1','Synthetic A Item',1,10.00,10.00,'ATIVO',now());
+INSERT INTO public.atendimentos_clinicos(id,"empresaId","clienteId","petId","comandaId","updatedAt")
+ VALUES ('m573-clinical','m573-co1','m573-cli','m573-pet','m573-mixed',now());
+INSERT INTO public.ordens_servico_banho_tosa(id,"empresaId","clienteId","petId","comandaId","updatedAt")
+ VALUES ('m573-bath','m573-co2','m573-cli','m573-pet','m573-mixed',now());
 COMMIT;
 SQL
 # Preserve only the fingerprints of synthetic links; no real data exists in CI.
