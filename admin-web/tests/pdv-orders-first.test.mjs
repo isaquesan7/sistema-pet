@@ -96,3 +96,11 @@ test("M.5.74: abrir comanda nao causa tela branca e a central exibe CNPJs autori
  assert.match(svc,/empresa: \{ organizacaoId, ativo: true \}/);
  assert.match(svc,/itens: \{\s*where: \{ empresaId: \{ in: ids \}/);
 });
+
+test("M.5.74: erro de renderizacao do PDV apresenta recuperacao em vez de branco",()=>{
+ const app=read("../src/App.jsx"),boundary=read("../src/components/PdvErrorBoundary.jsx");
+ assert.match(app,/<PdvErrorBoundary><PdvPage \/><\/PdvErrorBoundary>/);
+ assert.match(boundary,/getDerivedStateFromError/);
+ assert.match(boundary,/Voltar à central do PDV/);
+ assert.match(boundary,/consulte o histórico antes de tentar novamente/);
+});
