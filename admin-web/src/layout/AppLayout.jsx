@@ -96,9 +96,24 @@ export default function AppLayout() {
   function handleCompanyChange(event) {
     const nextCompany = companies.find((company) => company.id === event.target.value);
     if (!nextCompany || nextCompany.id === selectedCompany?.id) return;
-    const keepWorkspace = keepUnifiedPdvRouteOnCompanyChange(location.pathname, selectedOrganization?.id, nextCompany, organizationConfig.pdvUnificadoHabilitado === true);
+    const sameOrganization = Boolean(selectedOrganization?.id) && nextCompany.organizacaoId === selectedOrganization.id;
+    const route = navItems
+      .filter(item => item.to !== "/")
+      .sort((a,b) => b.to.length-a.to.length)
+      .find(item => location.pathname === item.to || location.pathname.startsWith(item.to + "/"));
+    const routeAllowed = route &&
+      (!route.permission || nextCompany.permissoes?.includes(route.permission)) &&
+      (!route.permissionsAny || route.permissionsAny.some(p=>nextCompany.permissoes?.includes(p))) &&
+      (!route.module || modules.includes(route.module)) &&
+      (!route.companyTypes || route.companyTypes.includes(nextCompany.tipo)) &&
+      (!route.organizationRoles || route.organizationRoles.includes(selectedOrganization?.papel));
+    const keepWorkspace = sameOrganization && (
+      keepUnifiedPdvRouteOnCompanyChange(location.pathname, selectedOrganization?.id, nextCompany,
+        organizationConfig.pdvUnificadoHabilitado === true) || Boolean(routeAllowed)
+    );
     selectCompany(nextCompany.id);
-    // Preserve a multi-CNPJ draft within its organization; other screens reset context.
+    // A rota permanece a mesma se o operador tem acesso no novo CNPJ.
+    // Componentes financeiros limpam o estado local ao trocar de empresa.
     if (!keepWorkspace) navigate("/");
   }
 
