@@ -61,6 +61,7 @@ export function summarizePsqlAuditFailure({errorCode,status,signal,stderr}={}){
   "42883":"FUNCAO_OU_TIPO_INCOMPATIVEL","42601":"SINTAXE_SQL",
   "42501":"PERMISSAO_SQL","28P01":"AUTENTICACAO","28000":"AUTENTICACAO",
   "3D000":"BANCO_AUSENTE","57014":"TIMEOUT_SQL",
+  "22021":"CODIFICACAO_INVALIDA",
   "25006":"OPERACAO_ESCRITA_BLOQUEADA"
  };
  if(state)return "SQLSTATE_"+state+"_"+(states[state]||"ERRO_POSTGRES");
