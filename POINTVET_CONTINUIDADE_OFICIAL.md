@@ -1,3 +1,12 @@
+## M.5.72 — Diagnóstico seguro de falha psql no preflight comercial (28/10/2026)
+
+- **Fato operacional:** o proprietário executou `pointvet-m572-prod-readonly-audit.mjs --inspect-readonly` no Windows; a tentativa anterior retornou apenas `POINTVET_M572_AUDIT_BLOCKED: psql falhou; mensagem interna suprimida`. **Isto não comprova erro de schema/dados**, nem sucesso da auditoria. Nenhuma consulta concluída ou autorização comercial deve ser inferida.
+- **Correção na PR #38 DRAFT:** classificador puro `summarizePsqlAuditFailure` no contrato M.5.72, `psql VERBOSITY=verbose` apenas internamente, mensagem externa com **somente código seguro** (ENOENT, rede/túnel, autenticação, TLS, SQLSTATE de tabela/coluna/permissão, timeout); testes sintéticos de não exposição de URL e credenciais; manual `POINTVET_M572_PREFLIGHT_COMERCIAL.md` atualizado. Primeiro commit de código `8944720d7b431d96d053a8627f2422d74721231b`; commits subsequentes da sequência na PR #38 até `00e9aa3d36a669a84f9b740a802212219d4ce690` (CI final conferir).
+- **Próximo passo exato:** confirmar `Get-Command psql`, túnel Railway privado `127.0.0.1:55434` no **Pet King DEV / production / Postgres**; atualizar localmente a PR #38 com `git pull --ff-only`, manter variáveis privadas e executar **somente** `--inspect-readonly`; informar **apenas** código seguro/JSON agregado sem segredos. Em caso de `SQLSTATE`, analisar o código e ajustar apenas em branch/sandbox se necessário. Não executar SQL mutante.
+- **Gates comerciais inalterados:** resultado M.5.71 DR lógico do staging aprovado **não** equivale a DR do backup criptografado comercial; preflight comercial inconclusivo; clone comercial para ensaiar 26 migrations, controle do auto-deploy `main`/predeploy `npm run db:deploy`, fiscal/contábil multi-CNPJ, canário e rollback permanecem pendentes. PRs #36/#38 DRAFT, **sem merge/deploy/alteração Railway/migration comercial**. `commercialDeploymentAuthorized=false`.
+
+---
+
 ## Gate de publicação comercial — revisão de 26/10/2026
 
 - **Aceites staging M.5.71:** checkout manual multi-CNPJ, estorno integral e relatórios financeiros pós-estorno aceitos pelo proprietário. API/Admin/Portal/Postgres staging 4/4 online, sem patch; CI `40346590474` (HEAD anterior documental `44ae51d6...`) com `validate` e `isolated-postgres` SUCCESS. Não refazer PDV.
