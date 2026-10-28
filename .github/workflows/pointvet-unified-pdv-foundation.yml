@@ -64,6 +64,7 @@ on:
       - "api/src/modules/plataforma/pointvet-m52-canario.contract.js"
       - "api/tests/pointvet-m52-canario.contract.test.mjs"
       - "api/scripts/ci-pointvet-backup-restore-drill.sh"
+      - "api/scripts/ci-pointvet-m573-upgrade-rehearsal.sh"
       - "api/scripts/pointvet-m571-staging-drill.mjs"
       - "api/src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs"
       - "api/tests/pointvet-m571-dr-guard.contract.test.mjs"
@@ -309,6 +310,7 @@ jobs:
       - name: Static checks
         run: |
           bash -n api/scripts/ci-pointvet-backup-restore-drill.sh
+          bash -n api/scripts/ci-pointvet-m573-upgrade-rehearsal.sh
           node --check api/scripts/ci-pointvet-canonical-schema.mjs
           node --test api/tests/pointvet-m5-constraint-canonicalization.test.mjs
           node --check api/src/modules/plataforma/pointvet-m5-publicacao.contract.js
@@ -560,3 +562,41 @@ jobs:
         env:
           NODE_ENV: test
         run: node --import tsx --test tests/pdv-comandas-cnpj.integration.test.mjs
+
+  synthetic-legacy-upgrade:
+    # Never connect to Railway, commercial credentials or a restored customer dump.
+    # Proves main baseline (22) -> PR candidate (48) on disposable PostgreSQL 18.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pointvet_upgrade_ci
+          POSTGRES_PASSWORD: pointvet_upgrade_ci_only
+          POSTGRES_DB: pointvet_upgrade_ci
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U pointvet_upgrade_ci -d pointvet_upgrade_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://pointvet_upgrade_ci:pointvet_upgrade_ci_only@localhost:5434/pointvet_upgrade_ci
+      GITHUB_ACTIONS: "true"
+      NODE_ENV: test
+      POINTVET_M573_SYNTHETIC_ONLY: "YES"
+    steps:
+      - name: Checkout PR candidate
+        uses: actions/checkout@v4
+      - name: Checkout pinned commercial baseline (no DB or secrets)
+        uses: actions/checkout@v4
+        with:
+          ref: af0e33540b3481ba0378c0137654f1a026bbbfb3
+          path: main-baseline
+      - name: Install dependencies for isolated upgrade
+        working-directory: api
+        run: npm ci
+      - name: M.5.73 apply 22 then 26 migrations with synthetic legacy multi-CNPJ
+        working-directory: api
+        run: bash scripts/ci-pointvet-m573-upgrade-rehearsal.sh
