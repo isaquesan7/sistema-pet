@@ -5,13 +5,13 @@
  */
 import {spawnSync} from "node:child_process";
 import {readFileSync} from "node:fs";
-import {planProductionReadOnlyAudit,assessProductionReadOnlyAudit,summarizePsqlAuditFailure}
+import {planProductionReadOnlyAudit,assessProductionReadOnlyAudit,assessMultiCompanyReadOnlyAudit,summarizePsqlAuditFailure}
  from "../src/modules/plataforma/pointvet-m572-preflight.contract.mjs";
 
 const block=msg=>{throw Error("POINTVET_M572_AUDIT_BLOCKED: "+msg);};
 const flags=new Set(process.argv.slice(2));
-if(flags.size!==1||![...flags].every(x=>["--config-only","--inspect-readonly"].includes(x)))
- block("use --config-only ou --inspect-readonly; nunca realiza migrate/deploy");
+if(flags.size!==1||![...flags].every(x=>["--config-only","--inspect-readonly","--inspect-multicnpj"].includes(x)))
+ block("use --config-only, --inspect-readonly ou --inspect-multicnpj; nunca faz migrate/deploy");
 const plan=planProductionReadOnlyAudit({
  url:process.env.POINTVET_PROD_PREFLIGHT_URL,
  projectId:process.env.POINTVET_PROD_PREFLIGHT_PROJECT_ID,
@@ -21,7 +21,9 @@ if(flags.has("--config-only")){
  console.log("POINTVET_M572_AUDIT_CONFIG_OK: identidade declarada, banco NAO consultado");
  process.exit(0);
 }
-const sql=readFileSync(new URL("./pointvet-m572-prod-preflight.sql",import.meta.url),"utf8");
+const isMulti=flags.has("--inspect-multicnpj");
+const file=isMulti?"pointvet-m572-multicnpj-readonly.sql":"pointvet-m572-prod-preflight.sql";
+const sql=readFileSync(new URL("./"+file,import.meta.url),"utf8");
 if([...sql].some(ch=>ch.charCodeAt(0)>127))
  block("arquivo SQL de auditoria contem caractere nao ASCII; comando psql bloqueado");
 const db=plan.db;
@@ -44,6 +46,6 @@ if(ret.error||ret.status!==0)
 let raw;
 try{raw=JSON.parse(ret.stdout.trim());}
 catch{block("resposta de auditoria SQL nao e JSON valido");}
-const outcome=assessProductionReadOnlyAudit(raw);
+const outcome=isMulti?assessMultiCompanyReadOnlyAudit(raw):assessProductionReadOnlyAudit(raw);
 console.log(JSON.stringify(outcome));
 if(outcome.blockers.length)process.exitCode=2;
