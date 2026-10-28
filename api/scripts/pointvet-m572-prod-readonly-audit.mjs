@@ -5,7 +5,7 @@
  */
 import {spawnSync} from "node:child_process";
 import {readFileSync} from "node:fs";
-import {planProductionReadOnlyAudit,assessProductionReadOnlyAudit}
+import {planProductionReadOnlyAudit,assessProductionReadOnlyAudit,summarizePsqlAuditFailure}
  from "../src/modules/plataforma/pointvet-m572-preflight.contract.mjs";
 
 const block=msg=>{throw Error("POINTVET_M572_AUDIT_BLOCKED: "+msg);};
@@ -31,12 +31,14 @@ const env={...process.env,PGHOST:db.hostname,PGPORT:String(db.port),
 for(const key of ["DATABASE_URL","PGHOSTADDR","PGSERVICE","PGSERVICEFILE",
  "PGPASSFILE","PGREQUIRESSL","PGTARGETSESSIONATTRS"])delete env[key];
 const ret=spawnSync("psql",["-X","-w","-q","-A","-t",
- "-v","ON_ERROR_STOP=1","-c",sql],{
+ "-v","ON_ERROR_STOP=1","-v","VERBOSITY=verbose","-c",sql],{
  env,encoding:"utf8",timeout:150000,maxBuffer:1024*1024,
  stdio:["ignore","pipe","pipe"]
 });
 if(ret.error||ret.status!==0)
- block("psql falhou; mensagem interna suprimida para proteger os dados");
+ block("psql falhou; codigo seguro="+summarizePsqlAuditFailure({
+  errorCode:ret.error?.code,status:ret.status,signal:ret.signal,stderr:ret.stderr
+ })+"; detalhes protegidos; nenhuma migracao/deploy executada");
 let raw;
 try{raw=JSON.parse(ret.stdout.trim());}
 catch{block("resposta de auditoria SQL nao e JSON valido");}
