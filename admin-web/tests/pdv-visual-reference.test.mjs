@@ -30,12 +30,14 @@ test("central nao duplica venda vinculada a comanda e nao conta estorno como fec
 });
 test("workspace tem painel de itens e identificacao com resumo por CNPJ",()=>{
  for(const name of ["pdv-command-main","pdv-command-line-list","pdv-command-sidebar",
-  "pdv-command-identification","pdv-command-close","Total registrado neste CNPJ",
+  "pdv-command-identification","pdv-command-close","Total da comanda · CNPJs autorizados",
   "Itens pendentes deste CNPJ","Registrar pagamento e fechar este CNPJ"]){
   assert.ok(page.includes(name),`Ausente: ${name}`);
  }
  assert.match(page,/commandCompanyVisibleTotal=round/);
- assert.doesNotMatch(page,/Distribuição por empresa|Total da comanda/);
+ assert.doesNotMatch(page,/Distribuição por empresa/);
+ assert.match(page,/Itens pendentes deste CNPJ/);
+ assert.match(page,/commandPaymentsTotal===currentCompanyCommandTotal/);
  assert.match(page,/commandReadyToClose=currentCompanyCommandItems\.length>0/);
  assert.match(page,/commandPaymentsTotal===currentCompanyCommandTotal/);
  assert.doesNotMatch(page,/commandModal|setCommandModal|commandClientId|setCommandClientId/);
