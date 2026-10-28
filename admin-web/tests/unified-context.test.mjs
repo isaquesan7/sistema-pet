@@ -32,7 +32,11 @@ test("company switch preserves unified workspace only inside the same authorized
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",{...allowed,permissoes:[]}),false);
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",null),false);
  const layout=readFileSync(new URL("../src/layout/AppLayout.jsx",import.meta.url),"utf8");
- assert.match(layout,/keepUnifiedPdvRouteOnCompanyChange\(location\.pathname, selectedOrganization\?\.id, nextCompany, organizationConfig\.pdvUnificadoHabilitado === true\)/);
+ assert.match(layout,/keepUnifiedPdvRouteOnCompanyChange\(location\.pathname, selectedOrganization\?\.id, nextCompany,/);
+ assert.match(layout,/const sameOrganization = Boolean\(selectedOrganization\?\.id\)/);
+ assert.match(layout,/const routeAllowed = route &&/);
+ assert.match(layout,/nextCompany\.permissoes\?\.includes\(route\.permission\)/);
+ assert.match(layout,/!route\.companyTypes \|\| route\.companyTypes\.includes\(nextCompany\.tipo\)/);
  assert.match(layout,/if \(!keepWorkspace\) navigate\("\/"\)/);
 });
 
