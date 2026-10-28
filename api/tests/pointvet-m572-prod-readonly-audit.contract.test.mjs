@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {spawnSync} from "node:child_process";
-import {planProductionReadOnlyAudit,assessProductionReadOnlyAudit,
+import {planProductionReadOnlyAudit,assessProductionReadOnlyAudit,summarizePsqlAuditFailure,
  POINTVET_PROD_PROJECT_ID,POINTVET_PROD_SERVICE_ID}
  from "../src/modules/plataforma/pointvet-m572-preflight.contract.mjs";
 
@@ -62,4 +62,24 @@ test("config-only nao acessa qualquer banco e nao pede senha",()=>{
  assert.equal(proc.status,0,proc.stderr);
  assert.match(proc.stdout,/CONFIG_OK/);
  assert.doesNotMatch(proc.stdout,/dummy/);
+});
+
+test("erros psql classificados por codigo, nunca vazam dados sensiveis",()=>{
+ const secret="postgresql://super:pass@127.0.0.1:55434/railway";
+ const examples=[
+  [{errorCode:"ENOENT"},"PSQL_NAO_ENCONTRADO"],
+  [{errorCode:"ETIMEDOUT"},"TIMEOUT_LOCAL"],
+  [{status:2,stderr:"psql: error: connection to server at 127.0.0.1 port 55434 failed: Connection refused"},"TUNEL_OU_REDE"],
+  [{status:2,stderr:"psql: error: password authentication failed for user "+secret},"AUTENTICACAO"],
+  [{status:2,stderr:"psql: error: SSL connection failed; "+secret},"TLS_CONEXAO"],
+  [{status:3,stderr:'ERROR:  42P01: relation "comandas" does not exist '+secret},"SQLSTATE_42P01_TABELA_AUSENTE"],
+  [{status:3,stderr:'ERROR:  42703: column "clienteId" does not exist '+secret},"SQLSTATE_42703_COLUNA_AUSENTE"],
+  [{status:3,stderr:'ERROR:  42601: syntax error at or near "X" '+secret},"SQLSTATE_42601_SINTAXE_SQL"],
+  [{status:3,stderr:'ERROR:  42501: permission denied '+secret},"SQLSTATE_42501_PERMISSAO_SQL"]
+ ];
+ for(const [input,expected] of examples){
+  const result=summarizePsqlAuditFailure(input);
+  assert.equal(result,expected);
+  assert.doesNotMatch(result,/super|pass|postgresql|127.0.0.1|comandas|clienteId/);
+ }
 });
