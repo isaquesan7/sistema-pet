@@ -1,4 +1,4 @@
--- PointVet M.5.72 — auditoria SOMENTE LEITURA antes de migrations comerciais.
+-- PointVet M.5.72 - auditoria SOMENTE LEITURA antes de migrations comerciais.
 -- Executada via psql com default_transaction_read_only=on, nunca automaticamente.
 -- Retorna exclusivamente metricas agregadas. Sem identificadores de tutor/pet.
 WITH refs AS (
