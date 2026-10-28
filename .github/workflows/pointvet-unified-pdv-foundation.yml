@@ -72,6 +72,8 @@ on:
       - "api/src/modules/plataforma/pointvet-m572-preflight.contract.mjs"
       - "api/tests/pointvet-m572-prod-readonly-audit.contract.test.mjs"
       - "api/tests/pointvet-m572-windows-sql-encoding.contract.test.mjs"
+      - "api/scripts/pointvet-m572-multicnpj-readonly.sql"
+      - "api/tests/pointvet-m572-multicnpj-readonly.contract.test.mjs"
       - "POINTVET_M572_PREFLIGHT_COMERCIAL.md"
       - "api/scripts/ci-pointvet-canonical-schema.mjs"
       - "api/tests/pointvet-m5-constraint-canonicalization.test.mjs"
@@ -318,6 +320,7 @@ jobs:
           node --check api/src/modules/plataforma/pointvet-m572-preflight.contract.mjs
           node --test api/tests/pointvet-m572-prod-readonly-audit.contract.test.mjs
           node --test api/tests/pointvet-m572-windows-sql-encoding.contract.test.mjs
+          node --test api/tests/pointvet-m572-multicnpj-readonly.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-isolamento.contract.js
           node --test api/tests/pointvet-m52-isolamento.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-canario.contract.js
