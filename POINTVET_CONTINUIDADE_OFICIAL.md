@@ -1,3 +1,12 @@
+## M.5.72 — SQLSTATE 22021 em Windows: correcao ASCII pronta (28/10/2026)
+
+- A auditoria comercial M.5.72 executada pelo operador no Windows passou `--config-only`, mas `--inspect-readonly` falhou com `SQLSTATE_22021_ERRO_POSTGRES`; **preflight de dados segue INCONCLUSIVO**. O erro e de codificacao de bytes UTF-8, nao prova corrupcao, nem que o banco esta consistente.
+- Inspecionado o arquivo SQL: encontrou-se **U+2014 (travessao)** no comentario inicial, ao lado de comandos enviados via `psql -c`. Windows pode converter esse argumento pela code page local, causando erro 22021. Correcao pontual na PR #38 DRAFT troca o caractere por ASCII puro e o runner bloqueia caracteres SQL nao ASCII. Classificacao `SQLSTATE_22021_CODIFICACAO_INVALIDA` e novo teste em CI `api/tests/pointvet-m572-windows-sql-encoding.contract.test.mjs` integrado ao workflow; o SQL continua exclusivamente READ-ONLY.
+- **Proximo passo do operador:** atualizar branch `feat/pointvet-m5-71-pdv-comandas` via `git pull --ff-only`, manter tunel privado e variaveis locais de Pet King DEV/production Postgres na porta 55434 e repetir **apenas** `node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-readonly`. Compartilhar so JSON agregado / codigo seguro. Se persistir, diagnosticar em sandbox, sem log com segredos e sem SQL mutante.
+- DR logico de staging ja aprovado na M.5.71 nao substitui prova de restore do backup comercial. Seguem bloqueados merge/main, predeploy `npm run db:deploy`, migrations e deploy comercial ate auditoria, DR comercial, ensaio de 26 migrations em clone, fiscal/contabil multi-CNPJ e canario aprovado. `productionAuthorized=false`. Confirmar CI SHA final.
+
+---
+
 ## M.5.72 — Diagnóstico seguro de falha psql no preflight comercial (28/10/2026)
 
 - **Fato operacional:** o proprietário executou `pointvet-m572-prod-readonly-audit.mjs --inspect-readonly` no Windows; a tentativa anterior retornou apenas `POINTVET_M572_AUDIT_BLOCKED: psql falhou; mensagem interna suprimida`. **Isto não comprova erro de schema/dados**, nem sucesso da auditoria. Nenhuma consulta concluída ou autorização comercial deve ser inferida.
