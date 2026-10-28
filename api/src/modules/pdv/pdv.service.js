@@ -749,6 +749,78 @@ export async function listarComandas({ organizacaoId, empresaId, busca, status }
   });
 }
 
+/** Central compartilhada de comandas: so revela CNPJs aos quais o usuario
+ * tem vinculo ATIVO, cargo ativo e permissao pdv.acessar.
+ * A separacao de caixa/estoque/vendas continua pelas rotas por CNPJ. */
+async function empresasPermitidasNaCentral(organizacaoId, usuarioId) {
+  if (!organizacaoId || !usuarioId) throw new Error("ACESSO_NEGADO");
+  const vinculos = await prisma.usuarioEmpresa.findMany({
+    where: {
+      usuarioId, ativo: true,
+      empresa: { organizacaoId, ativo: true },
+      cargo: { ativo: true, permissoes: { some: { permissao: { codigo: "pdv.acessar" } } } },
+    },
+    select: { empresaId: true },
+  });
+  return vinculos.map(v => v.empresaId);
+}
+function escopoCentralComandas(ids) {
+  return { OR: [
+    { empresaOrigemId: { in: ids } },
+    { itens: { some: { empresaId: { in: ids } } } },
+    { vendas: { some: { empresaId: { in: ids } } } },
+    { atendimentosClinicos: { some: { empresaId: { in: ids } } } },
+    { ordensBanhoTosa: { some: { empresaId: { in: ids } } } },
+  ] };
+}
+export async function listarComandasCentral({ organizacaoId, usuarioId }) {
+  const ids = await empresasPermitidasNaCentral(organizacaoId, usuarioId);
+  if (!ids.length) return [];
+  return prisma.comanda.findMany({
+    where: { organizacaoId, rascunhoUnificado: false, AND: [escopoCentralComandas(ids)] },
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+    include: {
+      cliente: { select: { id: true, nome: true, cpfCnpj: true, telefone: true, whatsapp: true } },
+      itens: {
+        where: { empresaId: { in: ids }, status: { not: "CANCELADO" } },
+        include: {
+          empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
+          itemCatalogo: { select: { id: true, nome: true, tipo: true } },
+          pet: { select: { id: true, nome: true } },
+        },
+      },
+      vendas: { where: { empresaId: { in: ids } }, select: { id: true, numero: true, empresaId: true, status: true, valorTotal: true } },
+    },
+  });
+}
+export async function buscarComandaCentral({ organizacaoId, usuarioId, id }) {
+  const ids = await empresasPermitidasNaCentral(organizacaoId, usuarioId);
+  if (!ids.length) throw new Error("COMANDA_NAO_ENCONTRADA");
+  const comanda = await prisma.comanda.findFirst({
+    where: { id, organizacaoId, rascunhoUnificado: false, AND: [escopoCentralComandas(ids)] },
+    include: {
+      cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
+      itens: {
+        where: { empresaId: { in: ids } },
+        include: {
+          empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
+          itemCatalogo: { select: { id: true, nome: true, tipo: true, precoVenda: true } },
+          pet: { select: { id: true, nome: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      vendas: {
+        where: { empresaId: { in: ids } },
+        include: { empresa: { select: { id: true, nomeFantasia: true } }, pagamentos: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
+  return comanda;
+}
+
 export async function criarComanda({ organizacaoId, empresaId, dados }) {
   return prisma.$transaction(async (tx) => {
     await validarCliente(tx, organizacaoId, dados.clienteId, false);
@@ -789,9 +861,9 @@ export async function buscarComanda({ organizacaoId, empresaId, id }) {
 export async function atribuirTutorComanda({organizacaoId,empresaId,id,clienteId}){
  return prisma.$transaction(async tx=>{
   await validarCliente(tx,organizacaoId,clienteId,true);
-  const updated=await tx.comanda.updateMany({where:{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:{in:["ABERTA","PARCIALMENTE_FECHADA"]},AND:[escopoComandaEmpresa(empresaId)]},data:{clienteId}});
+  const updated=await tx.comanda.updateMany({where:{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:{in:["ABERTA","PARCIALMENTE_FECHADA"]}},data:{clienteId}});
   if(updated.count!==1){
-   const existing=await tx.comanda.findFirst({where:{id,organizacaoId,rascunhoUnificado:false,AND:[escopoComandaEmpresa(empresaId)]},select:{id:true,clienteId:true,status:true}});
+   const existing=await tx.comanda.findFirst({where:{id,organizacaoId,rascunhoUnificado:false},select:{id:true,clienteId:true,status:true}});
    if(!existing)throw new Error("COMANDA_NAO_ENCONTRADA");
    if(["FECHADA","CANCELADA"].includes(existing.status))throw new Error("COMANDA_FECHADA");
    throw new Error("COMANDA_TUTOR_IMUTAVEL");
@@ -803,7 +875,7 @@ export async function atribuirTutorComanda({organizacaoId,empresaId,id,clienteId
 export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId, dados }) {
   return prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
-      where: { id: comandaId, organizacaoId, AND: [escopoComandaEmpresa(empresaId)] },
+      where: { id: comandaId, organizacaoId, rascunhoUnificado: false },
     });
     if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
     if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
