@@ -13,6 +13,8 @@ test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao"
  const cnpj1=("91"+String(Date.now()).slice(-12)).padStart(14,"0");
  const cnpj2=("92"+String(Date.now()).slice(-12)).padStart(14,"0");
  const criadas=[];
+ const petsCi=[];
+ const especiesCi=[];
  try{
   await prisma.organizacao.create({data:{id:org,slug:"escopo-"+suffix,nome:"Org CNPJ CI"}});
   await prisma.empresa.createMany({data:[
