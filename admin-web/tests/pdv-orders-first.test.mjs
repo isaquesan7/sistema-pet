@@ -75,3 +75,24 @@ test("aba de orçamentos usa registros reais e a mesma permissão de leitura do 
  assert.match(home,/kind:"ORCAMENTO"/);
  assert.match(home,/filter==="FECHADAS"/);
 });
+
+
+test("M.5.74: abrir comanda nao causa tela branca e a central exibe CNPJs autorizados",()=>{
+ const imports=page.slice(0,page.indexOf("from \"lucide-react\""));
+ assert.match(imports,/\bClipboardList\b/,"O icone do detalhe precisa estar importado");
+ assert.match(page,/api\.get\("\/pdv\/comandas\/central"\)/);
+ assert.match(page,/api\.get\(`\/pdv\/comandas\/central\/\$\{commandDetailId\}`\)/);
+ assert.match(page,/Total da comanda · CNPJs autorizados/);
+ assert.match(page,/item\.empresaId===selectedCompany\?\.id&&item\.status==="ATIVO"/);
+ assert.match(page,/const currentCompanyCommandItems/);
+ const routes=read("../../api/src/modules/pdv/pdv.routes.js");
+ assert.match(routes,/\/comandas\/central/);
+ assert.match(routes,/exigirPermissao\("pdv\.acessar"\), controller\.listarComandasCentral/);
+ const svc=read("../../api/src/modules/pdv/pdv.service.js");
+ assert.match(svc,/export async function listarComandasCentral/);
+ assert.match(svc,/export async function buscarComandaCentral/);
+ assert.match(svc,/usuarioEmpresa\.findMany/);
+ assert.match(svc,/cargo: \{ ativo: true, permissoes:/);
+ assert.match(svc,/empresa: \{ organizacaoId, ativo: true \}/);
+ assert.match(svc,/itens: \{\s*where: \{ empresaId: \{ in: ids \}/);
+});
