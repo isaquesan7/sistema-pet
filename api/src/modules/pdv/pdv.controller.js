@@ -211,6 +211,21 @@ export async function listarOrcamentosPdv(req,res,next){
  }catch(error){next(error);}
 }
 
+// Central compartilhada: lista somente dados de CNPJs efetivamente autorizados
+// para o usuario, enquanto fechamento/caixa permanecem isolados por empresa.
+export async function listarComandasCentral(req,res,next){
+ try{
+  const dados=await service.listarComandasCentral({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id});
+  return res.json({success:true,dados});
+ }catch(error){next(error);}
+}
+export async function buscarComandaCentral(req,res,next){
+ try{
+  const comanda=await service.buscarComandaCentral({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,id:req.params.id});
+  return res.json({success:true,comanda});
+ }catch(error){mapError(error,res,next);}
+}
+
 export async function listarComandas(req, res, next) {
   try {
     const dados = await service.listarComandas({
