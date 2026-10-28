@@ -87,3 +87,26 @@ O operador executou o preflight em Windows, `--config-only` passou e `--inspect-
 5. **Canario e homologacao funcional de multi-CNPJ:** validar PDV tradicional, opcao unificada por tenant, taxas/repasses apenas gerenciais, cancelamentos, granel por R$/gramas, servicos inteiros, relatorios e segregacao dos dois CNPJs da Pet King.
 
 **Gate de publicacao continua BLOQUEADO.** Nunca marcar `productionAuthorized=true` com base somente em preflight, CI ou DR de homologacao.
+
+## Resultado real comercial e triagem multi-CNPJ (28/10/2026)
+
+O operador executou `--inspect-readonly` no Windows apos a correcao de encoding, **sem writes**. Resposta agregada:
+- `POINTVET_M572_PROD_PREFLIGHT_BLOCKED`, `auditedReadOnly=true`, `commercialDeploymentAuthorized=false`, identidade Railway independente **nao comprovada pelo SQL**.
+- 2 comandas; 0 sem tutor/tenant; 0 referencias intertenant em itens/vendas/clinica/banho; 1 com **mais de uma empresa/CNPJ**; 0 abertas sem empresa inferivel; 0 migrations incompletas e 22 concluidas.
+- Unico bloqueio reportado: uma comanda legada com multiplos CNPJs, cuja origem exige revisao antes da migracao. Isso **nao equivale** a fraude, corrupcao ou perda de dados.
+
+Revisao de codigo da PR #38: a migration ja aplicada no staging `20261023234500_comandas_origem_cnpj` afirma que origens ambiguas permanecem nulas, mas na pratica escolhe o primeiro item, venda ou atendimento. **Nao editar/regravar SQL de migrations ja aplicadas no staging** sem procedimento formal de checksum/upgrade; nem consertar links no banco comercial. A verificacao foi ampliada com segundo modo **somente leitura**, sem dados pessoais:
+
+```powershell
+# Na mesma janela que tem variaveis privadas e tunel do Pet King DEV/production
+cd "$HOME\pointvet-dr\repositorio"
+git switch feat/pointvet-m5-71-pdv-comandas
+git pull --ff-only origin feat/pointvet-m5-71-pdv-comandas
+cd .\api
+node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-multicnpj
+```
+
+`--inspect-multicnpj` usa o mesmo vinculo declarado a Pet King DEV, a mesma porta privada 55434, SSL e `PGOPTIONS` read-only. Executa **apenas** `api/scripts/pointvet-m572-multicnpj-readonly.sql`, composto de WITH/SELECT de agregados, sem `id`/CPF/CNPJ pessoal em resultado. Contabiliza comandas mixtas em um unico tenant ou em varios, com itens, vendas, atendimentos clinicos/banho, abertas ou nao, e possivel empresa clinica/banho sem item/venda (invisivel pela regra atual do PDV legado se `empresaOrigemId` nao apontar para ela). O resultado `POINTVET_M572_MULTICNPJ_REVIEW_REQUIRED` **nunca libera deploy automaticamente**. Compartilhar somente JSON agregado. Se alguma empresa ficar invisivel, revisar ACL por empresa e migracao em clone com CI antes de agendar release.
+
+O SQL de migracao de staging nao foi modificado; revisar eventual correcao prospectiva apos observar o diagnostico, preservando os 2 historicos. Continuam pendentes DR do backup comercial real, ensaio de 26 migrations em clone, controle do predeploy `npm run db:deploy`, fiscal externo separado por CNPJ e canario restrito.
+
