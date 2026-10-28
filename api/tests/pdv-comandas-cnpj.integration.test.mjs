@@ -40,6 +40,25 @@ test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao"
     {comandaId:a.id,empresaId:co1,itemCatalogoId:item1,descricao:"Produto unidade A",quantidade:1,valorUnitario:"10.00",valorTotal:"10.00"},
     {comandaId:a.id,empresaId:co2,itemCatalogoId:item2,descricao:"Produto unidade B",quantidade:1,valorUnitario:"20.00",valorTotal:"20.00"},
   ]});
+  // M.5.72: fixture sintetica da comanda mista encontrada no preflight
+  // comercial: duas empresas da mesma organizacao, itens de ambas,
+  // vinculos clinicos/esteticos e nenhuma venda registrada.
+  const especie=await prisma.especie.create({data:{organizacaoId:org,nome:"Canino CI"}});
+  especiesCi.push(especie.id);
+  const pet=await prisma.pet.create({data:{clienteId:cliente,especieId:especie.id,nome:"Pet sintético"}});
+  petsCi.push(pet.id);
+  await prisma.atendimentoClinico.create({data:{empresaId:co1,clienteId:cliente,petId:pet.id,comandaId:a.id}});
+  await prisma.ordemServicoBanhoTosa.create({data:{empresaId:co2,clienteId:cliente,petId:pet.id,comandaId:a.id}});
+  assert.equal(await prisma.venda.count({where:{comandaId:a.id}}),0);
+  assert.equal(await prisma.atendimentoClinico.count({where:{comandaId:a.id,empresaId:co1}}),1);
+  assert.equal(await prisma.ordemServicoBanhoTosa.count({where:{comandaId:a.id,empresaId:co2}}),1);
+  // A origem tem papel de ancora para comanda vazia; quando ha itens
+  // de dois CNPJs, a visibilidade nao deve depender de escolher um.
+  await prisma.comanda.update({where:{id:a.id},data:{empresaOrigemId:null}});
+  assert.ok((await listarComandas({organizacaoId:org,empresaId:co1})).some(c=>c.id===a.id));
+  assert.ok((await listarComandas({organizacaoId:org,empresaId:co2})).some(c=>c.id===a.id));
+  await prisma.comanda.update({where:{id:a.id},data:{empresaOrigemId:co1}});
+  // Verificacoes anteriores da fixture de isolamento seguem apos isso.
   const list1=await listarComandas({organizacaoId:org,empresaId:co1});
   const list2=await listarComandas({organizacaoId:org,empresaId:co2});
   assert.equal(list1.find(x=>x.id===a.id).itens.length,1);
@@ -51,6 +70,10 @@ test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao"
   assert.equal(detail.vendas.length,0);
   await assert.rejects(()=>buscarComanda({organizacaoId:"org-externa",empresaId:co1,id:a.id}),/COMANDA_NAO_ENCONTRADA/);
  }finally{
+  if(criadas.length)await prisma.atendimentoClinico.deleteMany({where:{comandaId:{in:criadas}}});
+  if(criadas.length)await prisma.ordemServicoBanhoTosa.deleteMany({where:{comandaId:{in:criadas}}});
+  if(petsCi.length)await prisma.pet.deleteMany({where:{id:{in:petsCi}}});
+  if(especiesCi.length)await prisma.especie.deleteMany({where:{id:{in:especiesCi}}});
   if(criadas.length)await prisma.comandaItem.deleteMany({where:{comandaId:{in:criadas}}});
   if(criadas.length)await prisma.comanda.deleteMany({where:{id:{in:criadas}}});
   await prisma.itemCatalogo.deleteMany({where:{empresaId:{in:[co1,co2]}}});
