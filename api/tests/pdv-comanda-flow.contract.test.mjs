@@ -10,11 +10,13 @@ const svc=source("../src/modules/pdv/pdv.service.js");
 const page=source("../../admin-web/src/pages/PdvPage.jsx");
 const home=source("../../admin-web/src/components/PdvOrdersHome.jsx");
 
-test("vincular tutor usa organizacao E empresa da sessao, sem troca apos atribuir",()=>{
+test("vincular tutor exige organizacao e permissao da empresa atual, sem trocar tutor apos atribuir",()=>{
  assert.match(routes,/router\.patch\("\/comandas\/:id\/tutor", exigirPermissao\("pdv\.acessar"\), controller\.atribuirTutorComanda\)/);
  assert.match(controller,/empresaId:req\.empresa\.id,id:req\.params\.id,clienteId:dados\.clienteId/);
  assert.match(svc,/export async function atribuirTutorComanda/);
- assert.match(svc,/AND:\[escopoComandaEmpresa\(empresaId\)\]/);
+ assert.match(svc,/validarCliente\(tx,organizacaoId,clienteId,true\)/);
+ assert.match(svc,/where:\{id,organizacaoId,rascunhoUnificado:false,clienteId:null,status:/);
+ assert.match(routes,/exigirPermissao\("pdv\.acessar"\)/);
  assert.match(svc,/clienteId:null,status:\{in:\["ABERTA","PARCIALMENTE_FECHADA"\]\}/);
  assert.match(svc,/COMANDA_TUTOR_IMUTAVEL/);
 });
