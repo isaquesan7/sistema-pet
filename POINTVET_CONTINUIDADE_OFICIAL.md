@@ -1,3 +1,13 @@
+## M.5.72 — Preflight real de producao bloqueado por comanda multi-CNPJ (28/10/2026)
+
+- **Resultado enviado pelo operador Windows:** `POINTVET_M572_PROD_PREFLIGHT_BLOCKED` / `auditedReadOnly=true` / `commercialDeploymentAuthorized=false`. Agregados: 2 comandas, 1 multi-CNPJ, 0 orfaos, 0 referencias cruzadas entre organizacoes, 0 comandas abertas sem empresa, 0 migrations incompletas, **22 migrations concluidas**. Nao foi realizada escrita, migration ou deploy. Nao interpretar `projectIdentityIndependentlyVerified=false` como identidade SQL verificada; depende da checagem Railway pelo operador.
+- **Revisao tecnica:** migration `20261023234500_comandas_origem_cnpj` em PR #38 (aplicada no staging) tem comentario "ambigua permanece NULL" mas implementa `DISTINCT ON` que seleciona a primeira empresa dos itens/vendas/clinica/banho. Uma comanda de varios CNPJs pode ser legitima, portanto NAO remover historico, nao atribuir empresa arbitraria, nem editar migration aplicada no staging. `escopoComandaEmpresa` no PDV legado utiliza origem OU itens OU vendas; registros exclusivamente de clinica/banho exigem revisao de visibilidade/ACL.
+- **Novo incremento somente-leitura na PR #38 DRAFT:** `api/scripts/pointvet-m572-multicnpj-readonly.sql` (agregado, ASCII, sem IDs pessoais no resultado); `pointvet-m572-prod-readonly-audit.mjs --inspect-multicnpj` reutiliza tunel privado Pet King DEV/production na porta 55434 e `PGOPTIONS` read-only; `assessMultiCompanyReadOnlyAudit` bloqueia liberacao e destaca riscos de clinica/banho sem itens/vendas; testes puros `pointvet-m572-multicnpj-readonly.contract.test.mjs` e workflow. Manual `POINTVET_M572_PREFLIGHT_COMERCIAL.md` atualizado.
+- **Proximo passo exato:** operador atualizar branch DRAFT e executar somente `node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-multicnpj` no mesmo computador/tunel/variaveis privadas, compartilhar apenas JSON agregado. Avaliar as classes de referencia antes de decidir qualquer migracao de correção ou regra de visibilidade em clone isolado.
+- **Permanecem BLOCKED:** producao e main (API Railway tem predeploy `npm run db:deploy`), backup comercial restauravel independente ainda nao provado, ensaio de 26 migrations em clone, processo fiscal/contabil segregado e canario. O DR anterior aprovado e apenas de staging. `productionAuthorized=false`. Verificar CI do HEAD antes de nova etapa.
+
+---
+
 ## M.5.72 — SQLSTATE 22021 em Windows: correcao ASCII pronta (28/10/2026)
 
 - A auditoria comercial M.5.72 executada pelo operador no Windows passou `--config-only`, mas `--inspect-readonly` falhou com `SQLSTATE_22021_ERRO_POSTGRES`; **preflight de dados segue INCONCLUSIVO**. O erro e de codificacao de bytes UTF-8, nao prova corrupcao, nem que o banco esta consistente.
