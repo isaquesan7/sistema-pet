@@ -77,3 +77,32 @@ export function summarizePsqlAuditFailure({errorCode,status,signal,stderr}={}){
  if(Number.isInteger(status)&&status!==0)return "PSQL_STATUS_NAO_ZERO";
  return "FALHA_DESCONHECIDA";
 }
+
+/** Multi-CNPJ legacy diagnosis: read-only aggregate evidence, never auto-release. */
+export function assessMultiCompanyReadOnlyAudit(r){
+ if(!r||typeof r!=="object"||Array.isArray(r))deny("resposta agregada multi-CNPJ ausente");
+ const fields=["multiCompanyComandas","sameTenantComandas","crossTenantComandas",
+  "withItems","withSales","withClinical","withBath","openComandas","nonOpenComandas",
+  "withClinicalBathOnlyCompany"];
+ if(typeof r.readOnly!=="boolean"||fields.some(k=>!isCount(r[k])))
+  deny("contagens multi-CNPJ invalidas");
+ const total=r.multiCompanyComandas;
+ if(r.sameTenantComandas+r.crossTenantComandas!==total||
+    r.openComandas+r.nonOpenComandas!==total||
+    fields.slice(3).some(k=>r[k]>total))
+  deny("contagens multi-CNPJ inconsistentes");
+ const blockers=[];
+ if(!r.readOnly)blockers.push("auditoria nao confirmou transacao somente leitura");
+ if(total>0)blockers.push("origem CNPJ de comanda mista precisa de revisao antes da migracao");
+ if(r.crossTenantComandas>0)blockers.push("empresas de organizacoes diferentes na mesma comanda");
+ if(r.withClinicalBathOnlyCompany>0)
+  blockers.push("empresa clinica/banho sem itens ou vendas pode ficar invisivel no PDV legado");
+ return {
+  gate:"POINTVET_M572_MULTICNPJ_REVIEW_REQUIRED",
+  auditedReadOnly:r.readOnly,
+  commercialDeploymentAuthorized:false,
+  projectIdentityIndependentlyVerified:false,
+  counts:Object.fromEntries(fields.map(k=>[k,r[k]])),
+  blockers
+ };
+}
