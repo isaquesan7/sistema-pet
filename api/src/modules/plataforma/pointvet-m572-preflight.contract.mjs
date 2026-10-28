@@ -46,3 +46,33 @@ export function assessProductionReadOnlyAudit(r){
   counts:Object.fromEntries(fields.map(k=>[k,r[k]])),
   blockers};
 }
+
+/** Classificacao de falhas psql sem ecoar stderr, SQL, URL ou credenciais.
+ * O SQLSTATE e um codigo estatico de 5 caracteres emitido pelo Postgres.
+ * Nunca atribui sucesso ou autorizacao de publicar.
+ */
+export function summarizePsqlAuditFailure({errorCode,status,signal,stderr}={}){
+ const raw=typeof stderr==="string"?stderr.slice(0,32768):"";
+ if(errorCode==="ENOENT")return "PSQL_NAO_ENCONTRADO";
+ if(errorCode==="ETIMEDOUT"||signal==="SIGTERM")return "TIMEOUT_LOCAL";
+ const state=raw.match(/(?:ERROR|FATAL|PANIC):\s*([A-Z0-9]{5}):/i)?.[1]?.toUpperCase();
+ const states={
+  "42P01":"TABELA_AUSENTE","42703":"COLUNA_AUSENTE",
+  "42883":"FUNCAO_OU_TIPO_INCOMPATIVEL","42601":"SINTAXE_SQL",
+  "42501":"PERMISSAO_SQL","28P01":"AUTENTICACAO","28000":"AUTENTICACAO",
+  "3D000":"BANCO_AUSENTE","57014":"TIMEOUT_SQL",
+  "25006":"OPERACAO_ESCRITA_BLOQUEADA"
+ };
+ if(state)return "SQLSTATE_"+state+"_"+(states[state]||"ERRO_POSTGRES");
+ if(/password authentication failed|fe_sendauth|authentication failed/i.test(raw))
+  return "AUTENTICACAO";
+ if(/connection refused|could not connect|connection to server.*failed|no route to host|connection timed out|server closed the connection/i.test(raw))
+  return "TUNEL_OU_REDE";
+ if(/ssl|tls|certificate/i.test(raw))return "TLS_CONEXAO";
+ if(/relation .* does not exist|undefined table/i.test(raw))return "TABELA_AUSENTE";
+ if(/column .* does not exist|undefined column/i.test(raw))return "COLUNA_AUSENTE";
+ if(/permission denied/i.test(raw))return "PERMISSAO_SQL";
+ if(errorCode)return "PROCESSO_PSQL_FALHOU";
+ if(Number.isInteger(status)&&status!==0)return "PSQL_STATUS_NAO_ZERO";
+ return "FALHA_DESCONHECIDA";
+}
