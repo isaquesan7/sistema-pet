@@ -7,6 +7,7 @@ import {
   Banknote,
   Boxes,
   CircleDollarSign,
+  ClipboardList,
   CreditCard,
   Eye,
   Minus,
@@ -290,11 +291,10 @@ export default function PdvPage() {
     queryFn: async () => (await api.get("/pdv/vendas", { params: { limite: 60 } })).data.dados || [],
   });
   const commandsQuery = useQuery({
-    // M.5.71: consultas de comandas sao por CNPJ; nunca reutilizar o cache
-    // de outra empresa apenas porque ambas pertencem ao mesmo tenant.
+    // Central unica: endpoint verifica permissoes por CNPJ. Caixa/venda continuam no atual.
     queryKey: ["pdv-commands", selectedOrganization?.id, selectedCompany?.id],
     enabled: Boolean(selectedOrganization?.id && selectedCompany?.id && hasPermission("pdv.acessar")),
-    queryFn: async () => (await api.get("/pdv/comandas")).data.dados || [],
+    queryFn: async () => (await api.get("/pdv/comandas/central")).data.dados || [],
   });
   const quotesQuery=useQuery({
     queryKey:["pdv-quotes",selectedOrganization?.id,selectedCompany?.id],
@@ -324,7 +324,7 @@ export default function PdvPage() {
   const commandDetailQuery = useQuery({
     queryKey: ["pdv-command-detail", selectedOrganization?.id, selectedCompany?.id, commandDetailId],
     enabled: Boolean(commandDetailId&&selectedCompany?.id&&hasPermission("pdv.acessar")),
-    queryFn: async () => (await api.get(`/pdv/comandas/${commandDetailId}`)).data.comanda,
+    queryFn: async () => (await api.get(`/pdv/comandas/central/${commandDetailId}`)).data.comanda,
   });
   const saleDetailQuery = useQuery({
     queryKey: ["pdv-sale-detail", saleDetailId],
@@ -352,8 +352,8 @@ export default function PdvPage() {
     [commandDetail, selectedCompany]
   );
   const currentCompanyCommandTotal = round(currentCompanyCommandItems.reduce((sum, item) => sum + money(item.valorTotal), 0));
-  // A API de comandas tradicionais entrega SOMENTE itens deste CNPJ.
-  // Nunca apresentar a soma parcial como valor global multiempresa.
+  // A central traz apenas itens de CNPJs autorizados ao usuario.
+  // A cobranca continua SOMENTE dos itens do CNPJ atual.
   const commandCompanyVisibleTotal=round((commandDetail?.itens||[]).filter(item=>item.status!=="CANCELADO")
     .reduce((sum,item)=>sum+money(item.valorTotal),0));
   const commandPaymentsTotal=round(commandPayments.reduce((sum,payment)=>sum+money(payment.valor),0));
@@ -788,7 +788,7 @@ export default function PdvPage() {
               <span className="pdv-command-line__locked" title="Item de outra empresa ou já processado">—</span>}
             </div>):<div className="pdv-orders-empty"><ClipboardList size={25}/><strong>Comanda sem itens</strong><p>Selecione um produto ou serviço e adicione à lista.</p></div>}
            </div>
-           <div className="pdv-command-list-total"><span>Total registrado neste CNPJ</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
+           <div className="pdv-command-list-total"><span>Total da comanda · CNPJs autorizados</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
           </div>
           <aside className="pdv-command-sidebar">
            <section className="pdv-command-identification">
@@ -813,8 +813,8 @@ export default function PdvPage() {
              <div className="pdv-command-summary-line"><span>Aberta em</span><strong>{formatDateTime(commandDetail.createdAt)}</strong></div>
              <div className="pdv-command-summary-line"><span>Situação</span><strong>{commandStatusLabel(commandDetail.status)}</strong></div>
              <div className="pdv-command-summary-line"><span>Empresa atual</span><strong>{selectedCompany?.nomeFantasia||"CNPJ selecionado"}</strong></div>
-             <div className="pdv-command-summary-line pdv-command-summary-line--total"><span>Total registrado neste CNPJ</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
-             <small>Este resumo é restrito ao CNPJ selecionado. Para conferir outra empresa, alterne o CNPJ no PointVet.</small>
+             <div className="pdv-command-summary-line pdv-command-summary-line--total"><span>Total da comanda · CNPJs autorizados</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
+             <small>Itens visíveis apenas dos CNPJs autorizados. Pagamento, estoque e caixa seguem separados pela empresa atual.</small>
              {currentCompanyCommandItems.length?<>
                <div className="pdv-command-company-receipt"><span>Itens pendentes deste CNPJ</span><strong>{formatCurrency(currentCompanyCommandTotal)}</strong>
                 <small>A confirmação abaixo registra somente o recebimento da empresa selecionada, não de todos os CNPJs.</small></div>
