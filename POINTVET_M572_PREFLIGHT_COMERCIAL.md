@@ -110,3 +110,14 @@ node scripts/pointvet-m572-prod-readonly-audit.mjs --inspect-multicnpj
 
 O SQL de migracao de staging nao foi modificado; revisar eventual correcao prospectiva apos observar o diagnostico, preservando os 2 historicos. Continuam pendentes DR do backup comercial real, ensaio de 26 migrations em clone, controle do predeploy `npm run db:deploy`, fiscal externo separado por CNPJ e canario restrito.
 
+
+## Parecer de compatibilidade para a comanda mista (28/10/2026)
+
+**Nova evidencia real M.5.72, sem dados pessoais, via `--inspect-multicnpj`:** `multiCompanyComandas=1`, `sameTenantComandas=1`, `crossTenantComandas=0`, `withItems=1`, `withSales=0`, `withClinical=1`, `withBath=1`, `openComandas=1`, `nonOpenComandas=0`, `withClinicalBathOnlyCompany=0`. `auditedReadOnly=true`; `commercialDeploymentAuthorized=false`; `projectIdentityIndependentlyVerified=false` (IDs declarados, nao atestacao SQL/Railway). Resultado `POINTVET_M572_MULTICNPJ_REVIEW_REQUIRED` esperado.
+
+**Conclusao tecnica limitada:** a unica comanda mista e da mesma organizacao, esta aberta e ainda sem venda vinculada. As duas atividades de clinica e banho e tosa possuem cobertura por itens ou venda nas respectivas empresas segundo o diagnostico por empresa; nao foi observada divergencia intertenant. O uso de um unico numero de comanda para dois CNPJs e **permitido no negocio** e nao implica corrupcao. `empresaOrigemId` e uma **ancora de origem/visibilidade**, **nunca fonte unica da titularidade de itens, pagamentos, estoque ou tributos**. Para PDV legado, `escopoComandaEmpresa` exige `organizacaoId` e `empresaOrigemId OU item OU venda`; lista e detalhe filtram itens/vendas por empresa. Empresa B tambem e visivel se tem item, independentemente da ancora de empresa A. Os vinculos clinicos e de banho permanecem nas respectivas tabelas, sem os mover de CNPJ.
+
+**Teste adicionado na PR #38 DRAFT:** ampliado `api/tests/pdv-comandas-cnpj.integration.test.mjs` para simular **mesma comanda, duas empresas, itens de ambos, atendimento clinico em A, ordem de banho e tosa em B, sem venda**. O teste verifica acesso de A/B apenas a seus itens, negacao intertenant, e continua permitindo enxergar ambos os CNPJs com ancora de origem nula ou A. Roda somente no PostgreSQL descartavel do CI, nao em producao.
+
+**Gates nao removidos:** evidencia agregada nao inspeciona todos os detalhes de itens ativos/cancelados nem executa as 26 migrations sobre dados comerciais. A migration de origem ja aplicada em staging nao e reescrita; a selecao do primeiro item como origem nao pode ser interpretada como direito de apropriar receita de outros CNPJs. Antes de merge, exige-se clone independente derivado do backup comercial REAL e ensaio completo das migrations, com contagens por empresa, historicos e visibilidade; resultado de CI verde nao substitui prova. DR comercial, controle de predeploy, fiscal externo por CNPJ e canario controlado continuam pendentes.
+
