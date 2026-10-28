@@ -22,6 +22,8 @@ if(flags.has("--config-only")){
  process.exit(0);
 }
 const sql=readFileSync(new URL("./pointvet-m572-prod-preflight.sql",import.meta.url),"utf8");
+if([...sql].some(ch=>ch.charCodeAt(0)>127))
+ block("arquivo SQL de auditoria contem caractere nao ASCII; comando psql bloqueado");
 const db=plan.db;
 const env={...process.env,PGHOST:db.hostname,PGPORT:String(db.port),
  PGUSER:db.username,PGPASSWORD:db.password,PGDATABASE:db.database,
