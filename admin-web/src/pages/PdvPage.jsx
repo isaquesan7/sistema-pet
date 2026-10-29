@@ -494,6 +494,22 @@ export default function PdvPage() {
     onError: (error) => setCommandCloseError(getApiErrorMessage(error)),
   });
 
+  const convertCommandMutation=useMutation({
+    mutationFn:async()=>(await api.post(`/pdv/comandas/${commandDetailId}/continuar-unificado`)).data.dados,
+    onSuccess:async result=>{
+      setCommandCloseError("");
+      setCommandDetailId(null);
+      setUnifiedDraftToOpen(result.id);
+      setUnifiedInitialClient(null);
+      setUnifiedInitialPet(null);
+      setIndividualFallback(false);
+      await queryClient.invalidateQueries({queryKey:["unified-drafts"]});
+      invalidatePdv();
+      setTab("VENDA");
+    },
+    onError:error=>setCommandCloseError(getApiErrorMessage(error)),
+  });
+
   const cancelSaleMutation = useMutation({
     mutationFn: async () => (await api.post(`/pdv/vendas/${cancelSale.id}/cancelar`, { motivo: cancelReason })).data,
     onSuccess: () => {
@@ -827,6 +843,19 @@ export default function PdvPage() {
              <div className="pdv-command-summary-line"><span>Empresa atual</span><strong>{selectedCompany?.nomeFantasia||"CNPJ selecionado"}</strong></div>
              <div className="pdv-command-summary-line pdv-command-summary-line--total"><span>Total da comanda · CNPJs autorizados</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
              <small>Itens visíveis apenas dos CNPJs autorizados. Pagamento, estoque e caixa seguem separados pela empresa atual.</small>
+             {intelligentPreference&&activeCommandItems.some(i=>i.status==="ATIVO")&&commandDetail.status==="ABERTA"&&
+               <div className="pdv-command-company-receipt">
+                 <strong>Fechamento conjunto · todos os CNPJs</strong>
+                 {intelligentCheckoutEnabled?
+                   <>
+                    <small>Revisar a comanda no fluxo unificado: uma operação, vendas e caixa separados por CNPJ. Não processa Pix ou cartão automaticamente.</small>
+                    <button className="primary-button" type="button" disabled={convertCommandMutation.isPending}
+                     onClick={()=>convertCommandMutation.mutate()}>
+                     {convertCommandMutation.isPending?"Conferindo...":"Continuar no fechamento unificado"}
+                    </button>
+                   </>:
+                   <small>O catálogo conjunto e a gestão de itens estão disponíveis. A finalização conjunta depende da autorização operacional independente no servidor.</small>}
+               </div>}
              {currentCompanyCommandItems.length?<>
                <div className="pdv-command-company-receipt"><span>Itens pendentes deste CNPJ</span><strong>{formatCurrency(currentCompanyCommandTotal)}</strong>
                 <small>A confirmação abaixo registra somente o recebimento da empresa selecionada, não de todos os CNPJs.</small></div>
