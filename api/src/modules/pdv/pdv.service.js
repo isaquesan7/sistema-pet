@@ -882,7 +882,7 @@ export async function buscarComanda({ organizacaoId, empresaId, id }) {
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
-        where: { empresaId },
+        where: { empresaId, status: { not: "CANCELADO" } },
         include: {
           empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
           itemCatalogo: { select: { id: true, nome: true, tipo: true, precoVenda: true } },
