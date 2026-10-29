@@ -83,7 +83,10 @@ test("M.5.74: abrir comanda nao causa tela branca e a central exibe CNPJs autori
  assert.match(page,/api\.get\("\/pdv\/comandas\/central"\)/);
  assert.match(page,/api\.get\(`\/pdv\/comandas\/central\/\$\{commandDetailId\}`\)/);
  assert.match(page,/Total da comanda · CNPJs autorizados/);
- assert.match(page,/item\.empresaId===selectedCompany\?\.id&&item\.status==="ATIVO"/);
+ assert.match(page,/intelligentPreference&&centralAllowedCompanies\.has\(item\.empresaId\)/);
+ assert.match(page,/item\.status==="ATIVO"/);
+ assert.match(page,/activeCommandItems\.length\?activeCommandItems\.map/);
+ assert.match(page,/commandCatalog\.map\(item/);
  assert.match(page,/const currentCompanyCommandItems/);
  const routes=read("../../api/src/modules/pdv/pdv.routes.js");
  assert.match(routes,/\/comandas\/central/);
