@@ -282,6 +282,14 @@ export default function PdvPage() {
     queryKey: ["pdv-items", selectedCompany?.id, itemSearch],
     queryFn: async () => (await api.get("/pdv/itens", { params: { busca: itemSearch || undefined } })).data.dados || [],
   });
+  // Catalogo conjunto apenas quando a configuracao da organizacao autoriza.
+  // O servidor retorna somente CNPJs com vinculo e pdv.acessar vigentes.
+  const centralCatalogQuery=useQuery({
+    queryKey:["pdv-central-catalog",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(commandDetailId&&intelligentPreference&&selectedOrganization?.id&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv/comandas/central/catalogo")).data.dados||[],
+    retry:false,
+  });
   const clientsQuery = useQuery({
     queryKey: ["pdv-clients", selectedOrganization?.id],
     queryFn: async () => (await api.get("/clientes", { params: { limite: 100 } })).data.dados || [],
@@ -336,6 +344,10 @@ export default function PdvPage() {
   const cashes = cashQuery.data || [];
   const openSession = sessionQuery.data || null;
   const catalog = itemsQuery.data || [];
+  const commandCatalog=intelligentPreference?(centralCatalogQuery.data||[]):catalog;
+  const centralAllowedCompanies=new Set((unifiedStatus.data?.permissoesEmpresas||[])
+    .filter(c=>c.pdvAcessar).map(c=>c.id));
+  const activeCommandItems=(commandDetailQuery.data?.itens||[]).filter(item=>item.status!=="CANCELADO");
   const clients = clientsQuery.data || [];
   const selectedClient = clients.find((client) => client.id === clientId) || null;
   const sales = salesQuery.data || [];
@@ -444,7 +456,7 @@ export default function PdvPage() {
   });
   const addCommandItemMutation = useMutation({
     mutationFn: async () => {
-      const item = catalog.find((entry) => entry.id === commandItemId);
+      const item = commandCatalog.find((entry) => entry.id === commandItemId);
       return (await api.post(`/pdv/comandas/${commandDetailId}/itens`, {
         itemCatalogoId: commandItemId,
         petId: item?.tipo === "SERVICO" ? (commandPetId || null) : null,
@@ -549,7 +561,7 @@ export default function PdvPage() {
     saleMutation.mutate();
   }
 
-  const selectedCommandItem = catalog.find((item) => item.id === commandItemId);
+  const selectedCommandItem = commandCatalog.find((item) => item.id === commandItemId);
   const commandClient = commandDetail?.cliente;
 
   return (
@@ -753,11 +765,11 @@ export default function PdvPage() {
          commandDetail?<div className="pdv-command-detail">
           <div className="pdv-command-main">
            <div className="pdv-command-entry">
-            <div className="pdv-command-pane-head"><div><span>LANÇAMENTO</span><h3>Produtos e serviços</h3></div><span>{selectedCompany?.nomeFantasia||"CNPJ selecionado"}</span></div>
+            <div className="pdv-command-pane-head"><div><span>LANÇAMENTO</span><h3>Produtos e serviços</h3></div><span>{intelligentPreference?"Catálogo das empresas autorizadas":(selectedCompany?.nomeFantasia||"CNPJ selecionado")}</span></div>
             <div className="pdv-command-add">
              <select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId}
               onChange={event=>{setCommandItemId(event.target.value);setCommandQuantity(1);}}>
-              <option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map(item=><option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}
+              <option value="">{intelligentPreference?"Adicionar produto ou serviço de qualquer CNPJ autorizado...":"Adicionar produto/serviço deste CNPJ..."}</option>{commandCatalog.map(item=><option value={item.id} key={item.id}>{item.empresa?.nomeFantasia||selectedCompany?.nomeFantasia||"Empresa"} · {item.nome} · {formatCurrency(item.precoVenda)}</option>)}
              </select>
              {serviceNeedsTutorAndPet(selectedCommandItem)&&<select className="form-control" aria-label="Pet para o serviço" value={commandPetId} onChange={event=>setCommandPetId(event.target.value)}>
                <option value="">Selecione o pet...</option>{(commandClient?.pets||[]).map(pet=><option value={pet.id} key={pet.id}>{pet.nome}</option>)}
@@ -774,15 +786,15 @@ export default function PdvPage() {
             </div>
             {serviceNeedsTutorAndPet(selectedCommandItem)&&!commandClient?.id&&<small>Para adicionar este serviço, vincule o tutor na identificação da comanda.</small>}
            </div>
-           <InlineNotice tone="error">{commandCloseError}</InlineNotice>
+           <InlineNotice tone="error">{centralCatalogQuery.isError&&intelligentPreference?"Não foi possível consultar o catálogo conjunto.":commandCloseError}</InlineNotice>
            <div className="pdv-command-line-list">
-            {commandDetail.itens.length?commandDetail.itens.map(item=><div className={`pdv-command-line ${item.status!=="ATIVO"?"is-processed":""}`} key={item.id}>
+            {activeCommandItems.length?activeCommandItems.map(item=><div className={`pdv-command-line ${item.status!=="ATIVO"?"is-processed":""}`} key={item.id}>
              <span className={`pdv-command-line__type ${item.itemCatalogo?.tipo==="SERVICO"?"is-service":""}`} aria-hidden="true">{item.itemCatalogo?.tipo==="SERVICO"?"S":"P"}</span>
              <div className="pdv-command-line__name">
               <strong>{item.descricao}</strong><small>{item.empresa?.nomeFantasia||"Empresa"}{item.pet?.nome?` · ${item.pet.nome}`:""} · {item.status==="ATIVO"?"Pendente":item.status==="FATURADO"?"Faturado":item.status}</small>
              </div>
              <div className="pdv-command-line__value"><strong>{formatCurrency(item.valorTotal)}</strong><small>{money(item.quantidade)} × {formatCurrency(item.valorUnitario)}</small></div>
-             {item.empresaId===selectedCompany?.id&&item.status==="ATIVO"?
+             {(item.empresaId===selectedCompany?.id||(intelligentPreference&&centralAllowedCompanies.has(item.empresaId)))&&item.status==="ATIVO"?
               <button type="button" className="icon-button table-action" aria-label={`Remover ${item.descricao}`} title="Cancelar item pendente"
                disabled={removeCommandItemMutation.isPending} onClick={()=>removeCommandItemMutation.mutate(item.id)}><Trash2 size={15}/></button>:
               <span className="pdv-command-line__locked" title="Item de outra empresa ou já processado">—</span>}
@@ -796,7 +808,7 @@ export default function PdvPage() {
             <div className="pdv-command-side-body">
              <label><span>Tutor</span><strong>{commandClient?.nome||"Consumidor não identificado"}</strong></label>
              {commandClient?.cpfCnpj&&<label><span>CPF / CNPJ</span><strong>{commandClient.cpfCnpj}</strong></label>}
-             <label><span>Paciente(s)</span><strong>{[...new Set((commandDetail.itens||[]).map(item=>item.pet?.nome).filter(Boolean))].join(", ")||"Selecionar ao adicionar serviço"}</strong></label>
+             <label><span>Paciente(s)</span><strong>{[...new Set(activeCommandItems.map(item=>item.pet?.nome).filter(Boolean))].join(", ")||"Selecionar ao adicionar serviço"}</strong></label>
              {!commandClient&&<div className="pdv-command-attach">
               <p>Para lançar serviços, vincule o tutor. Após vincular, não será possível trocá-lo por este fluxo.</p>
               <select className="form-control" aria-label="Vincular tutor à comanda" value={commandAttachClientId}
