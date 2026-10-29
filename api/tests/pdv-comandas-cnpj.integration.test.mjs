@@ -4,7 +4,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
-import {criarComanda,listarComandas,buscarComanda,listarComandasCentral,buscarComandaCentral,listarCatalogoCentral,adicionarItemComanda,cancelarItemComanda} from "../src/modules/pdv/pdv.service.js";
+import {criarComanda,listarComandas,buscarComanda,listarComandasCentral,buscarComandaCentral,listarCatalogoCentral,adicionarItemComanda,cancelarItemComanda,converterComandaParaUnificada} from "../src/modules/pdv/pdv.service.js";
 
 test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao",async()=>{
  const suffix=Date.now().toString(36);
@@ -18,6 +18,9 @@ test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao"
  const usuarioId="m574-user-"+suffix;
  const cargos=[];
  let createdPermission=false;
+ const flagKeys=["POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED",
+  "POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS","POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS"];
+ const originalFlags=Object.fromEntries(flagKeys.map(k=>[k,process.env[k]]));
  try{
   await prisma.organizacao.create({data:{id:org,slug:"escopo-"+suffix,nome:"Org CNPJ CI"}});
   await prisma.empresa.createMany({data:[
@@ -131,7 +134,25 @@ test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao"
   assert.deepEqual(detail.itens.map(x=>x.empresaId),[co2]);
   assert.equal(detail.vendas.length,0);
   await assert.rejects(()=>buscarComanda({organizacaoId:"org-externa",empresaId:co1,id:a.id}),/COMANDA_NAO_ENCONTRADA/);
+  // A conversao de uma comanda sem vendas para o motor de fechamento conjunto
+  // e explicita, exige allowlist completa e preserva o mesmo ID e auditoria.
+  const scope={organizacaoId:org,usuarioId,empresaId:co1,id:a.id,
+   organizacao:{id:org,configuracao:{pdvUnificadoHabilitado:true}}};
+  await assert.rejects(()=>converterComandaParaUnificada(scope),/CHECKOUT_MANUAL_DESATIVADO/);
+  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
+  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS=org;
+  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=co1+","+co2;
+  const convertida=await converterComandaParaUnificada(scope);
+  assert.equal(convertida.id,a.id);
+  assert.equal((await prisma.comanda.findUnique({where:{id:a.id}})).rascunhoUnificado,true);
+  assert.equal(await prisma.comandaItem.count({where:{comandaId:a.id,status:"CANCELADO"}}),1);
+  assert.equal(await prisma.venda.count({where:{comandaId:a.id}}),0);
+  await assert.rejects(()=>converterComandaParaUnificada(scope),/COMANDA_NAO_ENCONTRADA/);
+
  }finally{
+  for(const [key,value] of Object.entries(originalFlags)){
+   if(value===undefined)delete process.env[key];else process.env[key]=value;
+  }
   if(criadas.length)await prisma.atendimentoClinico.deleteMany({where:{comandaId:{in:criadas}}});
   if(criadas.length)await prisma.ordemServicoBanhoTosa.deleteMany({where:{comandaId:{in:criadas}}});
   if(petsCi.length)await prisma.pet.deleteMany({where:{id:{in:petsCi}}});
