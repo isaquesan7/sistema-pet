@@ -2,6 +2,7 @@ import prisma from "../../config/prisma.js";
 import { criarRecebivelFiadoNoTx } from "../financeiro/financeiro.service.js";
 import { criarDocumentoAutomaticoVenda } from "../fiscal/fiscal.service.js";
 import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
+import {buscarCatalogo as buscarCatalogoUnificado} from "./pdv-unificado.service.js";
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -752,9 +753,9 @@ export async function listarComandas({ organizacaoId, empresaId, busca, status }
 /** Central compartilhada de comandas: so revela CNPJs aos quais o usuario
  * tem vinculo ATIVO, cargo ativo e permissao pdv.acessar.
  * A separacao de caixa/estoque/vendas continua pelas rotas por CNPJ. */
-async function empresasPermitidasNaCentral(organizacaoId, usuarioId) {
+async function empresasPermitidasNaCentral(organizacaoId, usuarioId, db=prisma) {
   if (!organizacaoId || !usuarioId) throw new Error("ACESSO_NEGADO");
-  const vinculos = await prisma.usuarioEmpresa.findMany({
+  const vinculos = await db.usuarioEmpresa.findMany({
     where: {
       usuarioId, ativo: true,
       empresa: { organizacaoId, ativo: true },
@@ -763,6 +764,10 @@ async function empresasPermitidasNaCentral(organizacaoId, usuarioId) {
     select: { empresaId: true },
   });
   return vinculos.map(v => v.empresaId);
+}
+/** Reutiliza o catalogo unificado ja validado: filtra CNPJ e ACL na origem. */
+export async function listarCatalogoCentral({organizacaoId,usuarioId,empresaId,busca=""}){
+ return buscarCatalogoUnificado({organizacaoId,usuarioId,empresaId,busca});
 }
 function escopoCentralComandas(ids) {
   return { OR: [
@@ -802,7 +807,7 @@ export async function buscarComandaCentral({ organizacaoId, usuarioId, id }) {
     include: {
       cliente: { include: { pets: { where: { ativo: true }, select: { id: true, nome: true } } } },
       itens: {
-        where: { empresaId: { in: ids } },
+        where: { empresaId: { in: ids }, status: { not: "CANCELADO" } },
         include: {
           empresa: { select: { id: true, nomeFantasia: true, tipo: true } },
           itemCatalogo: { select: { id: true, nome: true, tipo: true, precoVenda: true } },
@@ -872,7 +877,7 @@ export async function atribuirTutorComanda({organizacaoId,empresaId,id,clienteId
  });
 }
 
-export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId, dados }) {
+export async function adicionarItemComanda({ empresaId, organizacaoId, usuarioId, pdvUnificadoHabilitado=false, comandaId, dados }) {
   return prisma.$transaction(async (tx) => {
     const comanda = await tx.comanda.findFirst({
       where: { id: comandaId, organizacaoId, rascunhoUnificado: false },
@@ -881,8 +886,20 @@ export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId
     if (comanda.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     if (["FECHADA", "CANCELADA"].includes(comanda.status)) throw new Error("COMANDA_FECHADA");
 
+    // O CNPJ real vem do catalogo validado no banco, nunca do corpo HTTP.
+    const produto=await tx.itemCatalogo.findFirst({
+      where:{id:dados.itemCatalogoId,ativo:true,empresa:{organizacaoId,ativo:true}},
+      select:{empresaId:true},
+    });
+    if(!produto)throw Error("ITEM_NAO_ENCONTRADO");
+    const empresaAlvoId=produto.empresaId;
+    if(empresaAlvoId!==empresaId){
+      if(!pdvUnificadoHabilitado)throw Error("PDV_UNIFICADO_DESATIVADO");
+      const autorizadas=await empresasPermitidasNaCentral(organizacaoId,usuarioId,tx);
+      if(!autorizadas.includes(empresaAlvoId))throw Error("EMPRESA_SEM_ACESSO");
+    }
     const [linha] = await prepararItens(tx, {
-      empresaId,
+      empresaId:empresaAlvoId,
       organizacaoId,
       clienteId: comanda.clienteId,
       itens: [dados],
@@ -891,7 +908,7 @@ export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId
     const item = await tx.comandaItem.create({
       data: {
         comandaId,
-        empresaId,
+        empresaId:empresaAlvoId,
         itemCatalogoId: linha.item.id,
         petId: linha.pet?.id || null,
         descricao: linha.item.nome,
@@ -906,18 +923,22 @@ export async function adicionarItemComanda({ empresaId, organizacaoId, comandaId
   });
 }
 
-export async function cancelarItemComanda({ empresaId, organizacaoId, comandaId, itemId }) {
+export async function cancelarItemComanda({ empresaId, organizacaoId, usuarioId, pdvUnificadoHabilitado=false, comandaId, itemId }) {
   return prisma.$transaction(async (tx) => {
     const item = await tx.comandaItem.findFirst({
       where: {
         id: itemId,
         comandaId,
-        empresaId,
         status: "ATIVO",
         comanda: { organizacaoId },
       },
     });
     if (!item) throw new Error("ITEM_COMANDA_NAO_ENCONTRADO");
+    if(item.empresaId!==empresaId){
+      if(!pdvUnificadoHabilitado)throw Error("PDV_UNIFICADO_DESATIVADO");
+      const autorizadas=await empresasPermitidasNaCentral(organizacaoId,usuarioId,tx);
+      if(!autorizadas.includes(item.empresaId))throw Error("EMPRESA_SEM_ACESSO");
+    }
     const origem = await tx.comanda.findUnique({where:{id:comandaId},select:{rascunhoUnificado:true}});
     if (origem?.rascunhoUnificado) throw new Error("COMANDA_RASCUNHO_UNIFICADO");
     return tx.comandaItem.update({ where: { id: item.id }, data: { status: "CANCELADO" } });
