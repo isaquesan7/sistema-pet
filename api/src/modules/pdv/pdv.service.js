@@ -3,6 +3,7 @@ import { criarRecebivelFiadoNoTx } from "../financeiro/financeiro.service.js";
 import { criarDocumentoAutomaticoVenda } from "../fiscal/fiscal.service.js";
 import {travarUnidadesProdutos} from "../catalogo/catalogo-unidade.service.js";
 import {buscarCatalogo as buscarCatalogoUnificado} from "./pdv-unificado.service.js";
+import {checkoutManualHabilitado,empresaManualAutorizada} from "./pdv-unificado-checkout-manual.gate.js";
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -824,6 +825,45 @@ export async function buscarComandaCentral({ organizacaoId, usuarioId, id }) {
   });
   if (!comanda) throw new Error("COMANDA_NAO_ENCONTRADA");
   return comanda;
+}
+
+/** Conversao explicita, sem duplicar comanda nem venda, para o motor atomico
+ * de fechamento inteligente ja homologado. So para comanda aberta, nao faturada.
+ * Nenhum pagamento e realizado aqui e a historia CANCELADA nao e apagada. */
+export async function converterComandaParaUnificada({organizacao,organizacaoId,usuarioId,empresaId,id}){
+ if(!checkoutManualHabilitado(organizacao,empresaId))
+  throw Error("CHECKOUT_MANUAL_DESATIVADO");
+ return prisma.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
+  const original=await tx.comanda.findFirst({
+   where:{id,organizacaoId,rascunhoUnificado:false},
+   include:{itens:{include:{itemCatalogo:{select:{id:true,ativo:true,precoVenda:true,empresaId:true}}}},
+    vendas:{select:{id:true}}}
+  });
+  if(!original)throw Error("COMANDA_NAO_ENCONTRADA");
+  if(original.status!=="ABERTA"||original.vendas.length)
+   throw Error("COMANDA_COM_HISTORICO_FINANCEIRO");
+  const ativos=original.itens.filter(item=>item.status==="ATIVO");
+  if(!ativos.length||original.itens.some(item=>!["ATIVO","CANCELADO"].includes(item.status)))
+   throw Error("COMANDA_CONVERSAO_INVALIDA");
+  const autorizadas=await empresasPermitidasNaCentral(organizacaoId,usuarioId,tx);
+  const participantes=[...new Set(ativos.map(item=>item.empresaId))];
+  if(participantes.some(e=>!autorizadas.includes(e)||!empresaManualAutorizada(e)))
+   throw Error("EMPRESA_SEM_ACESSO");
+  // Pre-close do motor exige precos atuais e totais exatos. Sem alterar valores.
+  for(const linha of ativos){
+   const cat=linha.itemCatalogo;
+   if(!cat?.ativo||cat.empresaId!==linha.empresaId||
+      Math.round(Number(cat.precoVenda)*100)!==Math.round(Number(linha.valorUnitario)*100)||
+      Math.abs(roundMoney(Number(linha.valorUnitario)*Number(linha.quantidade)-Number(linha.desconto))-Number(linha.valorTotal))>0.009)
+    throw Error("COMANDA_REVISAR_VALORES");
+  }
+  const result=await tx.comanda.update({
+   where:{id},data:{rascunhoUnificado:true},
+   select:{id:true,numero:true,versaoRascunho:true}
+  });
+  return {id:result.id,numero:result.numero,versao:result.versaoRascunho,origem:"COMANDA_EXISTENTE"};
+ },{isolationLevel:"Serializable",maxWait:8000,timeout:14000});
 }
 
 export async function criarComanda({ organizacaoId, empresaId, dados }) {
