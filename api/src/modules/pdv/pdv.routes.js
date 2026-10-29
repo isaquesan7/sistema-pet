@@ -29,6 +29,7 @@ router.post("/vendas", exigirPermissao("pdv.acessar"), controller.criarVenda);
 router.post("/vendas/:id/cancelar", exigirPermissao("pdv.cancelar_venda"), controller.cancelarVenda);
 
 router.get("/orcamentos", exigirPermissao("financeiro.visualizar"), controller.listarOrcamentosPdv);
+router.get("/comandas/central/catalogo", exigirPermissao("pdv.acessar"), controller.listarCatalogoCentral);
 router.get("/comandas/central", exigirPermissao("pdv.acessar"), controller.listarComandasCentral);
 router.get("/comandas/central/:id", exigirPermissao("pdv.acessar"), controller.buscarComandaCentral);
 router.get("/comandas", exigirPermissao("pdv.acessar"), controller.listarComandas);
