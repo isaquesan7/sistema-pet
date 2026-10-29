@@ -52,7 +52,9 @@ function mapError(error, res, next) {
     COMANDA_FECHADA: [409, "Esta comanda está fechada ou cancelada."],
     COMANDA_TUTOR_IMUTAVEL: [409, "O tutor desta comanda já foi definido. Não é possível trocá-lo por esse fluxo."],
     COMANDA_RASCUNHO_UNIFICADO: [409, "Rascunho multiempresa: o fechamento só estará disponível após homologação."],
-    ITEM_COMANDA_NAO_ENCONTRADO: [404, "Item ativo da comanda não encontrado para esta empresa."],
+    ITEM_COMANDA_NAO_ENCONTRADO: [404, "Item ativo da comanda não encontrado."],
+    EMPRESA_SEM_ACESSO: [403, "Você não tem permissão no CNPJ deste item."],
+    PDV_UNIFICADO_DESATIVADO: [403, "Ative o PDV unificado da organização para gerenciar itens de outros CNPJs."],
     COMANDA_SEM_ITENS_EMPRESA: [409, "A comanda não possui itens pendentes do CNPJ selecionado."],
     PACOTE_NAO_ENCONTRADO_PDV: [404, "Pacote pendente de recebimento não encontrado neste CNPJ."],
   };
@@ -213,6 +215,17 @@ export async function listarOrcamentosPdv(req,res,next){
 
 // Central compartilhada: lista somente dados de CNPJs efetivamente autorizados
 // para o usuario, enquanto fechamento/caixa permanecem isolados por empresa.
+export async function listarCatalogoCentral(req,res,next){
+ try{
+  if(req.organizacao?.configuracao?.pdvUnificadoHabilitado!==true)
+   return res.status(403).json({success:false,message:"PDV unificado não habilitado nesta organização."});
+  const dados=await service.listarCatalogoCentral({
+   organizacaoId:req.organizacao.id,usuarioId:req.usuario.id,empresaId:req.empresa.id,
+   busca:String(req.query.busca||"").trim().slice(0,100)
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(error){mapError(error,res,next);}
+}
 export async function listarComandasCentral(req,res,next){
  try{
   const dados=await service.listarComandasCentral({organizacaoId:req.organizacao.id,usuarioId:req.usuario.id});
@@ -269,6 +282,8 @@ export async function adicionarItemComanda(req, res, next) {
     const item = await service.adicionarItemComanda({
       empresaId: req.empresa.id,
       organizacaoId: req.organizacao.id,
+      usuarioId: req.usuario.id,
+      pdvUnificadoHabilitado: req.organizacao.configuracao?.pdvUnificadoHabilitado === true,
       comandaId: req.params.id,
       dados,
     });
@@ -281,6 +296,8 @@ export async function cancelarItemComanda(req, res, next) {
     const item = await service.cancelarItemComanda({
       empresaId: req.empresa.id,
       organizacaoId: req.organizacao.id,
+      usuarioId: req.usuario.id,
+      pdvUnificadoHabilitado: req.organizacao.configuracao?.pdvUnificadoHabilitado === true,
       comandaId: req.params.id,
       itemId: req.params.itemId,
     });
