@@ -232,6 +232,7 @@ export default function PdvPage() {
   const [commandError, setCommandError] = useState("");
   const [commandDetailId, setCommandDetailId] = useState(null);
   const [commandItemId, setCommandItemId] = useState("");
+  const [commandCatalogSearch,setCommandCatalogSearch]=useState("");
   const [commandQuantity,setCommandQuantity]=useState(1);
   const [unifiedDraftToOpen,setUnifiedDraftToOpen]=useState(null);
   const [unifiedInitialClient,setUnifiedInitialClient]=useState(null);
@@ -285,9 +286,9 @@ export default function PdvPage() {
   // Catalogo conjunto apenas quando a configuracao da organizacao autoriza.
   // O servidor retorna somente CNPJs com vinculo e pdv.acessar vigentes.
   const centralCatalogQuery=useQuery({
-    queryKey:["pdv-central-catalog",selectedOrganization?.id,selectedCompany?.id],
+    queryKey:["pdv-central-catalog",selectedOrganization?.id,selectedCompany?.id,commandCatalogSearch],
     enabled:Boolean(commandDetailId&&intelligentPreference&&selectedOrganization?.id&&selectedCompany?.id),
-    queryFn:async()=>(await api.get("/pdv/comandas/central/catalogo")).data.dados||[],
+    queryFn:async()=>(await api.get("/pdv/comandas/central/catalogo",{params:{busca:commandCatalogSearch||undefined}})).data.dados||[],
     retry:false,
   });
   const clientsQuery = useQuery({
@@ -783,6 +784,9 @@ export default function PdvPage() {
            <div className="pdv-command-entry">
             <div className="pdv-command-pane-head"><div><span>LANÇAMENTO</span><h3>Produtos e serviços</h3></div><span>{intelligentPreference?"Catálogo das empresas autorizadas":(selectedCompany?.nomeFantasia||"CNPJ selecionado")}</span></div>
             <div className="pdv-command-add">
+             {intelligentPreference&&<input className="form-control" type="search" aria-label="Buscar no catálogo de todos os CNPJs"
+               placeholder="Buscar produtos ou serviços dos dois CNPJs..."
+               value={commandCatalogSearch} onChange={event=>{setCommandCatalogSearch(event.target.value);setCommandItemId("");}} />}
              <select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId}
               onChange={event=>{setCommandItemId(event.target.value);setCommandQuantity(1);}}>
               <option value="">{intelligentPreference?"Adicionar produto ou serviço de qualquer CNPJ autorizado...":"Adicionar produto/serviço deste CNPJ..."}</option>{commandCatalog.map(item=><option value={item.id} key={item.id}>{item.empresa?.nomeFantasia||selectedCompany?.nomeFantasia||"Empresa"} · {item.nome} · {formatCurrency(item.precoVenda)}</option>)}
