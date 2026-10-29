@@ -110,7 +110,7 @@ export async function listarEstornosUnificados({organizacaoId,usuarioId,empresaI
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId});
  const allowed=new Set(acessiveis.map(empresa=>empresa.id));
  const registros=await prisma.estornoFechamentoManualUnificado.findMany({
-  where:{reserva:{comanda:{rascunhoUnificado:true,status:"CANCELADA",cliente:{organizacaoId}}}},
+  where:{reserva:{comanda:{rascunhoUnificado:true,status:"CANCELADA",organizacaoId}}},
   select:{id:true,createdAt:true,reserva:{select:{valorTotal:true,
    comanda:{select:{id:true,numero:true,status:true,cliente:{select:{id:true,nome:true}}}},
    operacoes:{select:{empresaId:true,valorTotal:true,empresa:{select:{nomeFantasia:true}}}}}}},
@@ -191,7 +191,7 @@ async function empresasComPermissao({organizacaoId,usuarioId,codigo},db=prisma){
 export async function reservarOperacoesFechamento({organizacaoId,usuarioId,empresaId,id,versao}){
  return prisma.$transaction(async tx=>{
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
-  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},select:{id:true,clienteId:true,status:true,versaoRascunho:true}});
+  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,organizacaoId},select:{id:true,clienteId:true,status:true,versaoRascunho:true}});
   if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
   if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
   if(draft.status!=="ABERTA")throw Error("RASCUNHO_BLOQUEADO");
@@ -230,7 +230,7 @@ function normalizarReserva(reserva,reutilizada){
 }
 /** Tenant and all-company authorization required even for reading a reservation. */
 export async function consultarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao},db=prisma){
- const comanda=await db.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+ const comanda=await db.comanda.findFirst({where:{id,rascunhoUnificado:true,organizacaoId},
   select:{id:true,itens:{select:{empresaId:true}}}});
  if(!comanda)throw Error("RASCUNHO_NAO_ENCONTRADO");
  const acessiveis=await empresasAutorizadas({organizacaoId,usuarioId,empresaId},db);
@@ -249,7 +249,7 @@ export async function consultarReservaFechamento({organizacaoId,usuarioId,empres
 export async function cancelarReservaFechamento({organizacaoId,usuarioId,empresaId,id,versao,motivo}){
  return prisma.$transaction(async tx=>{
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
-  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},select:{id:true,versaoRascunho:true}});
+  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,organizacaoId},select:{id:true,versaoRascunho:true}});
   if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
   if(draft.versaoRascunho!==versao)throw Error("RASCUNHO_DESATUALIZADO");
   const reserva=await tx.reservaFechamentoUnificado.findUnique({
