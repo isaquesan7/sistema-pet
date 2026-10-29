@@ -4,7 +4,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../src/config/prisma.js";
-import {criarComanda,listarComandas,buscarComanda,listarComandasCentral,buscarComandaCentral} from "../src/modules/pdv/pdv.service.js";
+import {criarComanda,listarComandas,buscarComanda,listarComandasCentral,buscarComandaCentral,listarCatalogoCentral,adicionarItemComanda,cancelarItemComanda} from "../src/modules/pdv/pdv.service.js";
 
 test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao",async()=>{
  const suffix=Date.now().toString(36);
@@ -68,6 +68,40 @@ test("PDV legado ve somente o escopo de sua empresa mesmo dentro da organizacao"
   await assert.rejects(()=>buscarComandaCentral({organizacaoId:org,usuarioId,id:b.id}),/COMANDA_NAO_ENCONTRADA/);
   await assert.rejects(()=>buscarComandaCentral({organizacaoId:"outra-organizacao",usuarioId,id:a.id}),/COMANDA_NAO_ENCONTRADA/);
   await prisma.usuarioEmpresa.update({where:{usuarioId_empresaId:{usuarioId,empresaId:co2}},data:{ativo:true}});
+  // M.5.75: gestão conjunta, mas item sempre pertence ao CNPJ cadastrado.
+  const catalogo=await listarCatalogoCentral({organizacaoId:org,usuarioId,empresaId:co1});
+  assert.deepEqual(new Set(catalogo.map(i=>i.empresaId)),new Set([co1,co2]));
+  await assert.rejects(()=>adicionarItemComanda({
+   empresaId:co1,organizacaoId:org,usuarioId,comandaId:a.id,
+   dados:{itemCatalogoId:item2,quantidade:1,desconto:0}
+  }),/PDV_UNIFICADO_DESATIVADO/);
+  const novo=await adicionarItemComanda({
+   empresaId:co1,organizacaoId:org,usuarioId,pdvUnificadoHabilitado:true,comandaId:a.id,
+   dados:{itemCatalogoId:item2,quantidade:1,desconto:0}
+  });
+  assert.equal(novo.empresaId,co2);
+  assert.equal((await buscarComandaCentral({organizacaoId:org,usuarioId,id:a.id})).itens.length,3);
+  await assert.rejects(()=>cancelarItemComanda({
+   empresaId:co1,organizacaoId:org,usuarioId,comandaId:a.id,itemId:novo.id
+  }),/PDV_UNIFICADO_DESATIVADO/);
+  const cancelado=await cancelarItemComanda({
+   empresaId:co1,organizacaoId:org,usuarioId,pdvUnificadoHabilitado:true,
+   comandaId:a.id,itemId:novo.id
+  });
+  assert.equal(cancelado.status,"CANCELADO");
+  assert.equal((await buscarComandaCentral({organizacaoId:org,usuarioId,id:a.id})).itens.length,2,
+   "Cancelado não deve continuar aparecendo na tela, mas permanece no histórico SQL");
+  assert.equal((await prisma.comandaItem.findUnique({where:{id:novo.id}})).status,"CANCELADO");
+  await prisma.usuarioEmpresa.update({
+   where:{usuarioId_empresaId:{usuarioId,empresaId:co2}},data:{ativo:false}
+  });
+  await assert.rejects(()=>adicionarItemComanda({
+   empresaId:co1,organizacaoId:org,usuarioId,pdvUnificadoHabilitado:true,comandaId:a.id,
+   dados:{itemCatalogoId:item2,quantidade:1,desconto:0}
+  }),/EMPRESA_SEM_ACESSO/);
+  await prisma.usuarioEmpresa.update({
+   where:{usuarioId_empresaId:{usuarioId,empresaId:co2}},data:{ativo:true}
+  });
   // M.5.72: fixture sintetica da comanda mista encontrada no preflight
   // comercial: duas empresas da mesma organizacao, itens de ambas,
   // vinculos clinicos/esteticos e nenhuma venda registrada.
