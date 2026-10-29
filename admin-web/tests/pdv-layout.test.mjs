@@ -9,7 +9,7 @@ const shared=readFileSync(new URL("../src/components/PdvSaleLayout.jsx",import.m
 
 test("PDV tradicional apresenta caixa, catalogo, carrinho e pagamentos de forma clara",()=>{
  for(const marker of [
-  'import "../pdv.css";','className="pdv-hero"','className="pdv-hero__chips"',
+  'import "../pdv.css";','pdv-hero--order-mode','className="pdv-hero__chips"',
   'className="pdv-unified-shortcut"','className="pdv-summary-grid"',
   '<nav className="pdv-tabs"','aria-pressed={tab === value}',
   '<PdvSaleLayout','<PdvProductCard','<PdvEmptyCart',
@@ -27,10 +27,10 @@ test("continua usando os mesmos fluxos de venda, comandas, caixa e cancelamento"
   'queryKey: ["pdv-items", selectedCompany?.id, itemSearch]',
   'api.post("/pdv/vendas"','api.post(`/pdv/comandas/${commandDetailId}/fechar`',
   'api.post(`/pdv/vendas/${cancelSale.id}/cancelar`',
-  'if (!openSession) return setSaleError','if (missingPet) return setSaleError',
+  'if (!openSession) return setSaleError','if(missingPet)return setSaleError',
   'hasPermission("pdv.aplicar_desconto")','hasPermission("pdv.cancelar_venda")',
   'onClick={finalizeSale}','<PaymentEditor payments={payments} total={total} onChange={setPayments}/>',
-  '<UnifiedPdvPreviewPage />'
+  '<UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} initialPetId={unifiedInitialPet} />'
  ])assert.ok(page.includes(marker),`Fluxo ausente: ${marker}`);
 });
 

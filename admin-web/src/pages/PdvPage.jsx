@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownCircle,
@@ -6,6 +7,7 @@ import {
   Banknote,
   Boxes,
   CircleDollarSign,
+  ClipboardList,
   CreditCard,
   Eye,
   Minus,
@@ -27,9 +29,9 @@ import FormField from "../components/FormField.jsx";
 import InlineNotice from "../components/InlineNotice.jsx";
 import UnifiedPdvPreviewPage from "./UnifiedPdvPreviewPage.jsx";
 import PdvSaleLayout,{PdvProductCard,PdvEmptyCart,PdvCustomerPicker,PdvTotals,PdvPaymentSection,PdvCheckoutButton} from "../components/PdvSaleLayout.jsx";
-import {normalizePdvQuantity,stepPdvQuantity,isValidPdvQuantity} from "../lib/pdvQuantity.js";
-import PdvOrdersHome from "../components/PdvOrdersHome.jsx";
 import "../pdv.css";
+import PdvOrdersHome from "../components/PdvOrdersHome.jsx";
+import {sanitizePdvQuantity,stepPdvQuantity,serviceNeedsTutorAndPet} from "../lib/pdvQuantity.js";
 
 const paymentLabels = {
   DINHEIRO: "Dinheiro",
@@ -77,7 +79,7 @@ function commandStatusLabel(status) {
 }
 
 function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
-  const needsPet = line.item.tipo === "SERVICO";
+  const needsPet = serviceNeedsTutorAndPet(line.item);
   const pets = client?.pets || [];
   return (
     <div className="pdv-cart-line">
@@ -96,15 +98,15 @@ function CartLine({ line, client, onUpdate, onRemove, canDiscount }) {
         ) : null}
       </div>
       <div className="pdv-quantity">
-        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item.tipo,line.quantidade,-1) })}><Minus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item,line.quantidade,-1) })}><Minus size={13} /></button>
         <input
           type="number"
-          min={line.item.tipo === "SERVICO" ? 1 : 0.001}
-          step={line.item.tipo === "SERVICO" ? 1 : 0.001}
+          min={needsPet?"1":"0.001"}
+          step={needsPet?"1":"0.001"}
           value={line.quantidade}
-          onChange={(event) => onUpdate({ quantidade: normalizePdvQuantity(line.item.tipo,event.target.value,line.quantidade) })}
+          onChange={(event) => onUpdate({ quantidade: sanitizePdvQuantity(line.item,event.target.value,line.quantidade) })}
         />
-        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item.tipo,line.quantidade,1) })}><Plus size={13} /></button>
+        <button type="button" onClick={() => onUpdate({ quantidade: stepPdvQuantity(line.item,line.quantidade,1) })}><Plus size={13} /></button>
       </div>
       {canDiscount ? (
         <label className="pdv-line-discount">
@@ -196,38 +198,11 @@ function PaymentEditor({ payments, total, onChange }) {
   );
 }
 
-/** Editor de comanda na tela principal; reaproveita as mutações transacionais existentes. */
-function PdvCommandWorkspaceBody({
- command,selectedCompany,clients,updateCommandClientMutation,catalog,selectedCommandItem,commandItemId,setCommandItemId,
- commandPetId,setCommandPetId,commandQuantity,setCommandQuantity,addCommandItemMutation,removeCommandItemMutation,
- closeCommandMutation,commandPayments,setCommandPayments,currentCompanyCommandItems,
- currentCompanyCommandTotal,openSession,commandCloseError
-}){
- const commandDetail=command;
- const commandClient=command.cliente;
- return (<div className="pdv-command-detail">
-          <div className="pdv-command-client-area">
-            <label>Cliente da comanda (obrigatório para serviços)
-              <select className="form-control" value={command.clienteId||""}
-                disabled={updateCommandClientMutation.isPending||["FECHADA","CANCELADA"].includes(command.status)}
-                onChange={e=>updateCommandClientMutation.mutate(e.target.value||null)}>
-                <option value="">Consumidor não identificado</option>
-                {clients.map(client=><option value={client.id} key={client.id}>{client.nome}</option>)}
-              </select>
-            </label>
-            {updateCommandClientMutation.isError&&<InlineNotice tone="error">{getApiErrorMessage(updateCommandClientMutation.error)}</InlineNotice>}
-          </div>
-          <div className="pdv-command-companies">{Object.values((commandDetail.itens || []).reduce((acc, item) => { const key = item.empresaId; if (!acc[key]) acc[key] = { empresa: item.empresa, total: 0, pendente: 0 }; if (item.status !== "CANCELADO") acc[key].total += money(item.valorTotal); if (item.status === "ATIVO") acc[key].pendente += money(item.valorTotal); return acc; }, {})).map((group) => <div className={group.empresa.id === selectedCompany?.id ? "current" : ""} key={group.empresa.id}><span>{group.empresa.nomeFantasia}</span><strong>{formatCurrency(group.total)}</strong><small>Pendente {formatCurrency(group.pendente)}</small></div>)}</div>
-          <div className="pdv-command-add"><select className="form-control" value={commandItemId} onChange={(event) => { setCommandItemId(event.target.value); setCommandPetId(""); }}><option value="">Adicionar produto/serviço deste CNPJ...</option>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome} · {formatCurrency(item.precoVenda)}</option>)}</select><label className="pdv-command-quantity">Qtd.<input className="form-control" type="number" min={selectedCommandItem?.tipo==="SERVICO"?1:0.001} step={selectedCommandItem?.tipo==="SERVICO"?1:0.001} value={commandQuantity} onChange={e=>setCommandQuantity(normalizePdvQuantity(selectedCommandItem?.tipo||"PRODUTO",e.target.value,commandQuantity))}/></label>{selectedCommandItem?.tipo === "SERVICO" ? <select className="form-control" value={commandPetId} onChange={(event) => setCommandPetId(event.target.value)}><option value="">Selecione o pet...</option>{(commandClient?.pets || []).map((pet) => <option value={pet.id} key={pet.id}>{pet.nome}</option>)}</select> : null}<button className="primary-button" type="button" onClick={() => addCommandItemMutation.mutate()} disabled={!commandItemId || addCommandItemMutation.isPending || !isValidPdvQuantity(selectedCommandItem?.tipo,commandQuantity) || (selectedCommandItem?.tipo==="SERVICO"&&(!commandClient||!commandPetId))}><Plus size={15} /> Lançar</button></div>
-          <InlineNotice tone="error">{commandCloseError}</InlineNotice>
-          <div className="table-scroll"><table className="pdv-command-items"><thead><tr><th>CNPJ</th><th>Item</th><th>Pet</th><th>Qtd.</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{commandDetail.itens.map((item) => <tr key={item.id}><td>{item.empresa?.nomeFantasia}</td><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorTotal)}</td><td>{item.status}</td><td>{item.empresaId === selectedCompany?.id && item.status === "ATIVO" ? <button className="icon-button table-action" type="button" onClick={() => removeCommandItemMutation.mutate(item.id)}><Trash2 size={14} /></button> : null}</td></tr>)}</tbody></table></div>
-          {currentCompanyCommandItems.length ? <div className="pdv-command-close"><div><span>Fechar itens de <strong>{selectedCompany?.nomeFantasia}</strong></span><b>{formatCurrency(currentCompanyCommandTotal)}</b></div>{openSession ? <><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments} />{commandPayments.length === 1 && money(commandPayments[0].valor) !== currentCompanyCommandTotal ? <button className="ghost-button" type="button" onClick={() => setCommandPayments([{ ...commandPayments[0], valor: currentCompanyCommandTotal }])}>Preencher pagamento</button> : null}<button className="primary-button" type="button" disabled={closeCommandMutation.isPending} onClick={() => closeCommandMutation.mutate()}>Fechar este CNPJ · {formatCurrency(currentCompanyCommandTotal)}</button></> : <InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}</div> : <InlineNotice>Não há itens pendentes do CNPJ atualmente selecionado.</InlineNotice>}
-        </div>);
-}
-
 export default function PdvPage() {
   const { selectedCompany, selectedOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const navigate=useNavigate();
+  const previousOrganizationIdRef=useRef(null);
   // A API define o modo efetivo da organização; nunca confiar somente no cache do login.
   const unifiedStatus=useQuery({
     queryKey:["unified-pdv-status",selectedOrganization?.id,selectedCompany?.id],
@@ -253,13 +228,16 @@ export default function PdvPage() {
   const [cashForm, setCashForm] = useState({ caixaId: "", valor: "0", descricao: "" });
   const [cashError, setCashError] = useState("");
 
-  const [commandModal, setCommandModal] = useState(false);
-  const [commandClientId, setCommandClientId] = useState("");
+  const [commandAttachClientId,setCommandAttachClientId]=useState("");
   const [commandError, setCommandError] = useState("");
   const [commandDetailId, setCommandDetailId] = useState(null);
   const [commandItemId, setCommandItemId] = useState("");
-  const [commandPetId, setCommandPetId] = useState("");
+  const [commandCatalogSearch,setCommandCatalogSearch]=useState("");
   const [commandQuantity,setCommandQuantity]=useState(1);
+  const [unifiedDraftToOpen,setUnifiedDraftToOpen]=useState(null);
+  const [unifiedInitialClient,setUnifiedInitialClient]=useState(null);
+  const [unifiedInitialPet,setUnifiedInitialPet]=useState(null);
+  const [commandPetId, setCommandPetId] = useState("");
   const [commandPayments, setCommandPayments] = useState([{ forma: "PIX", valor: 0, parcelas: 1 }]);
   const [commandCloseError, setCommandCloseError] = useState("");
 
@@ -270,12 +248,19 @@ export default function PdvPage() {
   const [saleDetailId, setSaleDetailId] = useState(null);
   const [cancelSale, setCancelSale] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
-  // Não carregar o carrinho de uma empresa para outra ao trocar o seletor global.
+  // Trocar CNPJ da MESMA organizacao pode manter a comanda; valores e itens
+  // selecionados de uma empresa jamais migram para o caixa de outra.
   useEffect(()=>{
+    const nextOrganizationId=selectedOrganization?.id||null;
+    const keepOrder=Boolean(nextOrganizationId)&&previousOrganizationIdRef.current===nextOrganizationId
+      &&Boolean(selectedCompany?.id)&&hasPermission("pdv.acessar");
+    previousOrganizationIdRef.current=nextOrganizationId;
     setCart([]);setClientId("");setClientSearch("");setSaleDiscount(0);setSaleAddition(0);
     setPayments([{forma:"PIX",valor:0,parcelas:1}]);setSaleError("");setIndividualFallback(false);
-    setCommandDetailId(null);setSaleDetailId(null);setCancelSale(null);
-    setCashModal(null);setCommandModal(false);setPackageReceive(null);
+    setCommandItemId("");setCommandQuantity(1);setCommandPayments([{forma:"PIX",valor:0,parcelas:1}]);
+    if(!keepOrder){setCommandDetailId(null);setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);}
+    setSaleDetailId(null);setCancelSale(null);setCommandAttachClientId("");setCommandPetId("");
+    setCashModal(null);setPackageReceive(null);
   },[selectedOrganization?.id,selectedCompany?.id]);
 
   const canDiscount = hasPermission("pdv.aplicar_desconto");
@@ -298,6 +283,14 @@ export default function PdvPage() {
     queryKey: ["pdv-items", selectedCompany?.id, itemSearch],
     queryFn: async () => (await api.get("/pdv/itens", { params: { busca: itemSearch || undefined } })).data.dados || [],
   });
+  // Catalogo conjunto apenas quando a configuracao da organizacao autoriza.
+  // O servidor retorna somente CNPJs com vinculo e pdv.acessar vigentes.
+  const centralCatalogQuery=useQuery({
+    queryKey:["pdv-central-catalog",selectedOrganization?.id,selectedCompany?.id,commandCatalogSearch],
+    enabled:Boolean(commandDetailId&&intelligentPreference&&selectedOrganization?.id&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv/comandas/central/catalogo",{params:{busca:commandCatalogSearch||undefined}})).data.dados||[],
+    retry:false,
+  });
   const clientsQuery = useQuery({
     queryKey: ["pdv-clients", selectedOrganization?.id],
     queryFn: async () => (await api.get("/clientes", { params: { limite: 100 } })).data.dados || [],
@@ -307,17 +300,40 @@ export default function PdvPage() {
     queryFn: async () => (await api.get("/pdv/vendas", { params: { limite: 60 } })).data.dados || [],
   });
   const commandsQuery = useQuery({
-    queryKey: ["pdv-commands", selectedOrganization?.id],
-    queryFn: async () => (await api.get("/pdv/comandas")).data.dados || [],
+    // Central unica: endpoint verifica permissoes por CNPJ. Caixa/venda continuam no atual.
+    queryKey: ["pdv-commands", selectedOrganization?.id, selectedCompany?.id],
+    enabled: Boolean(selectedOrganization?.id && selectedCompany?.id && hasPermission("pdv.acessar")),
+    queryFn: async () => (await api.get("/pdv/comandas/central")).data.dados || [],
   });
+  const quotesQuery=useQuery({
+    queryKey:["pdv-quotes",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(selectedCompany?.id&&hasPermission("financeiro.visualizar")),
+    queryFn:async()=>(await api.get("/pdv/orcamentos")).data.dados||[],retry:false
+  });
+  const unifiedDraftListQuery=useQuery({
+    queryKey:["pdv-unified-order-list",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(intelligentPreference&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv-unificado/rascunhos")).data.dados||[],retry:false
+  });
+  // Histórico unificado é da COMANDA, não uma segunda venda do CNPJ.
+  // O backend só retorna comandas cuja totalidade dos CNPJs é acessível.
+  const unifiedCompletedQuery=useQuery({
+    queryKey:["pdv-unified-completed",selectedOrganization?.id,selectedCompany?.id],
+    enabled:Boolean(tab==="HISTORICO"&&intelligentPreference&&selectedCompany?.id&&
+      unifiedStatus.data?.estornoUnificadoDisponivel&&canCancel),
+    queryFn:async()=>(await api.get("/pdv-unificado/rascunhos-concluidos")).data.dados||[],
+    retry:false,refetchOnMount:"always",
+  });
+  const unifiedReversalPermissions=unifiedStatus.data?.permissoesEmpresas||[];
+  const missingReversalCompanies=unifiedReversalPermissions.filter(x=>x.pdvAcessar&&!x.pdvCancelarVenda);
   const pendingPackagesQuery = useQuery({
     queryKey: ["pdv-pending-packages", selectedCompany?.id],
     queryFn: async () => (await api.get("/pdv/pacotes-pendentes")).data.dados || [],
   });
   const commandDetailQuery = useQuery({
-    queryKey: ["pdv-command-detail", commandDetailId],
-    enabled: Boolean(commandDetailId),
-    queryFn: async () => (await api.get(`/pdv/comandas/${commandDetailId}`)).data.comanda,
+    queryKey: ["pdv-command-detail", selectedOrganization?.id, selectedCompany?.id, commandDetailId],
+    enabled: Boolean(commandDetailId&&selectedCompany?.id&&hasPermission("pdv.acessar")),
+    queryFn: async () => (await api.get(`/pdv/comandas/central/${commandDetailId}`)).data.comanda,
   });
   const saleDetailQuery = useQuery({
     queryKey: ["pdv-sale-detail", saleDetailId],
@@ -329,12 +345,17 @@ export default function PdvPage() {
   const cashes = cashQuery.data || [];
   const openSession = sessionQuery.data || null;
   const catalog = itemsQuery.data || [];
+  const commandCatalog=intelligentPreference?(centralCatalogQuery.data||[]):catalog;
+  const centralAllowedCompanies=new Set((unifiedStatus.data?.permissoesEmpresas||[])
+    .filter(c=>c.pdvAcessar).map(c=>c.id));
+  const activeCommandItems=(commandDetailQuery.data?.itens||[]).filter(item=>item.status!=="CANCELADO");
   const clients = clientsQuery.data || [];
   const selectedClient = clients.find((client) => client.id === clientId) || null;
   const sales = salesQuery.data || [];
   const commands = commandsQuery.data || [];
   const pendingPackages = pendingPackagesQuery.data || [];
   const commandDetail = commandDetailQuery.data || null;
+  const unifiedOrderForSelectedSale=(unifiedCompletedQuery.data||[]).find(order=>order.id===saleDetailQuery.data?.comandaId)||null;
 
   const subtotal = useMemo(() => round(cart.reduce((sum, line) => sum + Math.max(0, money(line.item.precoVenda) * money(line.quantidade) - money(line.desconto)), 0)), [cart]);
   const total = round(Math.max(0, subtotal - money(saleDiscount) + money(saleAddition)));
@@ -344,6 +365,14 @@ export default function PdvPage() {
     [commandDetail, selectedCompany]
   );
   const currentCompanyCommandTotal = round(currentCompanyCommandItems.reduce((sum, item) => sum + money(item.valorTotal), 0));
+  // A central traz apenas itens de CNPJs autorizados ao usuario.
+  // A cobranca continua SOMENTE dos itens do CNPJ atual.
+  const commandCompanyVisibleTotal=round((commandDetail?.itens||[]).filter(item=>item.status!=="CANCELADO")
+    .reduce((sum,item)=>sum+money(item.valorTotal),0));
+  const commandPaymentsTotal=round(commandPayments.reduce((sum,payment)=>sum+money(payment.valor),0));
+  const commandReadyToClose=currentCompanyCommandItems.length>0&&Boolean(openSession)&&
+    commandPayments.length>0&&commandPayments.every(p=>Number.isFinite(Number(p.valor))&&Number(p.valor)>0)&&
+    commandPaymentsTotal===currentCompanyCommandTotal;
 
   function invalidatePdv() {
     queryClient.invalidateQueries({ queryKey: ["pdv-summary"] });
@@ -351,6 +380,8 @@ export default function PdvPage() {
     queryClient.invalidateQueries({ queryKey: ["pdv-cash"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-sales"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-commands"] });
+    queryClient.invalidateQueries({ queryKey: ["pdv-quotes"] });
+    queryClient.invalidateQueries({ queryKey: ["pdv-unified-order-list"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-command-detail"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-items"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-pending-packages"] });
@@ -409,38 +440,34 @@ export default function PdvPage() {
   });
 
   const createCommandMutation = useMutation({
-    mutationFn: async (requestedClientId) => (await api.post("/pdv/comandas", { clienteId: (requestedClientId ?? commandClientId) || null })).data.comanda,
-    onSuccess: (comanda) => {
-      setCommandModal(false);
-      setCommandClientId("");
+    mutationFn: async (payload) => (await api.post("/pdv/comandas", { clienteId: payload?.clienteId || null })).data.comanda,
+    onSuccess: (comanda,variables) => {
+      if(variables?.petId)setCommandPetId(variables.petId);
       setCommandError("");
-      setCommandDetailId(comanda.id);
-      setTab("COMANDAS");
+      setCommandDetailId(comanda.id);setTab("COMANDAS");
       invalidatePdv();
     },
     onError: (error) => setCommandError(getApiErrorMessage(error)),
   });
 
-  const updateCommandClientMutation = useMutation({
-    mutationFn: async clienteId => (await api.patch(`/pdv/comandas/${commandDetailId}/cliente`,{clienteId})).data.comanda,
-    onSuccess:()=>{setCommandPetId("");invalidatePdv();},
-    onError:()=>{},
+  const assignCommandClientMutation=useMutation({
+    mutationFn:async()=> (await api.patch(`/pdv/comandas/${commandDetailId}/tutor`,{clienteId:commandAttachClientId})).data.comanda,
+    onSuccess:()=>{setCommandAttachClientId("");setCommandPetId("");setCommandCloseError("");invalidatePdv();},
+    onError:error=>setCommandCloseError(getApiErrorMessage(error))
   });
-
   const addCommandItemMutation = useMutation({
     mutationFn: async () => {
-      const item = catalog.find((entry) => entry.id === commandItemId);
+      const item = commandCatalog.find((entry) => entry.id === commandItemId);
       return (await api.post(`/pdv/comandas/${commandDetailId}/itens`, {
         itemCatalogoId: commandItemId,
-        petId: item?.tipo === "SERVICO" && item.servico?.exigePet ? (commandPetId || null) : null,
-        quantidade: normalizePdvQuantity(item?.tipo||"PRODUTO",commandQuantity,1),
+        petId: item?.tipo === "SERVICO" ? (commandPetId || null) : null,
+        quantidade: commandQuantity,
         desconto: 0,
       })).data;
     },
     onSuccess: () => {
-      setCommandItemId("");
+      setCommandItemId("");setCommandQuantity(1);
       setCommandPetId("");
-      setCommandQuantity(1);
       invalidatePdv();
     },
     onError: (error) => setCommandCloseError(getApiErrorMessage(error)),
@@ -466,6 +493,22 @@ export default function PdvPage() {
       invalidatePdv();
     },
     onError: (error) => setCommandCloseError(getApiErrorMessage(error)),
+  });
+
+  const convertCommandMutation=useMutation({
+    mutationFn:async()=>(await api.post(`/pdv/comandas/${commandDetailId}/continuar-unificado`)).data.dados,
+    onSuccess:async result=>{
+      setCommandCloseError("");
+      setCommandDetailId(null);
+      setUnifiedDraftToOpen(result.id);
+      setUnifiedInitialClient(null);
+      setUnifiedInitialPet(null);
+      setIndividualFallback(false);
+      await queryClient.invalidateQueries({queryKey:["unified-drafts"]});
+      invalidatePdv();
+      setTab("VENDA");
+    },
+    onError:error=>setCommandCloseError(getApiErrorMessage(error)),
   });
 
   const cancelSaleMutation = useMutation({
@@ -504,7 +547,9 @@ export default function PdvPage() {
   }
 
   function updateCart(index, patch) {
-    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch, quantidade: patch.quantidade === undefined ? line.quantidade : normalizePdvQuantity(line.item.tipo,patch.quantidade,line.quantidade) } : line));
+    setCart((current) => current.map((line, i) => i === index ? { ...line, ...patch,
+      quantidade:patch.quantidade===undefined?line.quantidade:sanitizePdvQuantity(line.item,patch.quantidade,line.quantidade)
+    } : line));
   }
 
   function removeCart(index) {
@@ -526,19 +571,19 @@ export default function PdvPage() {
     setSaleError("");
     if (!openSession) return setSaleError("Abra um caixa antes de finalizar a venda.");
     if (!cart.length) return setSaleError("Adicione pelo menos um produto ou serviço.");
-    if (cart.some((line) => !isValidPdvQuantity(line.item.tipo,line.quantidade))) return setSaleError("Serviços exigem quantidades inteiras a partir de 1. Confira também as quantidades dos produtos.");
-    if (cart.some((line) => line.item.tipo === "SERVICO") && !clientId) return setSaleError("Selecione um tutor para os serviços.");
-    const missingPet = cart.some((line) => line.item.tipo === "SERVICO" && !line.petId);
-    if (missingPet) return setSaleError("Selecione o pet dos serviços que exigem vínculo.");
+    const hasService=cart.some(line=>serviceNeedsTutorAndPet(line.item));
+    if(hasService&&!clientId)return setSaleError("Para lançar serviços, selecione o tutor e o pet.");
+    const missingPet=cart.some(line=>serviceNeedsTutorAndPet(line.item)&&!line.petId);
+    if(missingPet)return setSaleError("Para lançar serviços, selecione o tutor e o pet.");
     saleMutation.mutate();
   }
 
-  const selectedCommandItem = catalog.find((item) => item.id === commandItemId);
+  const selectedCommandItem = commandCatalog.find((item) => item.id === commandItemId);
   const commandClient = commandDetail?.cliente;
 
   return (
     <div className="page-stack pdv-page">
-      <header className="pdv-hero" aria-label="Painel do ponto de venda">
+      <header className={tab==="COMANDAS"?"pdv-hero pdv-hero--order-mode":"pdv-hero"} aria-label="Painel do ponto de venda">
         <div className="pdv-hero__copy">
           <span className="pdv-hero__eyebrow">POINTVET <span aria-hidden="true">/</span> ATENDIMENTO</span>
           <h1>PDV e Comandas</h1>
@@ -554,25 +599,26 @@ export default function PdvPage() {
         <div><span>LIBERAÇÃO OPERACIONAL</span><h2>Fechamento multiempresa ainda restrito</h2><p>O catálogo inteligente e a comanda integrada estão disponíveis. Enquanto o checkout por CNPJ não for autorizado na API, você pode registrar uma venda individual pelo fluxo anterior, nesta mesma tela. Salve qualquer rascunho antes de alternar o modo temporário.</p></div>
         <button className="ghost-button" type="button" onClick={()=>setIndividualFallback(value=>!value)}>{individualFallback?"Voltar à comanda inteligente":"Venda individual temporária"} <Plus size={15}/></button>
       </section>}
-      <section className="pdv-summary-grid">
+      {tab!=="COMANDAS"&&<section className="pdv-summary-grid">
         <div className="pdv-summary-card"><CircleDollarSign size={19} /><div><span>Faturamento hoje (CNPJ atual)</span><strong>{formatCurrency(summary.faturamentoHoje || 0)}</strong></div></div>
         <div className="pdv-summary-card"><ReceiptText size={19} /><div><span>Vendas hoje (CNPJ atual)</span><strong>{summary.vendasHoje || 0}</strong></div></div>
         <div className="pdv-summary-card"><WalletCards size={19} /><div><span>Comandas pendentes</span><strong>{summary.comandasAbertas || 0}</strong></div></div>
         <div className="pdv-summary-card"><Banknote size={19} /><div><span>Saldo inicial</span><strong>{formatCurrency(openSession?.valorAbertura || 0)}</strong></div></div>
-      </section>
+      </section>}
 
       <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
-        {[ ["VENDA", ShoppingCart, "Venda"], ["COMANDAS", WalletCards, intelligentPreference?"Comandas por CNPJ":"Comandas"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
+        {[ ["COMANDAS", WalletCards, "Comandas e ordens"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
           <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
       </nav>
 
+      {tab === "VENDA" && <button type="button" className="ghost-button pdv-order-back" onClick={()=>{setTab("COMANDAS");setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);invalidatePdv();}}>← Voltar às comandas</button>}
       {tab === "VENDA" ? unifiedStatus.isPending ? (
         <section className="panel loading-state">Conferindo o modo de PDV da organização...</section>
       ) : unifiedStatus.isError ? (
         <section className="panel"><InlineNotice tone="error">Não foi possível consultar a configuração de PDV. Por segurança, o fechamento fica indisponível até atualizar.</InlineNotice><button className="ghost-button" type="button" onClick={()=>unifiedStatus.refetch()}>Tentar novamente</button></section>
       ) : showIntelligentSale ? (
-        <UnifiedPdvPreviewPage />
+        <UnifiedPdvPreviewPage openDraftId={unifiedDraftToOpen} initialClientId={unifiedInitialClient} initialPetId={unifiedInitialPet} />
       ) : (
         <PdvSaleLayout
           searchControl={<label className="search-box pdv-search"><Search size={17}/><input
@@ -616,40 +662,36 @@ export default function PdvPage() {
         />
       ) : null}
 
-      {tab === "COMANDAS" ? (
-        commandDetailId ? (
-          <section className="pdv-command-workspace">
-            <button className="ghost-button pdv-command-back" type="button" onClick={()=>setCommandDetailId(null)}>← Voltar às comandas</button>
-            <div className="pdv-command-workspace__heading">
-              <div><span className="pdv-eyebrow">COMANDA EM ATENDIMENTO</span><h2>{commandDetail?`Comanda #${commandDetail.numero}`:"Carregando comanda..."}</h2><p>{commandDetail?.cliente?.nome||"Consumidor não identificado"} · {selectedCompany?.nomeFantasia||"CNPJ selecionado"}</p></div>
-              <span className="badge badge--muted">{commandDetail?.status?commandStatusLabel(commandDetail.status):"Carregando"}</span>
-            </div>
-            {commandDetailQuery.isLoading?<div className="panel loading-state">Carregando comanda...</div>:commandDetail?(
-              <PdvCommandWorkspaceBody command={commandDetail} selectedCompany={selectedCompany}
-                clients={clients} updateCommandClientMutation={updateCommandClientMutation}
-                catalog={catalog} selectedCommandItem={selectedCommandItem}
-                commandItemId={commandItemId} setCommandItemId={setCommandItemId}
-                commandPetId={commandPetId} setCommandPetId={setCommandPetId}
-                commandQuantity={commandQuantity} setCommandQuantity={setCommandQuantity}
-                addCommandItemMutation={addCommandItemMutation}
-                removeCommandItemMutation={removeCommandItemMutation}
-                closeCommandMutation={closeCommandMutation}
-                commandPayments={commandPayments} setCommandPayments={setCommandPayments}
-                currentCompanyCommandItems={currentCompanyCommandItems}
-                currentCompanyCommandTotal={currentCompanyCommandTotal}
-                openSession={openSession} commandCloseError={commandCloseError}
-                onShowSale={setSaleDetailId}/>
-            ):<InlineNotice tone="error">Não foi possível localizar a comanda.</InlineNotice>}
-          </section>
-        ) : <PdvOrdersHome commands={commands} sales={sales} clients={clients} openSession={openSession}
-              selectedCompany={selectedCompany} onOpenCommand={setCommandDetailId}
-              onOpenSale={id=>{setSaleDetailId(id);setTab("HISTORICO");}}
-              onCreateCommand={id=>{setCommandError("");createCommandMutation.mutate(id);}}
-              creating={createCommandMutation.isPending} createError={commandError}
-              canQuoteView={hasPermission("financeiro.visualizar")}
-              canQuoteCreate={hasPermission("financeiro.gerenciar")}
-              onOpenCash={()=>setTab("CAIXA")}/>
-      ) : null}
+      {tab === "COMANDAS" && !commandDetailId ? <PdvOrdersHome
+        commands={commands} drafts={intelligentPreference?(unifiedDraftListQuery.data||[]):[]}
+        sales={sales} quotes={quotesQuery.data||[]} clients={clients} intelligent={showIntelligentSale}
+        openSession={openSession} companyName={selectedCompany?.nomeFantasia}
+        isLoading={commandsQuery.isLoading||salesQuery.isLoading||(intelligentPreference&&unifiedDraftListQuery.isLoading)}
+        creating={createCommandMutation.isPending} error={commandError}
+        quotesError={!hasPermission("financeiro.visualizar")?"O acesso aos orçamentos exige permissão financeiro.visualizar.":quotesQuery.isError?getApiErrorMessage(quotesQuery.error):""}
+        onOpenCommand={order=>{setCommandDetailId(order.id);setCommandAttachClientId("");setCommandPetId("");setCommandCloseError("");}}
+        onOpenDraft={draft=>{setUnifiedDraftToOpen(draft.id);setUnifiedInitialClient(null);setUnifiedInitialPet(null);setTab("VENDA");}}
+        onOpenSale={sale=>setSaleDetailId(sale.id)}
+        onOpenQuote={quote=>navigate(`/clientes/${quote.cliente?.id}`)}
+        onCash={()=>setTab("CAIXA")}
+        onCashAction={action=>{
+          if(!openSession||!["SUPPLY","WITHDRAW","CLOSE"].includes(action))return;
+          setCashError("");
+          setCashForm({caixaId:"",valor:"0",descricao:action==="SUPPLY"?"Suprimento de caixa":action==="WITHDRAW"?"Sangria de caixa":""});
+          setCashModal(action);
+        }}
+        onStartQuote={customerId=>navigate(`/clientes/${customerId}`)}
+        onCreate={({clienteId:customerId,petId})=>{
+          setCommandError("");
+          setCommandPetId(petId||"");
+          if(showIntelligentSale){
+            setUnifiedDraftToOpen(null);setUnifiedInitialClient(customerId||"");setUnifiedInitialPet(petId||null);
+            setTab("VENDA");
+          }else{
+            createCommandMutation.mutate({clienteId:customerId||null,petId:petId||null});
+          }
+        }}
+      /> : null}
 
       {tab === "PACOTES" ? (
         <section className="panel table-panel">
@@ -683,10 +725,39 @@ export default function PdvPage() {
       ) : null}
 
       {tab === "HISTORICO" ? (
+        <>
+        {intelligentPreference&&<section className="panel table-panel pdv-unified-history-main" aria-label="Histórico de vendas unificadas">
+          <div className="toolbar"><div>
+           <strong className="table-main-text">Vendas unificadas concluídas</strong>
+           <div className="table-subtext">Uma comanda pode conter vendas de vários CNPJs. Para estornar, abra a comanda original e faça o estorno integral.</div>
+          </div><span className="toolbar__count">{(unifiedCompletedQuery.data||[]).length} comandas</span></div>
+          {!canCancel&&<InlineNotice tone="error">Este operador não possui pdv.cancelar_venda no CNPJ selecionado. Confira a permissão em todos os CNPJs participantes.</InlineNotice>}
+          {missingReversalCompanies.length>0&&<InlineNotice tone="error">Para estornar uma comanda unificada, é necessária a permissão pdv.cancelar_venda em todas as empresas. Revise: {missingReversalCompanies.map(c=>c.nomeFantasia).join(", ")}.</InlineNotice>}
+          {!unifiedStatus.data?.estornoUnificadoDisponivel&&<InlineNotice tone="error">O estorno integral está desabilitado para o CNPJ selecionado. A venda continua registrada; não cancele as vendas-filhas individualmente.</InlineNotice>}
+          {unifiedCompletedQuery.isLoading&&<div className="loading-state">Consultando vendas unificadas...</div>}
+          {unifiedCompletedQuery.isError&&<InlineNotice tone="error">Não foi possível consultar as comandas concluídas: {getApiErrorMessage(unifiedCompletedQuery.error)}</InlineNotice>}
+          {!unifiedCompletedQuery.isLoading&&!unifiedCompletedQuery.isError&&canCancel&&unifiedStatus.data?.estornoUnificadoDisponivel&&!(unifiedCompletedQuery.data||[]).length&&
+           <div className="table-subtext pdv-unified-history-empty">Nenhuma comanda unificada concluída disponível para este operador. Verifique se ele possui acesso e permissão de estorno nos dois CNPJs.</div>}
+          {(unifiedCompletedQuery.data||[]).length>0&&<div className="pdv-unified-history-cards">
+           {unifiedCompletedQuery.data.map(order=><div key={order.id} className="pdv-unified-history-row">
+            <div><strong>Comanda unificada #{order.numero}</strong>
+             <small>{order.cliente?.nome||"Consumidor não identificado"} · {formatDateTime(order.createdAt)}</small>
+             <small>Operação conjunta — não cancelar as vendas de cada CNPJ separadamente.</small>
+            </div>
+            <strong>{formatCurrency((order.itens||[]).reduce((sum,item)=>sum+money(item.valorTotal),0))}</strong>
+            <button className="ghost-button" type="button" onClick={()=>{
+              setUnifiedDraftToOpen(order.id);
+              setUnifiedInitialClient(null);setUnifiedInitialPet(null);
+              setIndividualFallback(false);setTab("VENDA");
+            }}>Abrir comanda para estorno integral</button>
+           </div>)}
+          </div>}
+        </section>}
         <section className="panel table-panel">
           <div className="toolbar"><strong className="table-main-text">Últimas vendas do CNPJ selecionado</strong><span className="toolbar__count">{sales.length} registros</span></div>
           <div className="table-scroll"><table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>{sales.map((sale) => <tr key={sale.id}><td>#{sale.numero}</td><td>{formatDateTime(sale.createdAt)}</td><td>{sale.cliente?.nome || "Consumidor"}</td><td>{sale._count?.itens || 0}</td><td>{sale.pagamentos?.map((p) => paymentLabels[p.forma]).join(" + ") || "—"}</td><td><strong>{formatCurrency(sale.valorTotal)}</strong></td><td><span className={`badge ${sale.status === "FINALIZADA" ? "badge--success" : "badge--muted"}`}>{saleStatusLabel(sale.status)}</span></td><td><button className="icon-button table-action" type="button" onClick={() => setSaleDetailId(sale.id)}><Eye size={15} /></button></td></tr>)}</tbody></table></div>
         </section>
+        </>
       ) : null}
 
       <Modal open={Boolean(cashModal)} title={{ CREATE: "Novo caixa", OPEN: "Abrir caixa", SUPPLY: "Suprimento", WITHDRAW: "Sangria", CLOSE: "Fechar caixa" }[cashModal]} onClose={() => setCashModal(null)} footer={<><button className="ghost-button" type="button" onClick={() => setCashModal(null)}>Cancelar</button><button className="primary-button" type="button" onClick={() => cashMutation.mutate()} disabled={cashMutation.isPending}>Confirmar</button></>}>
@@ -697,16 +768,123 @@ export default function PdvPage() {
         {["SUPPLY", "WITHDRAW", "CLOSE"].includes(cashModal) ? <FormField label={cashModal === "CLOSE" ? "Observação" : "Descrição"}><textarea className="form-control form-control--textarea" value={cashForm.descricao} onChange={(event) => setCashForm((current) => ({ ...current, descricao: event.target.value }))} /></FormField> : null}
       </Modal>
 
-      <Modal open={commandModal} title="Nova comanda" subtitle="A comanda pertence ao cliente e pode receber lançamentos dos dois CNPJs." onClose={() => setCommandModal(false)} footer={<><button className="ghost-button" type="button" onClick={() => setCommandModal(false)}>Cancelar</button><button className="primary-button" type="button" disabled={createCommandMutation.isPending} onClick={() => createCommandMutation.mutate()}>Criar comanda</button></>}>
-        <InlineNotice tone="error">{commandError}</InlineNotice><FormField label="Cliente"><select className="form-control" value={commandClientId} onChange={(event) => setCommandClientId(event.target.value)}><option value="">Selecione...</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.nome}</option>)}</select></FormField>
-      </Modal>
+
+
+      {tab==="COMANDAS"&&commandDetailId?<section className="pdv-order-workspace">
+        <div className="pdv-order-workspace__top">
+          <button className="ghost-button" type="button" onClick={()=>{setCommandDetailId(null);setCommandPetId("");invalidatePdv();}}>← Voltar às comandas</button>
+          <div><small>COMANDA / ATENDIMENTO</small><h2>{commandDetail?`Comanda #${commandDetail.numero}`:"Carregando comanda..."}</h2>
+          <p>{commandDetail?.cliente?.nome||"Consumidor não identificado"} · {selectedCompany?.nomeFantasia||"Empresa atual"}</p></div>
+          {commandDetail&&<span className="pdv-order-status">{commandStatusLabel(commandDetail.status)}</span>}
+        </div>
+        {commandDetailQuery.isLoading?<div className="loading-state">Carregando comanda...</div>:
+         commandDetailQuery.isError?<InlineNotice tone="error">Não foi possível consultar a comanda. Verifique seu acesso e tente voltar à central.</InlineNotice>:
+         commandDetail?<div className="pdv-command-detail">
+          <div className="pdv-command-main">
+           <div className="pdv-command-entry">
+            <div className="pdv-command-pane-head"><div><span>LANÇAMENTO</span><h3>Produtos e serviços</h3></div><span>{intelligentPreference?"Catálogo das empresas autorizadas":(selectedCompany?.nomeFantasia||"CNPJ selecionado")}</span></div>
+            <div className="pdv-command-add">
+             {intelligentPreference&&<input className="form-control" type="search" aria-label="Buscar no catálogo de todos os CNPJs"
+               placeholder="Buscar produtos ou serviços dos dois CNPJs..."
+               value={commandCatalogSearch} onChange={event=>{setCommandCatalogSearch(event.target.value);setCommandItemId("");}} />}
+             <select className="form-control" aria-label="Produto ou serviço para lançar na comanda" value={commandItemId}
+              onChange={event=>{setCommandItemId(event.target.value);setCommandQuantity(1);}}>
+              <option value="">{intelligentPreference?"Adicionar produto ou serviço de qualquer CNPJ autorizado...":"Adicionar produto/serviço deste CNPJ..."}</option>{commandCatalog.map(item=><option value={item.id} key={item.id}>{item.empresa?.nomeFantasia||selectedCompany?.nomeFantasia||"Empresa"} · {item.nome} · {formatCurrency(item.precoVenda)}</option>)}
+             </select>
+             {serviceNeedsTutorAndPet(selectedCommandItem)&&<select className="form-control" aria-label="Pet para o serviço" value={commandPetId} onChange={event=>setCommandPetId(event.target.value)}>
+               <option value="">Selecione o pet...</option>{(commandClient?.pets||[]).map(pet=><option value={pet.id} key={pet.id}>{pet.nome}</option>)}
+             </select>}
+             <label className="pdv-command-quantity">Qtd.
+              <input className="form-control" aria-label="Quantidade a lançar na comanda" type="number"
+               min={selectedCommandItem?.tipo==="SERVICO"?"1":"0.001"} step={selectedCommandItem?.tipo==="SERVICO"?"1":"0.001"}
+               value={commandQuantity} onChange={event=>setCommandQuantity(sanitizePdvQuantity(selectedCommandItem,event.target.value,commandQuantity))}/>
+             </label>
+             <button className="primary-button" type="button" onClick={()=>{setCommandCloseError("");addCommandItemMutation.mutate();}}
+              disabled={!commandItemId||addCommandItemMutation.isPending||
+               (serviceNeedsTutorAndPet(selectedCommandItem)&&(!commandClient?.id||!commandPetId))}>
+              <Plus size={15}/> Adicionar</button>
+            </div>
+            {serviceNeedsTutorAndPet(selectedCommandItem)&&!commandClient?.id&&<small>Para adicionar este serviço, vincule o tutor na identificação da comanda.</small>}
+           </div>
+           <InlineNotice tone="error">{centralCatalogQuery.isError&&intelligentPreference?"Não foi possível consultar o catálogo conjunto.":commandCloseError}</InlineNotice>
+           <div className="pdv-command-line-list">
+            {activeCommandItems.length?activeCommandItems.map(item=><div className={`pdv-command-line ${item.status!=="ATIVO"?"is-processed":""}`} key={item.id}>
+             <span className={`pdv-command-line__type ${item.itemCatalogo?.tipo==="SERVICO"?"is-service":""}`} aria-hidden="true">{item.itemCatalogo?.tipo==="SERVICO"?"S":"P"}</span>
+             <div className="pdv-command-line__name">
+              <strong>{item.descricao}</strong><small>{item.empresa?.nomeFantasia||"Empresa"}{item.pet?.nome?` · ${item.pet.nome}`:""} · {item.status==="ATIVO"?"Pendente":item.status==="FATURADO"?"Faturado":item.status}</small>
+             </div>
+             <div className="pdv-command-line__value"><strong>{formatCurrency(item.valorTotal)}</strong><small>{money(item.quantidade)} × {formatCurrency(item.valorUnitario)}</small></div>
+             {(item.empresaId===selectedCompany?.id||(intelligentPreference&&centralAllowedCompanies.has(item.empresaId)))&&item.status==="ATIVO"?
+              <button type="button" className="icon-button table-action" aria-label={`Remover ${item.descricao}`} title="Cancelar item pendente"
+               disabled={removeCommandItemMutation.isPending} onClick={()=>removeCommandItemMutation.mutate(item.id)}><Trash2 size={15}/></button>:
+              <span className="pdv-command-line__locked" title="Item de outra empresa ou já processado">—</span>}
+            </div>):<div className="pdv-orders-empty"><ClipboardList size={25}/><strong>Comanda sem itens</strong><p>Selecione um produto ou serviço e adicione à lista.</p></div>}
+           </div>
+           <div className="pdv-command-list-total"><span>Total da comanda · CNPJs autorizados</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
+          </div>
+          <aside className="pdv-command-sidebar">
+           <section className="pdv-command-identification">
+            <div className="pdv-command-section-title"><ClipboardList size={17}/><strong>Identificação</strong></div>
+            <div className="pdv-command-side-body">
+             <label><span>Tutor</span><strong>{commandClient?.nome||"Consumidor não identificado"}</strong></label>
+             {commandClient?.cpfCnpj&&<label><span>CPF / CNPJ</span><strong>{commandClient.cpfCnpj}</strong></label>}
+             <label><span>Paciente(s)</span><strong>{[...new Set(activeCommandItems.map(item=>item.pet?.nome).filter(Boolean))].join(", ")||"Selecionar ao adicionar serviço"}</strong></label>
+             {!commandClient&&<div className="pdv-command-attach">
+              <p>Para lançar serviços, vincule o tutor. Após vincular, não será possível trocá-lo por este fluxo.</p>
+              <select className="form-control" aria-label="Vincular tutor à comanda" value={commandAttachClientId}
+               onChange={e=>setCommandAttachClientId(e.target.value)}><option value="">Selecione o tutor</option>{clients.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select>
+              <button className="ghost-button" type="button" disabled={!commandAttachClientId||assignCommandClientMutation.isPending}
+               onClick={()=>{setCommandCloseError("");assignCommandClientMutation.mutate();}}>Vincular tutor</button>
+             </div>}
+             {commandDetail.observacoes&&<label><span>Observações</span><strong>{commandDetail.observacoes}</strong></label>}
+            </div>
+           </section>
+           <section className="pdv-command-close">
+            <div className="pdv-command-section-title"><ReceiptText size={17}/><strong>Resumo</strong></div>
+            <div className="pdv-command-side-body">
+             <div className="pdv-command-summary-line"><span>Aberta em</span><strong>{formatDateTime(commandDetail.createdAt)}</strong></div>
+             <div className="pdv-command-summary-line"><span>Situação</span><strong>{commandStatusLabel(commandDetail.status)}</strong></div>
+             <div className="pdv-command-summary-line"><span>Empresa atual</span><strong>{selectedCompany?.nomeFantasia||"CNPJ selecionado"}</strong></div>
+             <div className="pdv-command-summary-line pdv-command-summary-line--total"><span>Total da comanda · CNPJs autorizados</span><strong>{formatCurrency(commandCompanyVisibleTotal)}</strong></div>
+             <small>Itens visíveis apenas dos CNPJs autorizados. Pagamento, estoque e caixa seguem separados pela empresa atual.</small>
+             {intelligentPreference&&activeCommandItems.some(i=>i.status==="ATIVO")&&commandDetail.status==="ABERTA"&&
+               <div className="pdv-command-company-receipt">
+                 <strong>Fechamento conjunto · todos os CNPJs</strong>
+                 {intelligentCheckoutEnabled?
+                   <>
+                    <small>Revisar a comanda no fluxo unificado: uma operação, vendas e caixa separados por CNPJ. Não processa Pix ou cartão automaticamente.</small>
+                    <button className="primary-button" type="button" disabled={convertCommandMutation.isPending}
+                     onClick={()=>convertCommandMutation.mutate()}>
+                     {convertCommandMutation.isPending?"Conferindo...":"Continuar no fechamento unificado"}
+                    </button>
+                   </>:
+                   <small>O catálogo conjunto e a gestão de itens estão disponíveis. A finalização conjunta depende da autorização operacional independente no servidor.</small>}
+               </div>}
+             {currentCompanyCommandItems.length?<>
+               <div className="pdv-command-company-receipt"><span>Itens pendentes deste CNPJ</span><strong>{formatCurrency(currentCompanyCommandTotal)}</strong>
+                <small>A confirmação abaixo registra somente o recebimento da empresa selecionada, não de todos os CNPJs.</small></div>
+               {openSession?<><PaymentEditor payments={commandPayments} total={currentCompanyCommandTotal} onChange={setCommandPayments}/>
+                {commandPayments.length===1&&commandPaymentsTotal!==currentCompanyCommandTotal&&<button className="ghost-button" type="button"
+                 onClick={()=>setCommandPayments([{...commandPayments[0],valor:currentCompanyCommandTotal}])}>Preencher pagamento</button>}
+                <button className="primary-button pdv-command-confirm" type="button" disabled={!commandReadyToClose||closeCommandMutation.isPending}
+                 onClick={()=>closeCommandMutation.mutate()}>{closeCommandMutation.isPending?"Registrando...":`Registrar pagamento e fechar este CNPJ · ${formatCurrency(currentCompanyCommandTotal)}`}</button>
+                {!commandReadyToClose&&<small>Informe valores positivos que somem exatamente o total pendente deste CNPJ.</small>}
+               </>:<InlineNotice>Abra o caixa deste CNPJ antes de fechar seus itens da comanda.</InlineNotice>}
+             </>:<small>Não há itens pendentes para o CNPJ selecionado.</small>}
+            </div>
+           </section>
+          </aside>
+         </div>:null}
+      </section>:null}
+
+
 
       <Modal open={Boolean(packageReceive)} title="Receber pacote" subtitle={packageReceive ? `${packageReceive.nome} · ${packageReceive.cliente?.nome}` : ""} onClose={() => setPackageReceive(null)} footer={<><button className="ghost-button" type="button" onClick={() => setPackageReceive(null)}>Cancelar</button><button className="primary-button" type="button" disabled={!openSession || receivePackageMutation.isPending} onClick={() => receivePackageMutation.mutate()}>Confirmar recebimento</button></>}>
         <InlineNotice tone="error">{packageError}</InlineNotice>
         {packageReceive ? <><div className="pdv-package-receive-summary"><span>Valor do pacote</span><strong>{formatCurrency(packageReceive.valorPacote)}</strong></div><PaymentEditor payments={packagePayments} total={money(packageReceive.valorPacote)} onChange={setPackagePayments} /></> : null}
       </Modal>
 
-      <Modal open={Boolean(saleDetailId)} title={saleDetailQuery.data ? `Venda #${saleDetailQuery.data.numero}` : "Venda"} onClose={() => setSaleDetailId(null)} size="lg" footer={saleDetailQuery.data?.status === "FINALIZADA" && canCancel ? <button className="ghost-button pdv-danger" type="button" onClick={() => { setCancelSale(saleDetailQuery.data); setSaleDetailId(null); }}>Cancelar venda</button> : null}>
+      <Modal open={Boolean(saleDetailId)} title={saleDetailQuery.data ? `Venda #${saleDetailQuery.data.numero}` : "Venda"} onClose={() => setSaleDetailId(null)} size="lg" footer={unifiedOrderForSelectedSale ? <button className="ghost-button" type="button" onClick={()=>{setSaleDetailId(null);setUnifiedDraftToOpen(unifiedOrderForSelectedSale.id);setUnifiedInitialClient(null);setUnifiedInitialPet(null);setIndividualFallback(false);setTab("VENDA");}}>Abrir comanda para estorno integral</button> : saleDetailQuery.data?.status === "FINALIZADA" && canCancel ? <button className="ghost-button pdv-danger" type="button" onClick={() => { setCancelSale(saleDetailQuery.data); setSaleDetailId(null); }}>Cancelar venda</button> : null}>
         {saleDetailQuery.isLoading ? <div className="loading-state">Carregando...</div> : saleDetailQuery.data ? <div className="pdv-sale-detail"><div className="pdv-sale-detail__summary"><div><span>Cliente</span><strong>{saleDetailQuery.data.cliente?.nome || "Consumidor"}</strong></div><div><span>Data</span><strong>{formatDateTime(saleDetailQuery.data.createdAt)}</strong></div><div><span>Total</span><strong>{formatCurrency(saleDetailQuery.data.valorTotal)}</strong></div><div><span>Status</span><strong>{saleStatusLabel(saleDetailQuery.data.status)}</strong></div></div><div className="table-scroll"><table><thead><tr><th>Item</th><th>Pet</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody>{saleDetailQuery.data.itens.map((item) => <tr key={item.id}><td>{item.descricao}</td><td>{item.pet?.nome || "—"}</td><td>{money(item.quantidade)}</td><td>{formatCurrency(item.valorUnitario)}</td><td>{formatCurrency(item.valorTotal)}</td></tr>)}</tbody></table></div><div className="pdv-sale-payment-tags">{saleDetailQuery.data.pagamentos.map((p) => <span key={p.id}><CreditCard size={13} /> {paymentLabels[p.forma]} · {formatCurrency(p.valor)}</span>)}</div></div> : null}
       </Modal>
 

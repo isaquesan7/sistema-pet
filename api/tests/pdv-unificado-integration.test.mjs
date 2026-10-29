@@ -63,8 +63,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.organizacao.create({data:{id:ids.other,slug:"outside-"+suffix,nome:"Outra organização"}});
  await prisma.usuario.create({data:{id:ids.user,nome:"Tester",email:suffix+"@ci.invalid",senhaHash:"not-a-login"}});
  await prisma.cliente.create({data:{id:ids.client,organizacaoId:ids.org,nome:"Tutor de teste"}});
- const specie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino CI"}});
- await prisma.pet.create({data:{id:ids.pet,clienteId:ids.client,especieId:specie.id,nome:"Pet da comanda"}});
+ const baseSpecie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino base CI"}});
+ await prisma.pet.create({data:{id:ids.pet,clienteId:ids.client,especieId:baseSpecie.id,nome:"Pet do serviço CI"}});
  await prisma.empresa.createMany({data:[
   {id:ids.co1,organizacaoId:ids.org,cnpj:"99999999999999",nomeFantasia:"Loja",razaoSocial:"Loja CI",tipo:"LOJA_CONSULTORIO"},
   {id:ids.co2,organizacaoId:ids.org,cnpj:"88888888888888",nomeFantasia:"Estética",razaoSocial:"Estética CI",tipo:"BANHO_TOSA"}
@@ -502,6 +502,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(persistedAfterRename.itens.find(i=>i.itemCatalogoId===ids.it1)?.descricao,"Ração","Snapshot da comanda não deve mudar com o catálogo");
  await prisma.itemCatalogo.update({where:{id:ids.it1},data:{nome:"Ração"}});
  // M.5.35: dois pets do mesmo tutor podem ter o MESMO serviço na mesma comanda.
+ const specie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino CI"}});
  const petBela="bela"+suffix,petTico="tico"+suffix;
  await prisma.pet.createMany({data:[
   {id:petBela,clienteId:ids.client,especieId:specie.id,nome:"Bela"},

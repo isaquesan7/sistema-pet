@@ -139,65 +139,175 @@
 .pdv-page .pdv-unified-actions>.ghost-button{min-height:40px;justify-content:center;font-size:13px;font-weight:750}
 @media(max-width:560px){.pdv-page .pdv-customer-picker__header{flex-wrap:wrap}}
 
-/* M.5.71 — PDV começa por ordens/comandas; identidade PointVet mantida.
- * Somente layout: não conceder permissão de checkout nesta camada. */
-.pdv-page .pdv-orders-home{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(280px,.95fr);gap:18px;align-items:start;min-width:0}
-.pdv-page .pdv-orders-home__list{padding:20px;min-height:410px;min-width:0}
-.pdv-page .pdv-orders-home__title{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px;color:#5143bc}
-.pdv-page .pdv-orders-home__title h2{font-size:22px;margin:3px 0 5px;color:#172b4a}
-.pdv-page .pdv-orders-home__title p{font-size:13px;color:#60708a;margin:0}
-.pdv-page .pdv-eyebrow{font-size:10px;font-weight:850;letter-spacing:.12em;color:#6758c6}
-.pdv-page .pdv-orders-home__tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #e6eaf2;margin-bottom:12px}
-.pdv-page .pdv-orders-home__tabs button{border:0;background:none;border-bottom:2px solid transparent;padding:10px 12px;color:#52617a;font-weight:750;cursor:pointer;font-size:12px}
-.pdv-page .pdv-orders-home__tabs button.active{color:#5b4ad3;border-bottom-color:#6955e3}
-.pdv-page .pdv-orders-home__tabs button:focus-visible{outline:2px solid #6655d9;outline-offset:2px}
-.pdv-page .pdv-orders-home__list .pdv-search{margin-bottom:12px}
-.pdv-page .pdv-orders-home__table{width:100%;min-width:580px;border-collapse:collapse}
-.pdv-page .pdv-orders-home__table th{font-size:11px;white-space:nowrap;color:#52617a}
-.pdv-page .pdv-orders-home__table td{font-size:12px;padding:12px 8px;border-bottom:1px solid #edf0f6}
-.pdv-page .pdv-orders-home__table td>strong{display:block;font-size:12px}
-.pdv-page .pdv-orders-home__table td small{display:block;color:#7a8498;margin-top:3px}
-.pdv-page .pdv-orders-home__table .ghost-button{padding:6px 8px;white-space:nowrap}
-.pdv-page .pdv-orders-home__empty{padding:30px 15px;text-align:center;color:#687589;font-size:13px}
-.pdv-page .pdv-orders-home__side{display:grid;gap:16px;min-width:0}
-.pdv-page .pdv-orders-home__side>section{padding:17px;display:grid;gap:13px;min-width:0}
-.pdv-page .pdv-orders-home__side-title{display:flex;align-items:center;gap:10px;border-radius:9px;background:#f2efff;padding:11px 13px;color:#5c4ac3}
-.pdv-page .pdv-orders-home__side-title h2{font-size:15px;margin:0;color:#29275c}
-.pdv-page .pdv-orders-home__create p,.pdv-page .pdv-orders-home__cash small{font-size:12px;line-height:1.6;color:#69748a;margin:0}
-.pdv-page .pdv-orders-home__create .form-field{display:grid;gap:7px}
-.pdv-page .pdv-orders-home__create .form-field span{font-size:12px;font-weight:800;color:#50607b}
-.pdv-page .pdv-orders-home__create .form-control{width:100%;min-height:42px}
-.pdv-page .pdv-orders-home__create>.primary-button{width:100%;min-height:43px;justify-content:center}
-.pdv-page .pdv-orders-home__quote{display:flex;align-items:center;gap:7px;font-size:12px;color:#50607b}
-.pdv-page .pdv-orders-home__warning{font-size:12px;color:#7f550c;background:#fff8e9;padding:9px;border-radius:8px}
-.pdv-page .pdv-orders-home__cash>strong{font-size:16px;color:#283454}
-.pdv-page .pdv-command-workspace{display:grid;gap:14px;min-width:0}
-.pdv-page .pdv-command-back{justify-self:start}
-.pdv-page .pdv-command-workspace__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:#fff;border:1px solid #e3e7f0;border-radius:13px}
-.pdv-page .pdv-command-workspace__heading h2{margin:4px 0;font-size:23px;color:#1a2b4d}
-.pdv-page .pdv-command-workspace__heading p{margin:0;color:#6b758a;font-size:12px}
-.pdv-page .pdv-command-workspace .pdv-command-detail{display:grid;gap:14px;min-width:0}
-.pdv-page .pdv-command-quantity{display:grid;gap:3px;align-content:center;font-size:11px;color:#60708a;font-weight:750;min-width:84px;max-width:116px}
-.pdv-page .pdv-command-quantity input{min-height:38px}
-@media(max-width:1000px){.pdv-page .pdv-orders-home{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-orders-home__side{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:650px){.pdv-page .pdv-orders-home__side{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-orders-home__list{padding:13px}.pdv-page .pdv-orders-home__title h2{font-size:18px}.pdv-page .pdv-command-workspace__heading h2{font-size:18px}}
+/* M.5.71 — Comandas primeiro: identidade PointVet, não replica o fornecedor da referência. */
+.pdv-page .pdv-orders-home{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(305px,.83fr);gap:18px;align-items:start}
+.pdv-page .pdv-orders-main,.pdv-page .pdv-orders-create,.pdv-page .pdv-orders-cash{border:1px solid #e3e7f1;border-radius:17px;background:#fff;overflow:hidden;min-width:0}
+.pdv-page .pdv-orders-main{min-height:490px;padding:0 20px 19px}
+.pdv-page .pdv-orders-head{display:flex;align-items:center;justify-content:space-between;padding:23px 1px 16px;gap:10px;color:#6156bd}
+.pdv-page .pdv-orders-head span,.pdv-page .pdv-order-workspace__top small{font-size:10px;letter-spacing:.11em;font-weight:850;color:#827cb0}
+.pdv-page .pdv-orders-head h2{margin:5px 0 4px;font-size:21px;line-height:1.3;font-weight:860;color:#172342}
+.pdv-page .pdv-orders-head p{margin:0;font-size:12px;color:#68758c}
+.pdv-page .pdv-orders-tabs{display:flex;gap:4px;border-bottom:1px solid #e5e8f2;overflow:auto;scrollbar-width:none}
+.pdv-page .pdv-orders-tabs button{padding:12px 15px 11px;color:#66718a;font-size:12px;font-weight:780;background:transparent;border:0;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.pdv-page .pdv-orders-tabs button.active{color:#5446b9;border-bottom-color:#6350d0}
+.pdv-page .pdv-orders-tabs button:focus-visible,.pdv-page .pdv-order-row:focus-visible{outline:2px solid #6a5ad5;outline-offset:-2px}
+.pdv-page .pdv-orders-search{margin:15px 0 12px;border-radius:9px}
+.pdv-page .pdv-orders-list{display:grid;gap:7px;max-height:575px;overflow:auto;scrollbar-width:thin}
+.pdv-page .pdv-order-row{width:100%;display:grid;grid-template-columns:minmax(56px,.45fr) minmax(125px,1.6fr) minmax(125px,.8fr) minmax(85px,.6fr) 19px;gap:12px;align-items:center;text-align:left;padding:13px 12px;border:1px solid #e7eaf2;border-radius:11px;background:#fff;cursor:pointer;transition:background .15s,border-color .15s}
+.pdv-page .pdv-order-row:hover{background:#faf9ff;border-color:#d5cbfd}
+.pdv-page .pdv-order-row__number,.pdv-page .pdv-order-row__identity,.pdv-page .pdv-order-row__date{display:grid;gap:4px;min-width:0}
+.pdv-page .pdv-order-row strong{font-size:12px;color:#26334f;font-weight:800}
+.pdv-page .pdv-order-row small{color:#6b7892;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdv-page .pdv-order-row__total{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-order-status{display:inline-flex;align-items:center;justify-self:start;border-radius:100px;padding:4px 9px;background:#fff5df;color:#926e1f;font-size:10px;font-weight:800}
+.pdv-page .pdv-order-status.is-closed{background:#e9f8f2;color:#087b64}
+.pdv-page .pdv-orders-empty{display:grid;justify-items:center;align-content:center;gap:9px;padding:56px 18px;text-align:center;color:#75819b}
+.pdv-page .pdv-orders-empty strong{font-size:14px;color:#34425f}
+.pdv-page .pdv-orders-empty p{max-width:410px;margin:0;font-size:12px;line-height:1.65}
+.pdv-page .pdv-orders-side{display:grid;gap:14px;min-width:0}
+.pdv-page .pdv-orders-side-head{display:flex;align-items:center;gap:9px;padding:14px 17px;background:linear-gradient(100deg,#6757d8,#5366d5);color:#fff;font-size:13px;font-weight:800}
+.pdv-page .pdv-orders-side-body{display:grid;gap:12px;padding:17px}
+.pdv-page .pdv-orders-side-body .form-field{display:grid;gap:5px;font-size:12px;font-weight:750;color:#52627c}
+.pdv-page .pdv-orders-side-body .form-control{min-width:0;width:100%}
+.pdv-page .pdv-orders-budget{display:flex;align-items:center;gap:9px;color:#52617d;font-size:12px}
+.pdv-page .pdv-orders-side-body>.primary-button{width:100%;justify-content:center;min-height:43px}
+.pdv-page .pdv-orders-side-body>small,.pdv-page .pdv-orders-hint{font-size:11px;line-height:1.6;color:#6a7793}
+.pdv-page .pdv-orders-side-body>p{font-size:12px;color:#5a6981;margin:0}
+.pdv-page .pdv-order-workspace{display:grid;gap:17px;border:1px solid #e5e8f1;background:#fff;padding:19px;border-radius:17px}
+.pdv-page .pdv-order-workspace__top{display:flex;gap:17px;align-items:center;min-width:0;border-bottom:1px solid #eaecf3;padding-bottom:14px}
+.pdv-page .pdv-order-workspace__top h2{margin:2px 0 3px;font-size:19px;color:#1a2948}
+.pdv-page .pdv-order-workspace__top p{margin:0;font-size:12px;color:#64738b}
+.pdv-page .pdv-order-workspace .pdv-command-detail{display:grid;min-width:0}
+.pdv-page .pdv-command-quantity{display:grid;gap:5px;font-size:11px;font-weight:750;color:#596582;max-width:105px}
+.pdv-page .pdv-command-quantity input{height:39px;max-width:95px}
+@media(max-width:650px){.pdv-page .pdv-orders-main{padding:0 12px 14px}.pdv-page .pdv-order-workspace{padding:12px}.pdv-page .pdv-order-workspace__top{align-items:flex-start;flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.pdv-page .pdv-order-row{transition:none}}
 
-/* M.5.71 — comanda aberta: lançamento à esquerda, painel do tutor e resumo por CNPJ à direita. */
-.pdv-page .pdv-command-workspace .pdv-command-detail{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(280px,.9fr);align-items:start;column-gap:18px;row-gap:14px}
-.pdv-page .pdv-command-workspace .pdv-command-add{grid-column:1;grid-row:1;min-width:0}
-.pdv-page .pdv-command-workspace .pdv-command-detail>.table-scroll{grid-column:1;grid-row:2/6;min-height:310px;background:#fff;border:1px solid #e1e6f1;border-radius:13px;padding:12px}
-.pdv-page .pdv-command-workspace .pdv-command-client-area{grid-column:2;grid-row:1;border:1px solid #e2e6f2;border-radius:12px;background:#fff;padding:15px}
-.pdv-page .pdv-command-client-area label{display:grid;gap:8px;color:#475673;font-size:12px;font-weight:750}
-.pdv-page .pdv-command-client-area select{min-height:43px}
-.pdv-page .pdv-command-workspace .pdv-command-companies{grid-column:2;grid-row:2;display:flex;flex-wrap:wrap;gap:8px;background:#fff;padding:15px;border:1px solid #e2e6f2;border-radius:12px}
-.pdv-page .pdv-command-workspace .pdv-command-companies>div{min-width:0;flex:1 1 100%;padding:10px 11px;background:#f8f9fd;border-radius:9px;display:grid;gap:5px}
-.pdv-page .pdv-command-workspace .pdv-command-close{grid-column:2;grid-row:3;border:1px solid #dddff2;background:#fff;border-radius:12px;padding:16px;display:grid;gap:13px;min-width:0}
-.pdv-page .pdv-command-workspace .pdv-command-close>.primary-button{width:100%;justify-content:center;min-height:45px}
-.pdv-page .pdv-command-workspace .pdv-command-detail>.alert{grid-column:1}
-@media(max-width:1100px){.pdv-page .pdv-command-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-command-workspace .pdv-command-detail>*{grid-column:1!important;grid-row:auto!important}.pdv-page .pdv-command-workspace .pdv-command-detail>.table-scroll{min-height:180px}}
 
-/* Aba de orçamentos reaproveita ClientQuotesTab, sem criar checkout. */
-.pdv-page .pdv-orders-home__quotes{display:grid;gap:16px;min-width:0;padding:12px 0}
-.pdv-page .pdv-orders-home__quotes-client{display:grid;gap:8px;font-size:12px;font-weight:750;color:#4d5c78}
-.pdv-page .pdv-orders-home__quotes-client .form-control{min-height:42px;width:100%}
-.pdv-page .pdv-orders-home__quotes .pv-client-quotes{min-width:0}
+
+/* M.5.71 — hierarquia operacional inspirada nas capturas recebidas.
+ * Mantem a paleta roxo/indigo do PointVet, sem reproduzir a identidade alheia. */
+.pdv-page .pdv-hero:has(~ .pdv-orders-home){padding-block:13px}
+.pdv-page .pdv-orders-main{padding-bottom:12px}
+.pdv-page .pdv-orders-tabs button span{font-size:10px;margin-left:4px;border-radius:7px;background:#f0edfd;color:#5e50b7;padding:2px 5px;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-orders-filters{padding-top:12px;display:grid;gap:10px}
+.pdv-page .pdv-orders-search{margin:0}
+.pdv-page .pdv-orders-filter-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pdv-page .pdv-orders-filter-line>label{display:grid;min-width:0;gap:5px;font-size:11px;color:#65738c;font-weight:700}
+.pdv-page .pdv-orders-filter-line .form-control{min-width:0;width:100%;height:39px}
+.pdv-page .pdv-orders-list-caption{display:grid;grid-template-columns:minmax(200px,2.1fr) minmax(115px,.7fr) minmax(95px,.5fr) minmax(63px,.37fr);gap:10px;padding:15px 13px 9px;border-bottom:1px solid #e8ebf4;color:#6c7890;font-size:10px;font-weight:800;letter-spacing:.055em}
+.pdv-page .pdv-orders-list-caption span:nth-child(3){text-align:right}
+.pdv-page .pdv-orders-list-caption span:last-child{text-align:right}
+.pdv-page .pdv-orders-list{max-height:490px;gap:0;overflow-y:auto}
+.pdv-page .pdv-order-row{grid-template-columns:minmax(59px,.40fr) minmax(160px,1.6fr) minmax(118px,.74fr) minmax(92px,.65fr) minmax(66px,.42fr);gap:11px;padding:14px 9px;border:0;border-bottom:1px solid #e8ebf4;border-radius:0;background:transparent}
+.pdv-page .pdv-order-row__identity strong{font-size:13px}
+.pdv-page .pdv-order-row__open{display:inline-flex;justify-content:flex-end;gap:4px;align-items:center;color:#5949bd;font-size:11px;font-weight:850}
+.pdv-page .pdv-order-row__open svg{flex:none}
+.pdv-page .pdv-orders-footnote{display:flex;align-items:center;gap:7px;border-top:1px solid #ebedf5;padding:11px 4px 0;font-size:10px;color:#7a859b}
+.pdv-page .pdv-orders-cash-status{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.pdv-page .pdv-orders-cash-status>strong{font-size:12px;color:#273451}
+.pdv-page .pdv-orders-cash-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pdv-page .pdv-orders-cash-actions>button{min-width:0;justify-content:center;min-height:38px;font-size:11px}
+.pdv-page .pdv-orders-cash-actions>.pdv-danger{color:#be425a;border-color:#f1cbd1}
+.pdv-page .pdv-orders-side-body>p{line-height:1.5}
+.pdv-page .pdv-order-workspace{padding:16px;gap:15px}
+.pdv-page .pdv-order-workspace__top>.pdv-order-status{margin-left:auto;flex:none}
+.pdv-page .pdv-order-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr) minmax(302px,34%);gap:14px;align-items:start}
+.pdv-page .pdv-command-main,.pdv-page .pdv-command-sidebar{min-width:0}
+.pdv-page .pdv-command-main{display:flex;flex-direction:column;min-height:450px;border:1px solid #e2e6f2;border-radius:13px;overflow:hidden;background:#fff}
+.pdv-page .pdv-command-entry{padding:12px 13px 11px;background:#fafbfe;border-bottom:1px solid #e8ebf3}
+.pdv-page .pdv-command-pane-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:11px}
+.pdv-page .pdv-command-pane-head>div>span{font-size:10px;letter-spacing:.10em;font-weight:850;color:#7568b2}
+.pdv-page .pdv-command-pane-head h3{font-size:15px;margin:3px 0 0;color:#243552}
+.pdv-page .pdv-command-pane-head>span{font-size:10px;color:#6d7890;text-align:right}
+.pdv-page .pdv-command-entry .pdv-command-add{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+.pdv-page .pdv-command-entry .pdv-command-add>select{min-width:140px;flex:1 1 145px}
+.pdv-page .pdv-command-entry .pdv-command-add>select:first-child{flex:2 1 235px}
+.pdv-page .pdv-command-entry .pdv-command-add>.primary-button{height:39px}
+.pdv-page .pdv-command-entry>small{display:block;padding-top:8px;color:#866c32;font-size:11px}
+.pdv-page .pdv-command-line-list{flex:1;display:grid;align-content:start;gap:9px;padding:13px;min-width:0}
+.pdv-page .pdv-command-line{display:flex;align-items:center;gap:12px;padding:13px 11px;border:1px solid #e3e6ef;border-radius:11px;background:#fff;min-width:0}
+.pdv-page .pdv-command-line.is-processed{background:#f8f9fb}
+.pdv-page .pdv-command-line__type{display:grid;place-items:center;border-radius:999px;width:28px;height:28px;flex:none;background:#eee9ff;color:#5746ae;font-size:12px;font-weight:850}
+.pdv-page .pdv-command-line__type.is-service{background:#fff3dd;color:#a56e19}
+.pdv-page .pdv-command-line__name{display:grid;gap:5px;min-width:0;flex:1}
+.pdv-page .pdv-command-line__name>strong{font-size:12px;color:#273450;overflow-wrap:anywhere}
+.pdv-page .pdv-command-line__name>small{font-size:10px;color:#6d7890;overflow-wrap:anywhere}
+.pdv-page .pdv-command-line__value{display:grid;gap:5px;justify-items:end;flex:none}
+.pdv-page .pdv-command-line__value>strong{font-size:12px;color:#263553;white-space:nowrap}
+.pdv-page .pdv-command-line__value>small{font-size:10px;color:#68758d;white-space:nowrap}
+.pdv-page .pdv-command-line__locked{font-size:11px;color:#adb5c4;padding:0 6px}
+.pdv-page .pdv-command-list-total{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px;margin-top:auto;background:#f6f5fd;border-top:1px solid #e8e4fa;color:#3d3a65;font-size:12px}
+.pdv-page .pdv-command-list-total strong{font-size:15px;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-command-sidebar{display:grid;gap:12px}
+.pdv-page .pdv-command-identification,.pdv-page .pdv-command-sidebar .pdv-command-close{border:1px solid #e1e5f0;border-radius:13px;overflow:hidden;background:#fff}
+.pdv-page .pdv-command-section-title{display:flex;align-items:center;gap:8px;background:linear-gradient(100deg,#6757d8,#5366d5);color:#fff;padding:12px 13px;font-size:13px;font-weight:800}
+.pdv-page .pdv-command-side-body{display:grid;gap:11px;padding:13px}
+.pdv-page .pdv-command-side-body>label{display:grid;gap:3px;min-width:0}
+.pdv-page .pdv-command-side-body>label>span{font-size:10px;color:#76819a}
+.pdv-page .pdv-command-side-body>label>strong{font-size:12px;font-weight:750;overflow-wrap:anywhere;color:#2d3953}
+.pdv-page .pdv-command-sidebar .pdv-command-attach{display:grid;gap:9px;padding:12px;border:1px solid #ddd9f7;background:#f8f6ff;border-radius:9px}
+.pdv-page .pdv-command-sidebar .pdv-command-attach p{margin:0;font-size:11px;line-height:1.5}
+.pdv-page .pdv-command-sidebar .pdv-command-attach select{width:100%;max-width:none}
+.pdv-page .pdv-command-summary-line{display:flex;align-items:baseline;justify-content:space-between;gap:9px;color:#5a687e;font-size:12px}
+.pdv-page .pdv-command-summary-line>strong{font-size:12px;color:#26324e;text-align:right;font-variant-numeric:tabular-nums}
+.pdv-page .pdv-command-summary-breakdown{display:grid;gap:10px;border-top:1px solid #eceef4;padding-top:11px}
+.pdv-page .pdv-command-summary-breakdown>strong{font-size:11px;color:#5c52a2}
+.pdv-page .pdv-command-summary-breakdown>small{font-size:11px;color:#6d7890}
+.pdv-page .pdv-command-summary-line--total{padding:12px 0;border-top:1px solid #e4e7ef;font-size:13px;font-weight:850}
+.pdv-page .pdv-command-summary-line--total>strong{font-size:17px;color:#2a3153}
+.pdv-page .pdv-command-company-receipt{display:grid;gap:7px;background:#f7f6fc;border-radius:9px;border:1px solid #e7e3f8;padding:12px}
+.pdv-page .pdv-command-company-receipt>span{font-size:11px;font-weight:750;color:#6255a4}
+.pdv-page .pdv-command-company-receipt>strong{font-size:19px;color:#252e53}
+.pdv-page .pdv-command-company-receipt>small,.pdv-page .pdv-command-side-body>small{font-size:10px;line-height:1.6;color:#6b7790}
+.pdv-page .pdv-command-sidebar .pdv-command-close{display:block;grid-column:auto;grid-row:auto;padding:0}
+.pdv-page .pdv-command-sidebar .pdv-payment-list{min-width:0}
+.pdv-page .pdv-command-sidebar .pdv-payment-row{grid-template-columns:minmax(0,1fr) minmax(65px,.65fr) 25px;gap:5px}
+.pdv-page .pdv-command-sidebar .pdv-payment-row>*:nth-child(3){grid-column:1/-1}
+.pdv-page .pdv-command-sidebar .pdv-payment-labels{display:none}
+.pdv-page .pdv-command-confirm{width:100%;justify-content:center;min-height:45px;line-height:1.3;text-align:center;white-space:normal}
+@media(max-width:1120px){
+ .pdv-page .pdv-orders-home{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-orders-side{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pdv-page .pdv-order-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr) minmax(285px,.72fr)}
+}
+@media(max-width:830px){
+ .pdv-page .pdv-order-workspace .pdv-command-detail{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-orders-list-caption{display:none}
+ .pdv-page .pdv-orders-side{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:620px){
+ .pdv-page .pdv-orders-filter-line{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-order-row{grid-template-columns:55px minmax(0,1fr) auto;gap:7px;padding:13px 7px}
+ .pdv-page .pdv-order-row__date{grid-column:2;grid-row:2}
+ .pdv-page .pdv-order-row__total{grid-column:2;grid-row:3;text-align:left}
+ .pdv-page .pdv-order-row__open{grid-column:3;grid-row:1/span 3;align-self:center}
+ .pdv-page .pdv-orders-cash-actions{grid-template-columns:minmax(0,1fr)}
+ .pdv-page .pdv-command-line{flex-wrap:wrap}
+ .pdv-page .pdv-command-line__value{margin-left:auto}
+ .pdv-page .pdv-command-entry .pdv-command-add>*{width:100%;max-width:none}
+ .pdv-page .pdv-command-entry .pdv-command-add>.pdv-command-quantity{width:100%;max-width:none}
+ .pdv-page .pdv-command-entry .pdv-command-add>.pdv-command-quantity input{max-width:none;width:100%}
+}
+
+/* A tela de comandas ocupa o primeiro plano: sem painel de indicadores duplicado. */
+.pdv-page .pdv-hero--order-mode{padding:12px 17px;min-height:auto;gap:12px}
+.pdv-page .pdv-hero--order-mode .pdv-hero__eyebrow{font-size:10px}
+.pdv-page .pdv-hero--order-mode h1{font-size:19px;line-height:1.25;margin:4px 0}
+.pdv-page .pdv-hero--order-mode .pdv-hero__copy>p{font-size:11px;line-height:1.4;margin:2px 0 7px}
+.pdv-page .pdv-hero--order-mode .pdv-session-badge{padding:8px 11px;min-height:0}
+.pdv-page .pdv-hero--order-mode .pdv-hero__chips{gap:6px}
+@media(max-width:830px){.pdv-page .pdv-hero--order-mode{flex-wrap:wrap}}
+
+
+/* Histórico unificado no PDV: comanda única; não confundir com venda-filha por CNPJ. */
+.pdv-page .pdv-unified-history-main{display:grid;gap:12px;margin-bottom:15px}
+.pdv-page .pdv-unified-history-main .toolbar{gap:12px;align-items:center;flex-wrap:wrap}
+.pdv-page .pdv-unified-history-cards{display:grid;gap:10px}
+.pdv-page .pdv-unified-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:16px;padding:13px 15px;border:1px solid #e5e7f1;border-radius:11px;background:#fbfaff}
+.pdv-page .pdv-unified-history-row>div{display:grid;gap:4px;min-width:0}
+.pdv-page .pdv-unified-history-row strong{font-size:12px;overflow-wrap:anywhere;color:#313859}
+.pdv-page .pdv-unified-history-row small{font-size:11px;line-height:1.5;color:#64708b}
+.pdv-page .pdv-unified-history-empty{padding:15px;border:1px dashed #dadde9;border-radius:9px}
+@media(max-width:850px){.pdv-page .pdv-unified-history-row{grid-template-columns:minmax(0,1fr) auto}.pdv-page .pdv-unified-history-row>button{grid-column:1/-1;justify-self:start}}
+@media(max-width:520px){.pdv-page .pdv-unified-history-row{grid-template-columns:minmax(0,1fr)}.pdv-page .pdv-unified-history-row>button{width:100%;justify-content:center}}

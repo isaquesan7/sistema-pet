@@ -1,4 +1,9 @@
 name: PointVet Unified PDV Foundation
+concurrency:
+  group: pointvet-pdv-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+# A PR #38 ja foi reconciliada com a base (#36).
+# Um unico gatilho por PR substitui a duplicacao push+pull_request.
 on:
   pull_request:
     paths:
@@ -59,6 +64,18 @@ on:
       - "api/src/modules/plataforma/pointvet-m52-canario.contract.js"
       - "api/tests/pointvet-m52-canario.contract.test.mjs"
       - "api/scripts/ci-pointvet-backup-restore-drill.sh"
+      - "api/scripts/ci-pointvet-m573-upgrade-rehearsal.sh"
+      - "api/scripts/pointvet-m571-staging-drill.mjs"
+      - "api/src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs"
+      - "api/tests/pointvet-m571-dr-guard.contract.test.mjs"
+      - "api/scripts/pointvet-m572-prod-readonly-audit.mjs"
+      - "api/scripts/pointvet-m572-prod-preflight.sql"
+      - "api/src/modules/plataforma/pointvet-m572-preflight.contract.mjs"
+      - "api/tests/pointvet-m572-prod-readonly-audit.contract.test.mjs"
+      - "api/tests/pointvet-m572-windows-sql-encoding.contract.test.mjs"
+      - "api/scripts/pointvet-m572-multicnpj-readonly.sql"
+      - "api/tests/pointvet-m572-multicnpj-readonly.contract.test.mjs"
+      - "POINTVET_M572_PREFLIGHT_COMERCIAL.md"
       - "api/scripts/ci-pointvet-canonical-schema.mjs"
       - "api/tests/pointvet-m5-constraint-canonicalization.test.mjs"
       - "api/src/modules/plataforma/pointvet-m5-publicacao.contract.js"
@@ -105,7 +122,6 @@ on:
       - "api/tests/pointvet-m542-pagamentos-manuais-ui.contract.test.mjs"
       - "api/tests/pointvet-m544-declaracao-manual-ui.contract.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
-      - "admin-web/src/lib/pdvQuantity.js"
       - "admin-web/src/lib/unifiedBulk.js"
       - "admin-web/src/lib/unifiedManualAllocation.js"
       - "admin-web/src/pages/CatalogPage.jsx"
@@ -119,10 +135,6 @@ on:
       - "api/src/modules/estoque/estoque.service.js"
       - "api/src/modules/estoque/estoque.controller.js"
       - "api/src/modules/pdv/pdv.service.js"
-      - "api/src/modules/pdv/pdv.controller.js"
-      - "api/src/modules/pdv/pdv.routes.js"
-      - "api/tests/pdv-comanda-flow.contract.test.mjs"
-      - "admin-web/src/components/PdvOrdersHome.jsx"
       - "api/src/modules/consultorio/consultorio.service.js"
       - "api/src/modules/pacotes/pacotes.service.js"
       - "api/src/modules/pdv/pdv-unificado-preparacao.service.js"
@@ -248,8 +260,19 @@ on:
       - "admin-web/tests/unified-pdv-layout.test.mjs"
       - "admin-web/tests/pdv-layout.test.mjs"
       - "admin-web/tests/pdv-single-screen.test.mjs"
-      - "admin-web/tests/pdv-uniform-ux.test.mjs tests/pdv-order-quantity.test.mjs"
+      - "admin-web/tests/pdv-uniform-ux.test.mjs"
+      - "admin-web/tests/pdv-orders-first.test.mjs"
+      - "admin-web/tests/pdv-visual-reference.test.mjs"
       - "admin-web/tests/pdv-order-quantity.test.mjs"
+      - "admin-web/tests/pdv-unified-guided-checkout.test.mjs"
+      - "admin-web/tests/pdv-unified-history-reversal.test.mjs"
+      - "api/tests/pdv-comandas-sem-tutor.test.mjs"
+      - "api/tests/pdv-comandas-cnpj.integration.test.mjs"
+      - "api/tests/pdv-comanda-flow.contract.test.mjs"
+      - "api/tests/pointvet-manual-checkout-http.integration.test.mjs"
+      - "api/tests/pdv-unificado-postgres.smoke.mjs"
+      - "api/tests/pdv-unificado-integration.test.mjs"
+      - "api/tests/pdv-unificado-fiscal.integration.test.mjs"
       - "admin-web/tests/unified-context.test.mjs"
       - "admin-web/src/lib/unifiedDraft.js"
       - "admin-web/src/pages/SettingsPage.jsx"
@@ -261,7 +284,7 @@ on:
       - "admin-web/src/clients.css"
       - "api/src/modules/organizacoes/organizacoes.schema.js"
       - "api/src/app.js"
-      - "api/tests/pdv-unificado-foundation.contract.test.mjs tests/pdv-comanda-flow.contract.test.mjs"
+      - "api/tests/pdv-unificado-foundation.contract.test.mjs"
       - "api/tests/pdv-unificado-postgres.smoke.mjs"
       - "api/tests/pdv-unificado-integration.test.mjs"
       - "api/tests/pdv-unificado-psp-contract.test.mjs"
@@ -287,10 +310,19 @@ jobs:
       - name: Static checks
         run: |
           bash -n api/scripts/ci-pointvet-backup-restore-drill.sh
+          bash -n api/scripts/ci-pointvet-m573-upgrade-rehearsal.sh
           node --check api/scripts/ci-pointvet-canonical-schema.mjs
           node --test api/tests/pointvet-m5-constraint-canonicalization.test.mjs
           node --check api/src/modules/plataforma/pointvet-m5-publicacao.contract.js
           node --test api/tests/pointvet-m5-publicacao.contract.test.mjs
+          node --check api/scripts/pointvet-m571-staging-drill.mjs
+          node --check api/src/modules/plataforma/pointvet-m571-dr-guard.contract.mjs
+          node --test api/tests/pointvet-m571-dr-guard.contract.test.mjs
+          node --check api/scripts/pointvet-m572-prod-readonly-audit.mjs
+          node --check api/src/modules/plataforma/pointvet-m572-preflight.contract.mjs
+          node --test api/tests/pointvet-m572-prod-readonly-audit.contract.test.mjs
+          node --test api/tests/pointvet-m572-windows-sql-encoding.contract.test.mjs
+          node --test api/tests/pointvet-m572-multicnpj-readonly.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-isolamento.contract.js
           node --test api/tests/pointvet-m52-isolamento.contract.test.mjs
           node --check api/src/modules/plataforma/pointvet-m52-canario.contract.js
@@ -349,6 +381,8 @@ jobs:
           node --check api/src/modules/clientes/client-finance.routes.js
           node --test api/tests/client-quotes-credit.contract.test.mjs
           node --test api/tests/pdv-unificado-foundation.contract.test.mjs
+          node --test api/tests/pdv-comandas-sem-tutor.test.mjs
+          node --test api/tests/pdv-comanda-flow.contract.test.mjs
           node --test api/tests/pdv-unificado-retomada-comanda.contract.test.mjs
           node --test api/tests/pdv-unificado-servicos-multiplos-pets.contract.test.mjs
           node --test api/tests/pdv-unificado-racao-granel.contract.test.mjs
@@ -435,7 +469,7 @@ jobs:
         working-directory: admin-web
         run: |
           npm ci
-          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs
+          node --test tests/unified-role-acceptance.test.mjs tests/unified-pdv-layout.test.mjs tests/pdv-layout.test.mjs tests/unified-context.test.mjs tests/pdv-single-screen.test.mjs tests/pdv-uniform-ux.test.mjs tests/pdv-orders-first.test.mjs tests/pdv-visual-reference.test.mjs tests/pdv-order-quantity.test.mjs tests/pdv-unified-guided-checkout.test.mjs tests/pdv-unified-history-reversal.test.mjs
           npm run build
 
   isolated-postgres:
@@ -523,3 +557,46 @@ jobs:
           NODE_ENV: test
           POINTVET_UNIFIED_SALES_SANDBOX: "1"
         run: bash scripts/ci-pointvet-backup-restore-drill.sh
+      - name: M.5.71 verify CNPJ-scoped commands and legacy orders on isolated PostgreSQL
+        working-directory: api
+        env:
+          NODE_ENV: test
+        run: node --import tsx --test tests/pdv-comandas-cnpj.integration.test.mjs
+
+  synthetic-legacy-upgrade:
+    # Never connect to Railway, commercial credentials or a restored customer dump.
+    # Proves main baseline (22) -> PR candidate (48) on disposable PostgreSQL 18.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pointvet_upgrade_ci
+          POSTGRES_PASSWORD: pointvet_upgrade_ci_only
+          POSTGRES_DB: pointvet_upgrade_ci
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U pointvet_upgrade_ci -d pointvet_upgrade_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://pointvet_upgrade_ci:pointvet_upgrade_ci_only@localhost:5434/pointvet_upgrade_ci
+      GITHUB_ACTIONS: "true"
+      NODE_ENV: test
+      POINTVET_M573_SYNTHETIC_ONLY: "YES"
+    steps:
+      - name: Checkout PR candidate
+        uses: actions/checkout@v4
+      - name: Checkout pinned commercial baseline (no DB or secrets)
+        uses: actions/checkout@v4
+        with:
+          ref: af0e33540b3481ba0378c0137654f1a026bbbfb3
+          path: main-baseline
+      - name: Install dependencies for isolated upgrade
+        working-directory: api
+        run: npm ci
+      - name: M.5.73 apply 22 then 26 migrations with synthetic legacy multi-CNPJ
+        working-directory: api
+        run: bash scripts/ci-pointvet-m573-upgrade-rehearsal.sh
