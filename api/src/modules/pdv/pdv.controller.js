@@ -56,6 +56,10 @@ function mapError(error, res, next) {
     EMPRESA_SEM_ACESSO: [403, "Você não tem permissão no CNPJ deste item."],
     PDV_UNIFICADO_DESATIVADO: [403, "Ative o PDV unificado da organização para gerenciar itens de outros CNPJs."],
     COMANDA_SEM_ITENS_EMPRESA: [409, "A comanda não possui itens pendentes do CNPJ selecionado."],
+    CHECKOUT_MANUAL_DESATIVADO: [403, "Fechamento conjunto ainda não está habilitado para esta organização e empresa."],
+    COMANDA_COM_HISTORICO_FINANCEIRO: [409, "Esta comanda já possui fechamento ou venda e não pode ser convertida automaticamente."],
+    COMANDA_CONVERSAO_INVALIDA: [409, "A comanda não possui itens pendentes aptos a converter."],
+    COMANDA_REVISAR_VALORES: [409, "Os preços mudaram ou há divergência: revise os itens antes do fechamento conjunto."],
     PACOTE_NAO_ENCONTRADO_PDV: [404, "Pacote pendente de recebimento não encontrado neste CNPJ."],
   };
 
@@ -270,6 +274,16 @@ export async function atribuirTutorComanda(req,res,next){
   const dados=parse(atribuirClienteComandaSchema,req.body,res);if(!dados)return;
   const comanda=await service.atribuirTutorComanda({organizacaoId:req.organizacao.id,empresaId:req.empresa.id,id:req.params.id,clienteId:dados.clienteId});
   return res.json({success:true,comanda});
+ }catch(error){mapError(error,res,next);}
+}
+
+export async function converterComandaParaUnificada(req,res,next){
+ try{
+  const dados=await service.converterComandaParaUnificada({
+   organizacao:req.organizacao,organizacaoId:req.organizacao.id,
+   empresaId:req.empresa.id,usuarioId:req.usuario.id,id:req.params.id
+  });
+  return res.json({success:true,dados});
  }catch(error){mapError(error,res,next);}
 }
 
