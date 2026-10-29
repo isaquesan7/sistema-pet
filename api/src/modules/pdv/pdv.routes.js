@@ -35,6 +35,7 @@ router.get("/comandas/central/:id", exigirPermissao("pdv.acessar"), controller.b
 router.get("/comandas", exigirPermissao("pdv.acessar"), controller.listarComandas);
 router.post("/comandas", exigirPermissao("pdv.acessar"), controller.criarComanda);
 router.get("/comandas/:id", exigirPermissao("pdv.acessar"), controller.buscarComanda);
+router.post("/comandas/:id/continuar-unificado", exigirPermissao("pdv.acessar"), controller.converterComandaParaUnificada);
 router.patch("/comandas/:id/tutor", exigirPermissao("pdv.acessar"), controller.atribuirTutorComanda);
 router.post("/comandas/:id/itens", exigirPermissao("pdv.acessar"), controller.adicionarItemComanda);
 router.delete("/comandas/:id/itens/:itemId", exigirPermissao("pdv.acessar"), controller.cancelarItemComanda);
