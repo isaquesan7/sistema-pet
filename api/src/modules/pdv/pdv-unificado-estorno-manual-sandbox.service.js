@@ -110,8 +110,12 @@ export async function estornarFechamentoManualEmTransacao(tx,{
   if(await tx.preparacaoBaixaCartaoManualUnificada.count({
    where:{comandaId:id}
   }))fail("M3C_PRE_BAIXA_EXIGE_REVISAO");
+  // Preservar historico CANCELADO anterior a uma comanda convertida.
+  // Só linhas FATURADO integram o estorno e as contagens financeiras.
+  const faturados=comanda.itens.filter(i=>i.status==="FATURADO");
   if(comanda.status!=="FECHADA"||reserva.status!=="RESERVADA"||
-     comanda.itens.some(i=>i.status!=="FATURADO")||
+     !faturados.length||
+     comanda.itens.some(i=>!["FATURADO","CANCELADO"].includes(i.status))||
      ops.some(o=>o.status!=="CONCLUIDA"||!o.vendaId))fail("M3C_ESTADO_INCONSISTENTE");
   if(!registro||registro.status!=="REGISTRADO"||!registro.linhas.length||
      registro.linhas.some(l=>!l.pagamentoId))fail("M3C_REGISTRO_INCONSISTENTE");
@@ -283,7 +287,7 @@ export async function estornarFechamentoManualEmTransacao(tx,{
    if(simularFalhaAposEmpresaId===op.empresaId)fail("M3C_FALHA_SIMULADA_TRANSACAO");
   }
   if((await tx.comandaItem.updateMany({where:{comandaId:id,status:"FATURADO"},
-   data:{status:"CANCELADO"}})).count!==comanda.itens.length)fail("M3C_ITENS_CONCORRENTES");
+   data:{status:"CANCELADO"}})).count!==faturados.length)fail("M3C_ITENS_CONCORRENTES");
   if((await tx.comanda.updateMany({where:{
    id,status:"FECHADA",versaoRascunho:versao
   },data:{status:"CANCELADA"}})).count!==1)fail("M3C_COMANDA_CONCORRENTE");
