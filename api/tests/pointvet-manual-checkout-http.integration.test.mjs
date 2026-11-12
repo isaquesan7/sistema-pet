@@ -135,11 +135,27 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal(roleEvidence.permissoesEmpresas.find(v=>v.id===store)?.pdvAcessar,true);
  assert.equal(roleEvidence.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,false);
  assert.equal(roleEvidence.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,false);
+ // Issue #41: pré-flight consulta caixas, ACL e supervisor sem permitir vendas.
+ const pilotBefore=(await request("GET","/api/pdv-unificado/prontidao-piloto",200,null,attendantAuth,service)).dados;
+ assert.equal(pilotBefore.apenasDiagnostico,true);
+ assert.equal(pilotBefore.condicoesTecnicasAtendidas,false);
+ assert.equal(pilotBefore.totalEmpresasAtivas,2);
+ assert.deepEqual(new Set(pilotBefore.empresas.map(e=>e.id)),new Set([store,service]));
+ assert(pilotBefore.empresas.every(e=>e.caixasAbertos===1));
+ assert(pilotBefore.pendencias.includes("SUPERVISOR_ESTORNO_AUSENTE"));
+ assert(pilotBefore.pendencias.includes("CHECKOUT_MANUAL_DESATIVADO"));
+ assert.equal(pilotBefore.empresas.find(e=>e.id===store).supervisorParaEstorno,true);
+ assert.equal(pilotBefore.empresas.find(e=>e.id===service).supervisorParaEstorno,false);
  const supervisorBefore=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,supervisorAuth,service)).dados;
  assert.equal(supervisorBefore.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,true);
  assert.equal(supervisorBefore.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,false);
  const limitedAccess=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,limitedAuth,store)).dados;
  assert.deepEqual(limitedAccess.permissoesEmpresas.map(v=>v.id),[store]);
+ const pilotLimited=(await request("GET","/api/pdv-unificado/prontidao-piloto",200,null,limitedAuth,store)).dados;
+ assert.equal(pilotLimited.empresasAcessiveis,1);
+ assert.deepEqual(pilotLimited.empresas.map(e=>e.id),[store]);
+ assert(pilotLimited.pendencias.includes("ACESSO_INCOMPLETO_AOS_CNPJS"));
+ await request("GET","/api/pdv-unificado/prontidao-piloto",403,null,limitedAuth,service);
  await request("GET","/api/pdv-unificado/disponibilidade",403,null,limitedAuth,service);
  await request("GET","/api/pdv-unificado/rascunhos-concluidos",403,null,attendantAuth);
  const items=[{empresaId:store,itemCatalogoId:itemId,quantidade:0.333},
@@ -198,6 +214,10 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  await request("POST",endpoint,403,body);
  await request("POST",endpoint,403,body,attendantAuth); // Segundo CNPJ ainda fora da allowlist.
  process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store+","+service;
+ const pilotWithFlags=(await request("GET","/api/pdv-unificado/prontidao-piloto",200,null,auth,store)).dados;
+ assert.equal(pilotWithFlags.empresas.every(e=>e.checkoutHabilitado),true,
+  "O diagnostico reflete as duas allowlists, sem executar cobranca");
+ assert.equal(pilotWithFlags.pendencias.includes("CHECKOUT_MANUAL_DESATIVADO"),false);
  await request("POST",endpoint,403,body,limitedAuth);
  const availability=(await request("GET","/api/pdv-unificado/disponibilidade",200)).dados;
  assert.equal(availability.modoEfetivo,"UNIFICADO_MANUAL");
@@ -279,6 +299,10 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  const supervisorAfter=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,supervisorAuth,store)).dados;
  assert.equal(supervisorAfter.permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,true,
   "Mudança no cargo deve aparecer na mesma sessão autenticada, sem relogin");
+ const pilotAfterSupervisor=(await request("GET","/api/pdv-unificado/prontidao-piloto",200,null,supervisorAuth,store)).dados;
+ assert.equal(pilotAfterSupervisor.empresas.every(e=>e.supervisorParaEstorno),true,
+  "Mudança de cargo deve atualizar o diagnóstico sem relogin");
+ assert.equal(pilotAfterSupervisor.pendencias.includes("SUPERVISOR_ESTORNO_AUSENTE"),false);
  const attendantAfter=(await request("GET","/api/pdv-unificado/disponibilidade",200,null,attendantAuth,store)).dados;
  assert.equal(attendantAfter.permissoesEmpresas.find(v=>v.id===store)?.pdvCancelarVenda,false,
   "Ganho de autorização no outro CNPJ não amplia permissões da Loja");
