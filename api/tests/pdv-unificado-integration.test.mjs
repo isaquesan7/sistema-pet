@@ -2912,6 +2912,14 @@ test("cross-company saving respects prices, access, rollback and version",async(
  });
  assert.ok(registroVendaSemTutor,"Venda sem tutor deve ser registrada no CNPJ correto");
  assert.equal(registroVendaSemTutor.clienteId,null);
+ const historicoSemTutor=(await listarRascunhos({
+  organizacaoId:ids.org,usuarioId:ids.user,empresaId:ids.co1,somenteConcluidas:true
+ })).find(c=>c.id===contextoSemTutor.id);
+ assert.ok(historicoSemTutor,
+  "Rascunho sem tutor fechado deve continuar no histórico por CNPJ");
+ assert.ok(historicoSemTutor.itens.some(line=>line.status==="FATURADO"),
+  "A filtragem de CANCELADO não pode apagar linhas FATURADO do histórico");
+ assert.equal(historicoSemTutor.itens.some(line=>line.status==="CANCELADO"),false);
  assert.equal(Number((await prisma.estoqueSaldo.findUnique({
   where:{produtoId:produtoSemTutor.produto.id}
  })).quantidade),0);
