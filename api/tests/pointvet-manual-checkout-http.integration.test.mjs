@@ -394,6 +394,82 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
  assert.equal((await request("GET",roleEndpoint,200,null,supervisorAuth,service)).dados
   .permissoesEmpresas.find(v=>v.id===service)?.pdvCancelarVenda,true);
 
+
+ // S0 / Issue #39: o balcão opera sobre COMANDA tradicional, não apenas um
+ // rascunho já criado no modo unificado. Testar por HTTP até a venda e estorno.
+ // Toda a jornada usa dados fictícios no CI, sem tráfego Railway/produção.
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
+ await request("GET","/api/pdv-unificado/disponibilidade",200);
+ const legacy=(await request("POST","/api/pdv/comandas",201,{clienteId:client})).comanda;
+ const legacyUrl=`/api/pdv/comandas/${legacy.id}`;
+ const oldProduct=(await request("POST",legacyUrl+"/itens",201,{
+  itemCatalogoId:itemId,quantidade:0.100,desconto:0
+ })).item;
+ const oldService=(await request("POST",legacyUrl+"/itens",201,{
+  itemCatalogoId:serviceId,petId:pet.id,quantidade:1,desconto:0
+ })).item;
+ const removed=(await request("POST",legacyUrl+"/itens",201,{
+  itemCatalogoId:itemId,quantidade:0.050,desconto:0
+ })).item;
+ assert.equal(oldProduct.empresaId,store);
+ assert.equal(oldService.empresaId,service);
+ await request("DELETE",legacyUrl+"/itens/"+removed.id,200);
+ const shared=(await request("GET","/api/pdv/comandas/central/"+legacy.id,200)).comanda;
+ assert.equal(shared.itens.length,2,"Cancelado nao pode aparecer na comanda compartilhada");
+ assert.deepEqual(new Set(shared.itens.map(i=>i.empresaId)),new Set([store,service]));
+ assert.equal((await prisma.comandaItem.findUnique({where:{id:removed.id}})).status,"CANCELADO",
+  "Cancelamento fica no banco para auditoria, sem afetar o total");
+ await request("POST",legacyUrl+"/continuar-unificado",403);
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="1";
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ORG_IDS=org;
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_COMPANY_IDS=store+","+service;
+ const converted=(await request("POST",legacyUrl+"/continuar-unificado",200)).dados;
+ assert.equal(converted.id,legacy.id,"Converter nunca duplica comanda");
+ const convertedUrl=`/api/pdv-unificado/rascunhos/${legacy.id}`;
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos",200)).dados
+  .some(c=>c.id===legacy.id&&c.itens.length===2),true);
+ assert.equal((await request("GET",convertedUrl+"/pre-fechamento?versao="+converted.versao,200))
+  .dados.pendencias.length,0);
+ const v=converted.versao;
+ const reservada=(await request("POST",convertedUrl+"/reservar",201,{versao:v})).dados;
+ assert.equal(reservada.operacoes.length,2);
+ const alocacaoTradicional={versao:v,alocacoes:[
+  {empresaId:store,sessaoCaixaId:sessionStore.id,pagamentos:[{forma:"PIX",valorCentavos:150}]},
+  {empresaId:service,sessaoCaixaId:sessionService.id,pagamentos:[{forma:"DINHEIRO",valorCentavos:1000}]}
+ ]};
+ assert.equal((await request("POST",convertedUrl+"/conferencia-alocacao",200,alocacaoTradicional))
+  .dados.preConferenciaAprovada,true);
+ await request("POST",convertedUrl+"/preparacao-execucao",201,alocacaoTradicional);
+ const declaracaoTradicional={versao:v,alocacoes:[
+  {empresaId:store,sessaoCaixaId:sessionStore.id,pagamentos:[
+   {forma:"PIX",valorCentavos:150,confirmadoPeloAtendente:true,referencia:"PIX fora do sistema"}]},
+  {empresaId:service,sessaoCaixaId:sessionService.id,pagamentos:[
+   {forma:"DINHEIRO",valorCentavos:1000,confirmadoPeloAtendente:true,referencia:"Dinheiro em caixa"}]}
+ ]};
+ const sell=(await request("POST",convertedUrl+"/fechar-manual",201,declaracaoTradicional)).dados;
+ assert.equal(sell.vendas.length,2,"Uma venda por CNPJ");
+ assert.deepEqual(new Set(sell.vendas.map(x=>x.empresaId)),new Set([store,service]));
+ assert.equal((await request("POST",convertedUrl+"/fechar-manual",200,declaracaoTradicional)).dados.reutilizada,true,
+  "Replay nao deve duplicar venda nem estoque");
+ assert.equal(await prisma.venda.count({where:{comandaId:legacy.id}}),2);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:legacy.id}}}),2);
+ assert.equal((await prisma.comanda.findUnique({where:{id:legacy.id}})).status,"FECHADA");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),0.900);
+ const returned=(await request("POST",convertedUrl+"/estornar-manual",201,{
+  versao:v,motivo:"Cancelamento de venda conjunta de teste da comanda tradicional",
+  referenciaExterna:"LEGADO_CI_"+suffix,confirmouDevolucaoExterna:true
+ },supervisorAuth)).dados;
+ assert.equal(returned.reutilizada,false);
+ assert.equal((await prisma.comanda.findUnique({where:{id:legacy.id}})).status,"CANCELADA");
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({where:{produtoId:product.id}})).quantidade),1,
+  "Estorno conjunto deve restaurar estoque do produto no CNPJ da loja");
+ assert.equal(await prisma.venda.count({where:{comandaId:legacy.id,status:"ESTORNADA"}}),2);
+ assert.equal(await prisma.pagamento.count({where:{venda:{comandaId:legacy.id},status:"ESTORNADO"}}),2);
+ process.env.POINTVET_UNIFIED_MANUAL_CHECKOUT_ENABLED="0";
+ // Confirma que a auditoria permanece visível mesmo com novas vendas OFF.
+ assert.equal((await request("GET","/api/pdv-unificado/rascunhos-estornados",200)).dados
+  .some(x=>x.comanda?.id===legacy.id),true);
+
  // Gate pos-estorno: os relatorios e o fechamento dos DOIS CNPJs devem
  // neutralizar a venda integral, sem gerar saida duplicada de dinheiro.
  // Permissao financeira concedida SOMENTE ao tenant CI descartavel.
