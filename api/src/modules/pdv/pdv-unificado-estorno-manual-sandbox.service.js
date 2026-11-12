@@ -78,7 +78,7 @@ export async function estornarFechamentoManualEmTransacao(tx,{
   // Static SQL with bound variables; never interpolate user-controlled IDs.
   await tx.$queryRawUnsafe('SELECT "id" FROM "comandas" WHERE "id"=$1 FOR UPDATE',id);
   const comanda=await tx.comanda.findFirst({where:{
-   id,rascunhoUnificado:true,cliente:{organizacaoId}
+   id,rascunhoUnificado:true,organizacaoId
   },include:{itens:{select:{id:true,status:true}}}});
   if(!comanda)fail("RASCUNHO_NAO_ENCONTRADO");
   if(comanda.versaoRascunho!==versao)fail("RASCUNHO_DESATUALIZADO");
