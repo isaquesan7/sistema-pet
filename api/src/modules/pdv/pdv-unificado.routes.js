@@ -16,8 +16,21 @@ import {consultarDossieDevolucoesM527} from "./pdv-unificado-dossie-devolucoes.s
 import {planejarIntencoesManuaisM517} from "./pdv-unificado-intencao-manual.contract.js";
 import {recebimentoManualSchema} from "./pdv-unificado-recebimento-manual.contract.js";
 import {checkoutManualHabilitado,estornoManualHabilitado,fecharVendaManualUnificada,estornarVendaManualUnificada} from "./pdv-unificado-checkout-manual.service.js";
+import {avaliarProntidaoPiloto} from "./pdv-unificado-prontidao-piloto.service.js";
 const r=Router();
 r.use(autenticarUsuario,selecionarEmpresa,exigirModulo("PDV"),exigirPermissao("pdv.acessar"));
+r.get("/prontidao-piloto",async(req,res,next)=>{
+ try{
+  const dados=await avaliarProntidaoPiloto({
+   organizacao:req.organizacao,usuarioId:req.usuario.id,empresaId:req.empresa.id
+  });
+  return res.set("Cache-Control","no-store").json({success:true,dados});
+ }catch(error){
+  if(["PILOTO_SEM_ACESSO","PILOTO_CONTEXTO_INVALIDO"].includes(error?.message))
+   return res.status(403).json({success:false,message:"Acesso ao diagnóstico não autorizado."});
+  next(error);
+ }
+});
 r.get("/disponibilidade",async(req,res,next)=>{
  try{
   // M.5.63: a mesma fonte viva de cargos/permissões usada pelo middleware,
