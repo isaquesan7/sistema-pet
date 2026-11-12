@@ -156,7 +156,7 @@ export async function prepararExecucaoUnificada({organizacaoId,usuarioId,empresa
   // Same row lock ordering as draft edits and reservations.
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
   const comanda=await tx.comanda.findFirst({
-   where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+   where:{id,rascunhoUnificado:true,organizacaoId},
    select:{id:true,clienteId:true,status:true,versaoRascunho:true,
     itens:{where:{status:"ATIVO"},select:{
       id:true,empresaId:true,itemCatalogoId:true,petId:true,descricao:true,
