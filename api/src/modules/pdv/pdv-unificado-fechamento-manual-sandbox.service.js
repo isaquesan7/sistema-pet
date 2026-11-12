@@ -165,7 +165,7 @@ export async function efetivarRecebimentosManuaisEmTransacao(tx,{
 }){
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
   const comanda=await tx.comanda.findFirst({where:{
-   id,rascunhoUnificado:true,cliente:{organizacaoId}},
+   id,rascunhoUnificado:true,organizacaoId},
    include:{itens:{include:{itemCatalogo:{include:{servico:true}},pet:true}}}
   });
   if(!comanda)falha("RASCUNHO_NAO_ENCONTRADO");
