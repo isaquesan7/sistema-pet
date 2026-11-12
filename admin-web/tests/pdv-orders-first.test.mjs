@@ -107,3 +107,14 @@ test("M.5.74: erro de renderizacao do PDV apresenta recuperacao em vez de branco
  assert.match(boundary,/Voltar à central do PDV/);
  assert.match(boundary,/consulte o histórico antes de tentar novamente/);
 });
+
+test("diagnóstico do piloto disponível na central, sem abrir comanda ou entrar em venda",()=>{
+ assert.match(page,/Verificar piloto do PDV/);
+ assert.match(page,/aria-expanded=\{pilotReadinessOpen\}/);
+ assert.match(page,/aria-controls="pdv-pilot-readiness"/);
+ assert.match(page,/pilotReadinessOpen&&<section id="pdv-pilot-readiness"/);
+ assert.match(page,/api\.get\("\/pdv-unificado\/prontidao-piloto"\)/);
+ assert.match(page,/pilotReadinessOpen&&Boolean\(selectedOrganization\?\.id&&selectedCompany\?\.id\)/);
+ assert.match(page,/CHECKOUT_MANUAL_DESATIVADO/);
+ assert.match(page,/Esta consulta não efetua vendas ou alterações/);
+});
