@@ -615,15 +615,19 @@ export default function PdvPage() {
         <div className="pdv-summary-card"><Banknote size={19} /><div><span>Saldo inicial</span><strong>{formatCurrency(openSession?.valorAbertura || 0)}</strong></div></div>
       </section>}
 
+      <div className="pdv-pilot-entry">
+        <button type="button" className="ghost-button"
+          aria-expanded={pilotReadinessOpen} aria-controls="pdv-pilot-readiness"
+          onClick={()=>setPilotReadinessOpen(v=>!v)}>
+          <ClipboardList size={16}/> {pilotReadinessOpen?"Ocultar diagnóstico do piloto":"Verificar piloto do PDV"}
+        </button>
+        <span>Consulta de caixas e permissões, sem iniciar venda</span>
+      </div>
+
       <nav className="pdv-tabs" aria-label="Áreas do ponto de venda">
         {[ ["COMANDAS", WalletCards, "Comandas e ordens"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
           <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
-        <button type="button" className={pilotReadinessOpen?"active":""}
-          aria-expanded={pilotReadinessOpen} aria-controls="pdv-pilot-readiness"
-          onClick={()=>setPilotReadinessOpen(v=>!v)}>
-          <ClipboardList size={15}/> Verificar piloto do PDV
-        </button>
       </nav>
 
       {pilotReadinessOpen&&<section id="pdv-pilot-readiness" className="panel pdv-pilot-readiness"
