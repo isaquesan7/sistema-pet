@@ -1,3 +1,7 @@
+> **PRIORIDADE OFICIAL DE ENTREGA (11/11/2026):** PointVet **operacional até 30/12/2026**, com meta interna de entrada em operação na Pet King até **23/12/2026** e margem 24–29/12 para contingência. Consulte primeiro a [Issue #39 — Plano mestre](https://github.com/isaquesan7/sistema-pet/issues/39) e o [plano de entrega detalhado](POINTVET_PLANO_MESTRE_ENTREGA_2026-12-30.md). O status de fases antigas "concluída" significa implementação histórica, não aceite operacional ponta a ponta; P0/P1 e corte de escopo prevalecem. Não ampliar desnecessariamente o PDV e não reabrir auditorias aprovadas sem bloqueio real. Esta regra de prazo não elimina requisitos de integridade, privacidade ou segurança de pagamentos.
+
+---
+
 ## M.5.72 / M.5.73 — comanda mista preservada e DR do backup comercial preparado (28/10/2026)
 
 - **Parecer M.5.72:** `--inspect-multicnpj` real retornou 1 comanda mista **dentro da mesma organizacao**, aberta, com itens + clinica + banho e tosa, sem venda, sem cross-tenant e sem empresa clinica/estetica sem cobertura por itens/vendas. O numero unico de comanda nao transfere titularidade financeira, de estoque ou fiscal; a lista/detalhe do PDV legado filtra itens e vendas pelo CNPJ selecionado. **Nao editar, remover, atribuir CNPJ exclusivo nem refazer dados reais.** A auditoria segue `commercialDeploymentAuthorized=false`.
