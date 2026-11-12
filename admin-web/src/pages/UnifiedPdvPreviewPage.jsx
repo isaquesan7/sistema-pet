@@ -35,6 +35,21 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
  const hasValidEstimate=lines.length>0&&!hasBulkErrors&&Number.isSafeInteger(estimatedCents)&&estimatedCents>=0;
  const nextLineId=useRef(0);
  const eligibility=useQuery({queryKey:scopedKey("unified-eligibility"),queryFn:async()=>(await api.get("/pdv-unificado/disponibilidade")).data.dados});
+ const readiness=useQuery({
+  queryKey:scopedKey("unified-pilot-readiness"),
+  enabled:Boolean(selectedOrganization?.id&&selectedCompany?.id),
+  queryFn:async()=>(await api.get("/pdv-unificado/prontidao-piloto")).data.dados,
+  retry:false,
+ });
+ const messages={
+  PREFERENCIA_UNIFICADA_DESATIVADA:"Ativar o PDV Unificado Inteligente na organização.",
+  MENOS_DE_DOIS_CNPJS_ATIVOS:"São necessários dois CNPJs ativos nesta organização.",
+  ACESSO_INCOMPLETO_AOS_CNPJS:"O usuário não possui acesso ao PDV em todos os CNPJs da organização.",
+  CAIXA_NAO_ABERTO_EM_TODOS_CNPJS:"Abrir um caixa próprio para cada CNPJ.",
+  SUPERVISOR_ESTORNO_AUSENTE:"Definir um supervisor ativo com permissão para estornar em cada CNPJ.",
+  ALLOWLIST_EMPRESA_INCOMPLETA:"A autorização no Railway ainda não contempla todos os CNPJs necessários.",
+  CHECKOUT_MANUAL_DESATIVADO:"O registro de vendas conjuntas continua bloqueado no servidor.",
+ };
  const enabled=Boolean(eligibility.data?.preferenciaUnificado);
  const manualCheckoutEnabled=Boolean(eligibility.data?.checkoutUnificadoDisponivel);
  const manualReversalEnabled=Boolean(eligibility.data?.estornoUnificadoDisponivel);
@@ -239,6 +254,25 @@ function UnifiedPdvWorkspace({openDraftId,initialClientId,initialPetId}){
      </button>
     </div>}
     afterCartContent={<details className="pv-unified-advanced"><summary>Detalhes avançados de planejamento e auditoria</summary><div className="pdv-unified-review">
+     {readiness.data&&<div className="pv-unified-pilot-config" aria-label="Diagnóstico técnico do piloto do PDV unificado">
+      <strong>Pré-requisitos do piloto — somente consulta</strong>
+      <p>{readiness.data.condicoesTecnicasAtendidas?
+       "Pré-requisitos técnicos presentes. A venda ainda exige autorização e conferência da operação.":
+       "Existem requisitos técnicos pendentes antes da venda conjunta."}</p>
+      <ul>
+       {readiness.data.empresas.map(e=><li key={e.id}>
+        <strong>{e.nomeFantasia}</strong> — {e.caixasAbertos} caixa(s) aberto(s);
+        supervisor de estorno: {e.supervisorParaEstorno?"sim":"não"};
+        autorização de checkout: {e.checkoutHabilitado?"sim":"não"}
+       </li>)}
+      </ul>
+      {Boolean(readiness.data.pendencias.length)&&<ul>{readiness.data.pendencias.map(x=>
+       <li key={x}>{messages[x]||"Conferir o requisito "+x}</li>
+      )}</ul>}
+      <small>Não executa venda, estorno, recebimento ou alteração de cadastro. A situação é conferida novamente no fechamento.</small>
+      <button type="button" className="ghost-button" onClick={()=>readiness.refetch()}>Atualizar diagnóstico</button>
+     </div>}
+     {readiness.isError&&<p className="alert alert--error">Não foi possível consultar a prontidão do piloto. O fechamento permanece protegido.</p>}
      {!manualCheckoutEnabled&&eligibility.data?.contextoAcesso&&<div className="pv-unified-pilot-config">
       <strong>Habilitação restrita do teste de venda</strong>
       <p>O registro de vendas está bloqueado no servidor. O responsável pela homologação precisa autorizar esta organização e cada CNPJ no Railway. Nenhuma chave ou senha será copiada.</p>
