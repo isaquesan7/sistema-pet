@@ -43,7 +43,12 @@ function compararItens(comanda,snapshot,vendas){
    vistos.add(original.id);
   }
  }
- if(vistos.size!==comanda.itens.length)falha("M3_ITENS_INCOMPLETOS");
+ // CANCELADO permanece como trilha de auditoria: não compõe a venda.
+ // Qualquer linha já faturada ou estado imprevisto continua bloqueando o
+ // fechamento para evitar faturamento duplicado de uma comanda legada.
+ if(comanda.itens.some(i=>!["ATIVO","CANCELADO"].includes(i.status))||
+    vistos.size!==comanda.itens.filter(i=>i.status==="ATIVO").length)
+   falha("M3_ITENS_INCOMPLETOS");
 }
 /** Lote FEFO e saldo são abatidos dentro da MESMA transação, com checagem de saldo. */
 async function baixarEstoqueEmpresa(tx,{op,usuarioId}){
