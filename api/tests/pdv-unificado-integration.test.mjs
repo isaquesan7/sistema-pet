@@ -63,8 +63,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
  await prisma.organizacao.create({data:{id:ids.other,slug:"outside-"+suffix,nome:"Outra organização"}});
  await prisma.usuario.create({data:{id:ids.user,nome:"Tester",email:suffix+"@ci.invalid",senhaHash:"not-a-login"}});
  await prisma.cliente.create({data:{id:ids.client,organizacaoId:ids.org,nome:"Tutor de teste"}});
- const specie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino CI"}});
- await prisma.pet.create({data:{id:ids.pet,clienteId:ids.client,especieId:specie.id,nome:"Pet da comanda"}});
+ const baseSpecie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino base CI"}});
+ await prisma.pet.create({data:{id:ids.pet,clienteId:ids.client,especieId:baseSpecie.id,nome:"Pet do serviço CI"}});
  await prisma.empresa.createMany({data:[
   {id:ids.co1,organizacaoId:ids.org,cnpj:"99999999999999",nomeFantasia:"Loja",razaoSocial:"Loja CI",tipo:"LOJA_CONSULTORIO"},
   {id:ids.co2,organizacaoId:ids.org,cnpj:"88888888888888",nomeFantasia:"Estética",razaoSocial:"Estética CI",tipo:"BANHO_TOSA"}
@@ -502,6 +502,7 @@ test("cross-company saving respects prices, access, rollback and version",async(
  assert.equal(persistedAfterRename.itens.find(i=>i.itemCatalogoId===ids.it1)?.descricao,"Ração","Snapshot da comanda não deve mudar com o catálogo");
  await prisma.itemCatalogo.update({where:{id:ids.it1},data:{nome:"Ração"}});
  // M.5.35: dois pets do mesmo tutor podem ter o MESMO serviço na mesma comanda.
+ const specie=await prisma.especie.create({data:{organizacaoId:ids.org,nome:"Canino CI"}});
  const petBela="bela"+suffix,petTico="tico"+suffix;
  await prisma.pet.createMany({data:[
   {id:petBela,clienteId:ids.client,especieId:specie.id,nome:"Bela"},
@@ -2860,8 +2861,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
   }});
   return {item,produto,lote};
  };
- const prepararUmGrama=async(itemId,sessaoCaixaId)=>{
-  const saleArgs={...args,itens:[{empresaId:ids.co1,itemCatalogoId:itemId,
+ const prepararUmGrama=async(itemId,sessaoCaixaId,clienteId=ids.client)=>{
+  const saleArgs={...args,clienteId,itens:[{empresaId:ids.co1,itemCatalogoId:itemId,
    quantidade:0.001}]};
   assert.equal((await simularComanda(saleArgs)).total,"0.01");
   const draft=await salvarRascunho(saleArgs);
@@ -2895,6 +2896,46 @@ test("cross-company saving respects prices, access, rollback and version",async(
   await guard;
   return pending;
  };
+
+
+ // S0 / Issue #39 (11/11): produto sem tutor deve atravessar TODAS as
+ // etapas, incluindo preparo, venda e estorno, com escopo por organizacaoId.
+ // Este teste usa exclusivamente o banco PostgreSQL descartavel do CI.
+ const produtoSemTutor=await produtoCorrida("RACAO_SEM_TUTOR_",1);
+ const contextoSemTutor=await prepararUmGrama(produtoSemTutor.item.id,session1.id,null);
+ assert.equal((await prisma.comanda.findUnique({where:{id:contextoSemTutor.id}})).clienteId,null);
+ const vendaSemTutor=await efetivarRecebimentosManuaisSomenteSandbox(contextoSemTutor);
+ assert.equal(vendaSemTutor.estoqueMovimentado,true,
+  "Venda anonima deve baixar o produto uma unica vez");
+ const registroVendaSemTutor=await prisma.venda.findFirst({
+  where:{comandaId:contextoSemTutor.id,empresaId:ids.co1}
+ });
+ assert.ok(registroVendaSemTutor,"Venda sem tutor deve ser registrada no CNPJ correto");
+ assert.equal(registroVendaSemTutor.clienteId,null);
+ const historicoSemTutor=(await listarRascunhos({
+  organizacaoId:ids.org,usuarioId:ids.user,empresaId:ids.co1,somenteConcluidas:true
+ })).find(c=>c.id===contextoSemTutor.id);
+ assert.ok(historicoSemTutor,
+  "Rascunho sem tutor fechado deve continuar no histórico por CNPJ");
+ assert.ok(historicoSemTutor.itens.some(line=>line.status==="FATURADO"),
+  "A filtragem de CANCELADO não pode apagar linhas FATURADO do histórico");
+ assert.equal(historicoSemTutor.itens.some(line=>line.status==="CANCELADO"),false);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:produtoSemTutor.produto.id}
+ })).quantidade),0);
+ const cancelamentoSemTutor=await estornarFechamentoManualSomenteSandbox({
+  ...contextoSemTutor,dados:{
+   motivo:"Cancelamento de teste em venda de produto sem tutor",
+   confirmouDevolucaoExterna:true,referenciaExterna:"SEM_TUTOR_CI_"+suffix
+  }
+ });
+ assert.equal(cancelamentoSemTutor.reutilizada,false);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:produtoSemTutor.produto.id}
+ })).quantidade),0.001,"Estorno deve devolver o estoque ao CNPJ correto");
+ assert.equal((await prisma.venda.findUnique({
+  where:{id:registroVendaSemTutor.id}
+ })).status,"ESTORNADA");
 
  // Com 2 g e duas vendas de 1 g, AMBAS precisam concluir; conflito P2034
  // só pode repetir uma transação que já foi integralmente revertida.

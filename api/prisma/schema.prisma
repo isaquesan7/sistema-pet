@@ -586,6 +586,7 @@ model Empresa {
   entradasEstoque      EntradaEstoque[]
   inventariosEstoque   InventarioEstoque[]
   comandaItens         ComandaItem[]
+  comandasOrigem       Comanda[] @relation("ComandaOrigemCnpj")
   operacoesUnificadas  ReservaOperacaoUnificada[]
   recebedorPspUnificado RecebedorPspUnificado?
   caixas               Caixa[]
@@ -1395,8 +1396,10 @@ model Comanda {
   id     String @id @default(cuid())
   numero Int    @unique @default(autoincrement())
 
-  // Isolamento por organização também nas comandas sem tutor.
+  // A organização protege o tenant; a empresa de origem protege a visibilidade
+  // de comandas vazias e com tutor ainda sem itens no PDV tradicional.
   organizacaoId String
+  empresaOrigemId String?
   clienteId String?
 
   status StatusComanda @default(ABERTA)
@@ -1412,6 +1415,7 @@ model Comanda {
   fechadaEm DateTime?
 
   organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Restrict)
+  empresaOrigem Empresa? @relation("ComandaOrigemCnpj", fields: [empresaOrigemId], references: [id], onDelete: Restrict)
   cliente Cliente? @relation(fields: [clienteId], references: [id])
 
   itens  ComandaItem[]
@@ -1422,6 +1426,7 @@ model Comanda {
   ordensBanhoTosa       OrdemServicoBanhoTosa[]
 
   @@index([organizacaoId])
+  @@index([organizacaoId,empresaOrigemId])
   @@index([clienteId])
   @@index([status])
   @@index([createdAt])

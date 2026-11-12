@@ -19,6 +19,8 @@ test("M.4C issuer, mixed product/service, multiunit CNPJ, permissions, fail-clos
   id:actor,nome:"CI Fiscal Operator",email:id("fiscal-ci-")+"@ci.invalid",senhaHash:"no-login"
  }});
  await prisma.cliente.create({data:{id:client,organizacaoId:org,nome:"Cliente CI Fiscal"}});
+ const especie=await prisma.especie.create({data:{organizacaoId:org,nome:"Espécie fiscal CI"}});
+ const pet=await prisma.pet.create({data:{id:id("pet"),clienteId:client,especieId:especie.id,nome:"Pet fiscal CI"}});
  await prisma.empresa.createMany({data:[
   {id:co1,organizacaoId:org,tipo:"LOJA_CONSULTORIO",razaoSocial:"Empresa 1 CI",
    nomeFantasia:"Loja 1",cnpj:"34567890123456",estado:"BA",cidade:"Salvador"},
@@ -98,8 +100,8 @@ test("M.4C issuer, mixed product/service, multiunit CNPJ, permissions, fail-clos
  const args={organizacaoId:org,usuarioId:actor,empresaId:co1,
   clienteId:client,itens:[
    {empresaId:co1,itemCatalogoId:itemProduct,quantidade:1},
-   {empresaId:co1,itemCatalogoId:itemService,quantidade:1},
-   {empresaId:co2,itemCatalogoId:itemAnother,quantidade:1}
+   {empresaId:co1,itemCatalogoId:itemService,quantidade:1,petId:pet.id},
+   {empresaId:co2,itemCatalogoId:itemAnother,quantidade:1,petId:pet.id}
   ]};
  const draft=await salvarRascunho(args);
  const inp={organizacaoId:org,usuarioId:actor,empresaId:co1,

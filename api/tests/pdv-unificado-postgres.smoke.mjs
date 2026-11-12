@@ -23,12 +23,15 @@ try{
  assert.equal(config.rows[0].pdvUnificadoHabilitado,false);
  const cli=await db.query('INSERT INTO "clientes" ("id","organizacaoId","nome","createdAt","updatedAt") VALUES ($1,$2,$3,NOW(),NOW()) RETURNING id',["test-tutor",org,"Tutor CI"]);
  assert.equal(cli.rows[0].id,"test-tutor");
- const first=await db.query('INSERT INTO "comandas" ("id","clienteId","createdAt","updatedAt") VALUES ($1,$2,NOW(),NOW()) RETURNING "rascunhoUnificado","versaoRascunho"',['test-old-comanda','test-tutor']);
+ const first=await db.query('INSERT INTO "comandas" ("id","organizacaoId","clienteId","createdAt","updatedAt") VALUES ($1,$3,$2,NOW(),NOW()) RETURNING "rascunhoUnificado","versaoRascunho"',['test-old-comanda','test-tutor',org]);
  assert.equal(first.rows[0].rascunhoUnificado,false);
  assert.equal(first.rows[0].versaoRascunho,1);
- const second=await db.query('INSERT INTO "comandas" ("id","clienteId","rascunhoUnificado","createdAt","updatedAt") VALUES ($1,$2,TRUE,NOW(),NOW()) RETURNING "rascunhoUnificado","versaoRascunho"',['test-new-comanda','test-tutor']);
+ const second=await db.query('INSERT INTO "comandas" ("id","organizacaoId","clienteId","rascunhoUnificado","createdAt","updatedAt") VALUES ($1,$3,$2,TRUE,NOW(),NOW()) RETURNING "rascunhoUnificado","versaoRascunho"',['test-new-comanda','test-tutor',org]);
  assert.equal(second.rows[0].rascunhoUnificado,true);
  assert.equal(second.rows[0].versaoRascunho,1);
+ const anonymous=await db.query('INSERT INTO "comandas" ("id","organizacaoId","clienteId","createdAt","updatedAt") VALUES ($1,$2,NULL,NOW(),NOW()) RETURNING "clienteId","organizacaoId"',["test-anonymous",org]);
+ assert.equal(anonymous.rows[0].clienteId,null,"Produtos podem abrir comanda sem tutor");
+ assert.equal(anonymous.rows[0].organizacaoId,org,"A comanda nunca pode existir sem organização");
  const updated=await db.query('UPDATE "comandas" SET "versaoRascunho"="versaoRascunho"+1 WHERE id=$1 AND "versaoRascunho"=$2 RETURNING "versaoRascunho"',['test-new-comanda',1]);
  assert.equal(updated.rows[0].versaoRascunho,2);
  const stale=await db.query('UPDATE "comandas" SET "versaoRascunho"="versaoRascunho"+1 WHERE id=$1 AND "versaoRascunho"=$2 RETURNING id',['test-new-comanda',1]);

@@ -32,16 +32,20 @@ test("company switch preserves unified workspace only inside the same authorized
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",{...allowed,permissoes:[]}),false);
  assert.equal(keepUnifiedPdvRouteOnCompanyChange(path,"org-a",null),false);
  const layout=readFileSync(new URL("../src/layout/AppLayout.jsx",import.meta.url),"utf8");
- assert.match(layout,/keepUnifiedPdvRouteOnCompanyChange\(location\.pathname, selectedOrganization\?\.id, nextCompany, organizationConfig\.pdvUnificadoHabilitado === true\)/);
+ assert.match(layout,/keepUnifiedPdvRouteOnCompanyChange\(location\.pathname, selectedOrganization\?\.id, nextCompany,/);
+ assert.match(layout,/const sameOrganization = Boolean\(selectedOrganization\?\.id\)/);
+ assert.match(layout,/const routeAllowed = route &&/);
+ assert.match(layout,/nextCompany\.permissoes\?\.includes\(route\.permission\)/);
+ assert.match(layout,/!route\.companyTypes \|\| route\.companyTypes\.includes\(nextCompany\.tipo\)/);
  assert.match(layout,/if \(!keepWorkspace\) navigate\("\/"\)/);
 });
 
 test("operator search clears stale tutor selection; reservation prevents editing it",()=>{
  const page=readFileSync(new URL("../src/pages/UnifiedPdvPreviewPage.jsx",import.meta.url),"utf8");
- assert.match(page,/function UnifiedPdvWorkspace\(\)/);
+ assert.match(page,/function UnifiedPdvWorkspace\(\{openDraftId,initialClientId,initialPetId\}\)/);
  assert.match(page,/key=\{selectedOrganization\?\.id\|\|"sem-organizacao"\}/);
  assert.ok(page.includes('setClientSearch(value);setClientId("");setSelectedClient(null)'));
- assert.match(page,/setSelectedClient\(saved\.cliente\)/);
+ assert.match(page,/setSelectedClient\(saved\.cliente\|\|null\)/);
  assert.ok(page.includes('setClientSearch(value);setClientId("");setSelectedClient(null)'));
  assert.match(page,/search=\{clientSearch\} onSearch=\{value=>/);
  assert.match(page,/value=\{clientId\} disabled=\{isReserved\}/);

@@ -60,7 +60,7 @@ export async function criarVendasFilhasEmTransacao(tx,{
  contextoExecucao="CI"
 }){
   await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
-  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+  const draft=await tx.comanda.findFirst({where:{id,rascunhoUnificado:true,organizacaoId},
    select:{id:true,clienteId:true,versaoRascunho:true,status:true}});
   if(!draft)throw Error("RASCUNHO_NAO_ENCONTRADO");
   if(draft.versaoRascunho!==versao||draft.status!=="ABERTA")throw Error("RASCUNHO_DESATUALIZADO");

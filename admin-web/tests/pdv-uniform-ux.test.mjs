@@ -35,7 +35,9 @@ test("o modo inteligente não permite desconto global fictício nem fechamento p
  assert.match(shared,/lockedDiscount=!canDiscount\|\|typeof onDiscountChange/);
  assert.match(shared,/lockedAddition=typeof onAdditionChange/);
  assert.match(intelligent,/discount=\{0\} addition=\{0\} canDiscount=\{false\}/);
- assert.match(intelligent,/<PdvCheckoutButton[\s\S]*?disabled=\{true\} reason=/);
+ assert.match(intelligent,/<PdvCheckoutButton[\s\S]*?disabled=\{!canContinue\}/);
+ assert.match(intelligent,/label=\{checkoutActionLabel\}/);
+ assert.match(intelligent,/onClick=\{continueCheckout\}/);
  assert.match(intelligent,/checkoutEnabled=\{manualCheckoutEnabled\}/);
  assert.match(intelligent,/<UnifiedAllocationConference/);
  assert.match(intelligent,/\/fechar-manual/);
@@ -51,7 +53,9 @@ test("mesmos campos de pagamentos sem simular recebimento real",()=>{
  assert.match(shared,/export function PdvPaymentPending/);
  assert.match(shared,/aria-label="Forma de pagamento indisponível" disabled/);
  assert.match(shared,/aria-label="Valor do pagamento indisponível" value="0" readOnly disabled/);
- assert.match(intelligent,/<PdvPaymentPending message=/);
+ assert.match(intelligent,/className="pdv-payment-pending"/);
+ assert.match(intelligent,/Para registrar os recebimentos, salve a comanda e reserve/);
+ assert.doesNotMatch(intelligent,/<PdvPaymentPending message=/);
  assert.match(intelligent,/Salvar rascunho/);
  assert.match(intelligent,/Validar e calcular sem cobrar/);
  assert.match(individual,/<PaymentEditor payments=\{payments\}/);
