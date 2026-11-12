@@ -40,7 +40,7 @@ function toResult(registro,reutilizada){
 async function guardarEscopo(tx,{organizacaoId,usuarioId,empresaId,id,versao}){
  await tx.$queryRaw`SELECT "id" FROM "comandas" WHERE "id"=${id} FOR UPDATE`;
  const comanda=await tx.comanda.findFirst({
-  where:{id,rascunhoUnificado:true,cliente:{organizacaoId}},
+  where:{id,rascunhoUnificado:true,organizacaoId},
   select:{id:true,clienteId:true,versaoRascunho:true,status:true}
  });
  if(!comanda)throw Error("RASCUNHO_NAO_ENCONTRADO");
