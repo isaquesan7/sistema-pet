@@ -215,6 +215,15 @@ export default function PdvPage() {
   const [individualFallback,setIndividualFallback]=useState(false);
   const showIntelligentSale=intelligentPreference&&!(individualFallback&&!intelligentCheckoutEnabled);
   const [tab, setTab] = useState("COMANDAS");
+  // Diagnóstico de S1 fica acessível da central, sem abrir venda/rascunho.
+  const [pilotReadinessOpen,setPilotReadinessOpen]=useState(false);
+  const pilotReadinessQuery=useQuery({
+    queryKey:["pdv-pilot-readiness",selectedOrganization?.id,selectedCompany?.id],
+    enabled:pilotReadinessOpen&&Boolean(selectedOrganization?.id&&selectedCompany?.id),
+    queryFn:async()=>(await api.get("/pdv-unificado/prontidao-piloto")).data.dados,
+    retry:false,
+  });
+
   const [itemSearch, setItemSearch] = useState("");
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
@@ -610,7 +619,49 @@ export default function PdvPage() {
         {[ ["COMANDAS", WalletCards, "Comandas e ordens"], ["PACOTES", PackageOpen, "Receber pacotes"], ["CAIXA", Store, "Caixa"], ["HISTORICO", ReceiptText, "Histórico"] ].map(([value, Icon, label]) => (
           <button className={tab === value ? "active" : ""} aria-pressed={tab === value} type="button" onClick={() => setTab(value)} key={value}><Icon size={15} /> {label}</button>
         ))}
+        <button type="button" className={pilotReadinessOpen?"active":""}
+          aria-expanded={pilotReadinessOpen} aria-controls="pdv-pilot-readiness"
+          onClick={()=>setPilotReadinessOpen(v=>!v)}>
+          <ClipboardList size={15}/> Verificar piloto do PDV
+        </button>
       </nav>
+
+      {pilotReadinessOpen&&<section id="pdv-pilot-readiness" className="panel pdv-pilot-readiness"
+        aria-label="Pré-requisitos do piloto do PDV unificado" style={{padding:20}}>
+        <div className="panel__heading">
+          <div><h2>Pré-requisitos do piloto — somente consulta</h2>
+           <p>Veja os caixas, responsáveis e autorizações das empresas antes do fechamento conjunto.</p></div>
+          <button type="button" className="ghost-button" disabled={pilotReadinessQuery.isFetching}
+           onClick={()=>pilotReadinessQuery.refetch()}>Atualizar diagnóstico</button>
+        </div>
+        {pilotReadinessQuery.isPending&&<p role="status">Consultando os CNPJs autorizados...</p>}
+        {pilotReadinessQuery.isError&&<InlineNotice tone="error">
+          Não foi possível consultar o diagnóstico. Confira sua permissão de PDV e tente novamente.
+        </InlineNotice>}
+        {pilotReadinessQuery.data&&<>
+          <p>{pilotReadinessQuery.data.condicoesTecnicasAtendidas
+            ?"Requisitos técnicos atendidos. O piloto ainda requer autorização operacional."
+            :"Existem condições pendentes para o fechamento conjunto."}</p>
+          <ul>{pilotReadinessQuery.data.empresas.map(e=><li key={e.id}>
+            <strong>{e.nomeFantasia}</strong>: {e.caixasAbertos} caixa(s) aberto(s);
+            supervisor de estorno: {e.supervisorParaEstorno?"sim":"não"};
+            checkout: {e.checkoutHabilitado?"autorizado":"bloqueado"}
+          </li>)}</ul>
+          {pilotReadinessQuery.data.pendencias.length>0&&
+           <div><strong>Pendências</strong>
+            <ul>{pilotReadinessQuery.data.pendencias.map(p=><li key={p}>{({
+              PREFERENCIA_UNIFICADA_DESATIVADA:"Ativar o PDV Unificado Inteligente na organização.",
+              MENOS_DE_DOIS_CNPJS_ATIVOS:"A organização precisa de pelo menos dois CNPJs ativos.",
+              ACESSO_INCOMPLETO_AOS_CNPJS:"O operador precisa de acesso ao PDV nos dois CNPJs.",
+              CAIXA_NAO_ABERTO_EM_TODOS_CNPJS:"Abrir uma sessão de caixa em cada CNPJ.",
+              SUPERVISOR_ESTORNO_AUSENTE:"Falta um supervisor com permissão de estorno em algum CNPJ.",
+              ALLOWLIST_EMPRESA_INCOMPLETA:"Autorização das empresas ainda incompleta no servidor.",
+              CHECKOUT_MANUAL_DESATIVADO:"Fechamento conjunto ainda bloqueado no servidor.",
+            })[p]||p}</li>)}</ul>
+           </div>}
+          <small>Esta consulta não efetua vendas ou alterações. A autorização será revalidada no fechamento.</small>
+        </>}
+      </section>}
 
       {tab === "VENDA" && <button type="button" className="ghost-button pdv-order-back" onClick={()=>{setTab("COMANDAS");setUnifiedDraftToOpen(null);setUnifiedInitialClient(null);setUnifiedInitialPet(null);invalidatePdv();}}>← Voltar às comandas</button>}
       {tab === "VENDA" ? unifiedStatus.isPending ? (
