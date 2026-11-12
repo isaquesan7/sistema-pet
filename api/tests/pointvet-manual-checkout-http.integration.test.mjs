@@ -115,7 +115,7 @@ test("checkout/estorno manual HTTP: dois CNPJs, 333 g, pagamentos mistos, replay
   const response=await fetch(base+path,{method,redirect:"manual",signal:AbortSignal.timeout(12000),
    headers:{authorization:"Bearer "+token,"x-empresa-id":selectedCompany,accept:"application/json",
     ...(method==="POST"?{"content-type":"application/json"}:{})},
-   ...(method==="POST"?{body:JSON.stringify(body)}:{})});
+   ...(method==="POST"?{body:JSON.stringify(body??{})}:{})});
   const result=await response.json();
   assert.equal(response.status,status,`${method} ${path}: ${JSON.stringify(result)}`);
   assert.equal(result.success,status===200||status===201);
