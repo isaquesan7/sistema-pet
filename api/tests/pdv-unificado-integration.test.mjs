@@ -2861,8 +2861,8 @@ test("cross-company saving respects prices, access, rollback and version",async(
   }});
   return {item,produto,lote};
  };
- const prepararUmGrama=async(itemId,sessaoCaixaId)=>{
-  const saleArgs={...args,itens:[{empresaId:ids.co1,itemCatalogoId:itemId,
+ const prepararUmGrama=async(itemId,sessaoCaixaId,clienteId=ids.client)=>{
+  const saleArgs={...args,clienteId,itens:[{empresaId:ids.co1,itemCatalogoId:itemId,
    quantidade:0.001}]};
   assert.equal((await simularComanda(saleArgs)).total,"0.01");
   const draft=await salvarRascunho(saleArgs);
@@ -2896,6 +2896,38 @@ test("cross-company saving respects prices, access, rollback and version",async(
   await guard;
   return pending;
  };
+
+
+ // S0 / Issue #39 (11/11): produto sem tutor deve atravessar TODAS as
+ // etapas, incluindo preparo, venda e estorno, com escopo por organizacaoId.
+ // Este teste usa exclusivamente o banco PostgreSQL descartavel do CI.
+ const produtoSemTutor=await produtoCorrida("RACAO_SEM_TUTOR_",1);
+ const contextoSemTutor=await prepararUmGrama(produtoSemTutor.item.id,session1.id,null);
+ assert.equal((await prisma.comanda.findUnique({where:{id:contextoSemTutor.id}})).clienteId,null);
+ const vendaSemTutor=await efetivarRecebimentosManuaisSomenteSandbox(contextoSemTutor);
+ assert.equal(vendaSemTutor.estoqueMovimentado,true,
+  "Venda anonima deve baixar o produto uma unica vez");
+ const registroVendaSemTutor=await prisma.venda.findFirst({
+  where:{comandaId:contextoSemTutor.id,empresaId:ids.co1}
+ });
+ assert.ok(registroVendaSemTutor,"Venda sem tutor deve ser registrada no CNPJ correto");
+ assert.equal(registroVendaSemTutor.clienteId,null);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:produtoSemTutor.produto.id}
+ })).quantidade),0);
+ const cancelamentoSemTutor=await estornarFechamentoManualSomenteSandbox({
+  ...contextoSemTutor,dados:{
+   motivo:"Cancelamento de teste em venda de produto sem tutor",
+   confirmouDevolucaoExterna:true,referenciaExterna:"SEM_TUTOR_CI_"+suffix
+  }
+ });
+ assert.equal(cancelamentoSemTutor.reutilizada,false);
+ assert.equal(Number((await prisma.estoqueSaldo.findUnique({
+  where:{produtoId:produtoSemTutor.produto.id}
+ })).quantidade),0.001,"Estorno deve devolver o estoque ao CNPJ correto");
+ assert.equal((await prisma.venda.findUnique({
+  where:{id:registroVendaSemTutor.id}
+ })).status,"ESTORNADA");
 
  // Com 2 g e duas vendas de 1 g, AMBAS precisam concluir; conflito P2034
  // só pode repetir uma transação que já foi integralmente revertida.
